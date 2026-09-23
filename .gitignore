@@ -1,0 +1,23 @@
+﻿# ---- 构建产物 ----
+injected_dll/build_msvc/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+
+# ---- Python ----
+__pycache__/
+*.pyc
+
+# ---- 运行时产物（计划任务用） ----
+input.txt
+input.out
+*.err
+*.out
+screen.png
+screen.txt
+sync.zip
+_sync.zip
