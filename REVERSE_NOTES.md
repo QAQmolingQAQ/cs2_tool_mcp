@@ -3065,6 +3065,147 @@ DMX 属性 children 元素数 = 636
 子树规模（实体/mesh/其他计数）、`children` 计数前后、`GetParent` 前后、是否仍在属性里，
 并显式提示「不产生 Undo 历史 / 元素成孤儿」。
 
+### 15.10 ⭐⭐⭐ 把操作写进 Hammer 的撤销历史（`CMapDocHistory` 记录型接口）（2026-09-27）
+
+用户问「创建和删除怎么加历史」。结论：**Hammer 的历史栈是「记录型」的，当成可写接口用即可，
+不需要自己实现 Undo/Redo**。
+
+#### 15.10.1 两套撤销系统（成对实测）
+
+* **栈 A = `CMapDocHistory`**（`CMapRootElement+0x240` 撤销 / `+0x248` 重做）—— **Hammer 的 Ctrl+Z**
+* **栈 B = DMX `CUndoManager`**（`g_CDataModel+240`）—— `_undo_scope_*` 那套，属性级
+
+一次 create + 一次 delete 的成对测量：
+
+| 时点 | 栈 A undo / redo | 栈 B |
+|---|---|---|
+| 基线 | **27 / 0** | 1190910 |
+| `cs2_entity_create` 之后 | **27 / 0**（不动） | 1190928（+18） |
+| `cs2_entity_delete` 之后 | **27 / 0**（不动） | 1190929（+1） |
+| `cs2_entity_set_attr`（孤儿）之后 | 27 / 0 | 1190929 |
+
+→ 这就是「删了但没历史」的根因：我们的操作只进栈 B，而 Ctrl+Z 读的是栈 A。
+（另注：栈 B 的 `+0` 是**单调计数器**而非栈深度，取值 119 万级。）
+
+#### 15.10.2 栈 A 的数据结构（活体 dump + 反编译逐行对齐）
+
+**步对象 192B**（`sub_181529290` 内 `sub_1803D4300(192)` 分配）：
+
+```
++0x00 u32 命令数      +0x04 (未初始化残留)  +0x08 ptr 命令数组
++0x10 u32 容量        +0x14 u32 flags       +0x18 ptr 所属 CMapDocHistory（回指）
++0x20 u32 步ID（dword_18221A41C 递增）      +0x24 char name[128]   ← Ctrl+Z 菜单显示的那串
++0xA4 byte            +0xA8 CUtlString       +0xB0 16B 结构（合计 192 = 0xC0）
+```
+
+**命令包装 80B**（`sub_1815282C0` 构造）：
+
+```
++0x00 byte state | +0x04 int kind
+kind=0 → 动作对象 @+0x08（另：+0x10 = obj->vfn0()、+0x18 = obj->vfn64()、+0x20 = obj->vfn80()）
+kind=1 → 动作对象 @+0x28（另：+0x30 = obj->vfn64()、+0x38 = obj->vfn80()）
+kind=2 → 动作对象 @+0x40
+```
+
+活体 dump 出的真实步（撤销栈，节选）+ vtable RVA 反查类名：
+
+```
+[ 2] name='New Entity'        命令=2 → [CSelection备份, kind2=CMapEntity]
+[ 3] name='Delete Selection'  命令=3 → [CSelection备份, CVisibilityMgr备份, kind1=CMapEntity]
+[ 4] name='Modify Selection'  命令=1 → [CSelection备份]
+```
+
+`0x1765548`=`CSelection` · `0x17654E0`=`CSelectionStateBackup` · `0x177EC900`=`CVisibilityMgr`
+· `0x1759598`=`??_7CMapEntity@@6B@_0`（副虚表，即 `元素+0xC8` 的那个）
+
+#### 15.10.3 记录 API（可直接调用，全部已静态校验）
+
+| RVA | 函数 | 作用 |
+|---|---|---|
+| `0x1529290` | `sub_181529290(hist, name, 0, 0)` | 压入一个**具名步**（裸版） |
+| `0x1529240` | `sub_181529240(hist, name, extra)` | 同上 + 通知（内带 `+145` 重入锁 / `+148` 忙判定） |
+| `0x15290B0` | `sub_1815290B0(hist, node)` | 记录**「对象被新增」**（kind=2） |
+| `0x1528EC0` | `sub_181528EC0(hist, node)` | 记录**「对象被移除」**（kind=1，另存 `node->vfn64()`=父 到 +0x30） |
+| `0x1528D70` | `sub_181528D70(hist, obj)` | 记录通用命令（kind=0，靠 `obj->vfn56()` 作闸门） |
+| `0x1529700` | `sub_181529700(hist, code)` | 通知监听者（`hist+1176` 计数 / `+1184` 数组，逐对象 `vfn0(code)`） |
+
+⚠ **`node` 必须传 `元素 + 0xC8`** —— 那是 `CMapNode` 接口子对象（实测其 vtable =
+`??_7CMapEntity@@6B@_0` / `??_7CMapWorld@@6B@_0`），**不是元素本身**。
+
+这批能力也以**虚函数**形式挂在 `CMapDocHistory` 虚表（RVA `0x1763E00`）上 —— **这才是
+"工具间交互的桥"**（`CMapEntity` / `CMapWorld` / `CMapMesh` 等 100+ 个类都实现了这些槽）：
+
+```
+槽 +0x08 (sub_18086DD50) → sub_181528EC0   记录「对象被移除」
+槽 +0x10 (sub_18086E2B0) → 另一接口方法
+内部 helper sub_18086DF10 / sub_18086E030 → sub_1815290B0   记录「对象被新增」
+           sub_18086E1A0 → sub_181529240   压入具名步
+```
+
+#### 15.10.4 ⭐ 撤销/重做自洽 —— 不必自己实现
+
+`sub_181529D20(wrap, pairHist)`（Pop 里逐条应用反操作）反编译：
+
+```
+kind=0 → obj->vfn8(保存值) + obj->vfn40(0) + …
+kind=1 → obj->vfn72(保存的父节点) ; sub_1815290B0(pairHist, obj)   // 撤销「移除」= 挂回 + 往重做栈记「新增」
+kind=2 → pairHist->vfn1(obj)     ; obj->vfn72(0)                    // 撤销「新增」= 往重做栈记「移除」+ 摘下
+```
+
+即 **kind1 / kind2 互为逆操作，且会自动往配对栈写反向记录**。我们只需「记录」。
+
+#### 15.10.5 ⚠ 顺序陷阱（实测，最容易踩）
+
+记录函数会调 `obj->vfn64()` 存进包装 `+0x30`，撤销 kind1 时用它 `vfn72(父)` 挂回去。
+实测 `vfn64(元素+0xC8)` = **父节点（接口形式）**，且**摘除后立刻归 0**：
+
+```
+摘除前  vfn64 = 0x549584880c8   (= world + 0xC8)
+摘除后  vfn64 = 0x0             ← 父指针已清空
+```
+
+→ **删除必须「先记录、后摘除」**。这也解释了 Hammer 自己那步 `'Delete Selection'` 的包装
+`+0x30` 为何是有效的 `world+0xC8`。
+
+正确顺序：
+
+* **创建**：`PushStep → 建元素/挂世界 → RecAdded → Notify`
+* **删除**：`PushStep → RecRemoved → 摘除 → Notify`
+  （记录器是追加到**栈顶步**的，所以必须先压步；没有步它会自己建一个**无名**步。）
+
+#### 15.10.6 前置条件（实测均已满足，无需额外准备）
+
+| 条件 | 实测 |
+|---|---|
+| 全局闸门 `hammer+0x221A418` | **1** |
+| `hist+144` enabled | **1** |
+| `hist+140` busy | 0 |
+| 步ID计数器 `hammer+0x221A41C` | 60 |
+
+#### 15.10.7 仍未打通
+
+* **属性修改**（`cs2_entity_set_attr`）走 DMX 属性级（栈 B）。Hammer 的 `'Modify Selection'`
+  步里**只有 `CSelectionStateBackup` 一条命令**，说明属性改动「如何被绑进这一步」尚未查清 ——
+  故本轮方案只覆盖**创建 / 删除**。
+* 元素**不能真销毁**：撤销靠元素 id 复原（kind1 撤销 = `vfn72(父)` 把同一元素挂回 + 往配对栈记
+  `RecAdded`），所以现在的「留成孤儿」语义**正是撤销的前提**。
+
+#### 15.10.8 🐛 孤儿副作用（用户实测反馈，2026-09-27）
+
+早先被 `vfn0x1D0` 摘除的 `mcp_place_test`（`0x5499e364400`，handle=10）现场：
+
+```
+元素 name='mcp_place_test'  classname='info_target'  targetname='mcp_place_test'
+GetParent=0x0   node+0xC8 的 vfn64=0x0   世界树可达=False   cs2_entity_get_io 仍可正常读
+```
+
+现象：**Hammer 里「看得到、选不中、打不开 I/O」**。任何**枚举 DMX 元素**的列表（按名字的
+target 下拉、Entity Report 之类）仍会列出它；但凡走**世界树**的路径（地图视图选中、I/O 面板、
+`cs2_entity_list`）都到不了它 —— 选不中，自然也就没有 I/O 面板。
+
+根因：**纯摘除（`vfn0x1D0`）不改 Hammer 的名字/选择索引**。根治方向 = 改走 15.10.3 的记录型删除
+（Hammer 自己的删除路径会顺带把这些索引收拾干净）。
+
 
 
 
