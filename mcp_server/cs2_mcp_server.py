@@ -1440,6 +1440,16 @@ def _dm_handle_element(handle: int, table: list[int] | None = None,
     return table[idx] if idx < cap else 0
 
 
+def _dm_handle_map(table: list[int] | None = None, cap: int = 0) -> dict[int, int]:
+    """元素地址 -> 句柄（= 元素表下标）。纯本地换算，无 IPC。
+
+    走 `_walk_elements` 只拿到元素地址，而工具输出里的 `h=` 是句柄，需要反查。
+    """
+    if table is None:
+        table, cap = _dm_table()
+    return {el: i for i, el in enumerate(table) if el}
+
+
 def _walk_elements(root: int, table: list[int] | None = None, cap: int = 0):
     """从 CMapWorld 递归产出全部场景元素 -> (CDmElement*, vtable)。
 
@@ -1714,19 +1724,26 @@ def _dm_attr_element(element: int, name: str) -> int:
     return _resolve_handle(handle)
 
 
-def _enum_elements(limit: int = 8192):
-    """枚举 datamodel 元素表（dm+0x90，16 字节一项，句柄=下标）-> (handle, element, vtable)。
+def _enum_elements(limit: int = 0, table: list[int] | None = None, cap: int = 0):
+    """枚举 datamodel 元素表 -> (handle, element, vtable)。句柄 = 表下标。
 
-    比走世界树可靠：能看到不在 children 树里的元素（如我们新建的）。
+    ⚠ **旧版默认 `limit=8192` 配合 `min(cap, limit)` 会静默截断大图的表**：
+    ze_surf_easy 实测 `cap=97,102` / 非零 12,958，只扫到 8.4% —— 于是
+    `cs2_mesh_list` 少报（338 vs 实际 4124）、`cs2_area_query` 漏掉 handle≥8192 的对象。
+    现在 `limit<=0`（默认）表示**扫全表**。
+
+    表数据走 `_dm_table()` 批量读（97k 项 ≈ 190 次块读，0.3s），只对非零项读一次 vtable。
+    代价：每个非零项 1 次 `read_value`（大图约 1.3 万次）。
+    **列举地图对象请优先用 `_walk_elements`** —— 它只访问场景内的元素，且顺带拿到
+    vtable（不再多读一次），大图上便宜得多。本函数的价值在于「能看到不在 children
+    树里的元素」（如刚新建、尚未挂进世界的），做诊断时用它。
     """
+    if table is None:
+        table, cap = _dm_table()
+    n = cap if limit <= 0 else min(cap, limit)
     base = _hammer_base()
-    dm = base + RVA_CDATAMODEL_GLOBAL
-    arr = _read_int(dm + 0x90, "u64")
-    cap = _read_int(dm + 0x88, "u32")
-    if not arr:
-        return
-    for i in range(min(cap, limit)):
-        el = _read_int(arr + 16 * i + 8, "u64")
+    for i in range(n):
+        el = table[i]
         if not el or el < 0x10000 or el > 0x7FFFFFFFFFFF:
             continue
         try:
@@ -3068,52 +3085,57 @@ def cs2_area_query(min: str = "", max: str = "", kinds: str = "mesh,trigger,poin
     except ConnectionError as e:
         return f"ERROR 管道未连接: {e}"
 
-    # ---- mesh：先按 AABB 粗筛（每次 1 次读），命中才读顶点数/面数/材质 ----
-    mesh_hits: list[tuple[int, int]] = []
-    mesh_total = 0
-    for h, el, vt in _enum_elements():
-        if vt != vt_mesh:
-            continue
-        mesh_total += 1
-        if "mesh" not in want and "trigger" not in want:
-            continue
-        poly = _poly_ready(el)
-        if not poly:
-            continue
-        try:
-            box = _mesh_world_box(el, poly)[0]
-        except Exception:  # noqa: BLE001
-            continue
-        if box and _box_hits(box, qmin, qmax):
-            mesh_hits.append((h, el))
-
-    # ---- 实体：先按 origin 粗筛，命中才查类名/目标名 ----
-    ent_hits: list[tuple[str, int, str, str, tuple[float, float, float]]] = []
-    ent_total = 0
+    # ---- 一趟走完世界树，同时收 mesh 与实体 ----
+    # （旧版先扫一遍元素表找 mesh、再走一遍树找实体：既重复劳动，又因 `_enum_elements`
+    #   的 8192 截断而漏掉 handle≥8192 的对象。走树时 vtable 顺带就有，不用额外读。）
     world = _read_int(_map_doc() + CMAPDOC_WORLD_OFFSET, "u64")
-    for el, vt in _walk_elements(world):
-        ent_total += 1
-        if ent_total > 200000:
+    if not world:
+        return "ERROR CMapDoc 里没有 CMapWorld（地图可能还没加载完）"
+    table, cap = _dm_table()
+    handle_of = _dm_handle_map(table, cap)
+    want_mesh = bool({"mesh", "trigger"} & want)
+
+    mesh_hits: list[tuple[int, int]] = []
+    ent_hits: list[tuple[str, int, str, str, tuple[float, float, float]]] = []
+    mesh_total = ent_total = 0
+    seen = 0
+    for el, vt in _walk_elements(world, table, cap):
+        seen += 1
+        if seen > 200000:
             break
-        if vt != vt_ent:
-            continue
-        try:
-            origin = _read_vec3(el + ENTITY_OFF_ORIGIN)
-        except Exception:  # noqa: BLE001
-            continue
-        if not _point_hits(origin, qmin, qmax):
-            continue
-        try:
-            attrs = _entity_get_attrs(el, ("classname", ENTITY_TARGETNAME_ATTR))
-        except Exception:  # noqa: BLE001
-            attrs = {}
-        cls = attrs.get("classname") or "?"
-        kind = ("trigger" if cls.startswith("trigger")
-                else "brush" if cls.startswith("func_") else "point")
-        if kind not in want:
-            continue
-        tname = attrs.get(ENTITY_TARGETNAME_ATTR) or ""
-        ent_hits.append((kind, el, cls, tname, origin))
+        if vt == vt_mesh:
+            mesh_total += 1
+            if not want_mesh:
+                continue
+            poly = _poly_ready(el)
+            if not poly:
+                continue
+            try:
+                box = _mesh_world_box(el, poly)[0]
+            except Exception:  # noqa: BLE001
+                continue
+            if box and _box_hits(box, qmin, qmax):
+                mesh_hits.append((handle_of.get(el, -1), el))
+        elif vt == vt_ent:
+            # 实体：先按 origin 粗筛，命中才查类名/目标名
+            ent_total += 1
+            try:
+                origin = _read_vec3(el + ENTITY_OFF_ORIGIN)
+            except Exception:  # noqa: BLE001
+                continue
+            if not _point_hits(origin, qmin, qmax):
+                continue
+            try:
+                attrs = _entity_get_attrs(el, ("classname", ENTITY_TARGETNAME_ATTR))
+            except Exception:  # noqa: BLE001
+                attrs = {}
+            cls = attrs.get("classname") or "?"
+            kind = ("trigger" if cls.startswith("trigger")
+                    else "brush" if cls.startswith("func_") else "point")
+            if kind not in want:
+                continue
+            tname = attrs.get(ENTITY_TARGETNAME_ATTR) or ""
+            ent_hits.append((kind, el, cls, tname, origin))
 
     head = ("范围 (%s) ~ (%s)  命中: mesh %d/%d  实体 %d/%d（按 %s 过滤）"
             % ("%.1f,%.1f,%.1f" % qmin, "%.1f,%.1f,%.1f" % qmax,
@@ -3161,8 +3183,10 @@ def cs2_area_query(min: str = "", max: str = "", kinds: str = "mesh,trigger,poin
 def cs2_mesh_list(limit: int = 100) -> str:
     """列出地图里的 CMapMesh（Hammer 手绘网格 / 贴花 overlay）。
 
-    走 datamodel 元素表（dm+0x90）按主虚表筛 `CMapMesh`（RVA 0x176B8E0），
-    比走世界树可靠。坐标同样读 `+0xA0`（CMapMesh 也派生自 MapNode，待有 mesh 时核对）。
+    走**世界树**（`_walk_elements`）按主虚表筛 `CMapMesh`（RVA 0x176B8E0）。
+    旧版走 `_enum_elements`（元素表），会被它的 8192 截断坑到 —— ze_surf_easy
+    实测只报 338 个，实际有 4124 个。走树只访问场景内元素且 vtable 顺带就有。
+    坐标同样读 `+0xA0`（CMapMesh 也派生自 MapNode）。
 
     Args:
         limit: 最多返回多少条。
@@ -3170,16 +3194,22 @@ def cs2_mesh_list(limit: int = 100) -> str:
     try:
         base = _hammer_base()
         vt_mesh = base + RVA_CMAPMESH_VTABLE
-        rows = [(h, el) for h, el, vt in _enum_elements() if vt == vt_mesh]
+        doc = _map_doc()
+        world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
+        if not world:
+            return "ERROR CMapDoc 里没有 CMapWorld（地图可能还没加载完）"
+        table, cap = _dm_table()
+        handle_of = _dm_handle_map(table, cap)
+        rows = [(handle_of.get(el, -1), el)
+                for el, vt in _walk_elements(world, table, cap) if vt == vt_mesh]
     except ConnectionError as e:
         return f"ERROR 管道未连接: {e}"
     except Exception as e:  # noqa: BLE001
         return f"ERROR {type(e).__name__}: {e}"
 
     if not rows:
-        return "地图里没有 CMapMesh（当前测试地图确实没有：需要一个含 mesh 的地图来验证）"
+        return "地图里没有 CMapMesh（该图没有手绘网格 / 贴花）"
     lines = [f"CMapMesh 数: {len(rows)}"]
-    base = _hammer_base()
     for h, el in rows[:limit]:
         try:
             origin = _read_vec3(el + ENTITY_OFF_ORIGIN)

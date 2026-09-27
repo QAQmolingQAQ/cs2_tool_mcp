@@ -2774,8 +2774,89 @@ call_virtual(this=ent, 2144, ["not_a_module_expr", 0, 0]) -> arg_count=3   （�
 #### 15.6.4 回归验证
 
 `cs2_entity_get_attr` / `cs2_entity_get_transform` / `cs2_entity_find_attr` / `cs2_map_info` /
-`cs2_area_query` / `cs2_mesh_list` 全部正常（`area_query` 同时受益：它的实体段同样走
+`cs2_area_query` / `cs2_mesh_list` 全部正常（`area_query` 同时受益：它的实体段也走
 元素表 + 批量属性读）。
+
+---
+
+### 15.7 ⭐⭐ 大图实测（`ze_surf_easy`）+ `_enum_elements` 静默截断 bug（2026-09-27）
+
+拿一张真实反编译的 ZE 图（`content/csgo_addons/ze_surf_easy/maps/ze_surf_easy.vmap`）压测，
+暴露出一个**会漏对象**的真 bug。
+
+#### 15.7.1 元素表规模事实（与 264 元素的小测试图完全不同的量级）
+
+| 项 | ze_surf_easy | 小测试图 `cs_script_demo` |
+|---|---|---|
+| `dm+0x88` cap（表容量） | **97,102** | 2,130 |
+| 表内非零项 | **12,958** | ~264 |
+| 场景元素（走世界树） | 8,546 | 264 |
+
+表内类型分布（vtable → 类名，类名由 IDA 按 RVA 查符号得到）：
+
+| RVA | 类 | 个数 |
+|---|---|---|
+| `0x1758d00` | `CMapEntity` | 4,403 |
+| **`0x175e2b8`** | **`CEditGameClassProps`** | 4,404 |
+| `0x176b8e0` | `CMapMesh` | **4,124** |
+| `0x176c3e0` | `CMapStaticOverlay` | 13 |
+| `0x178b4a8` | `CMapGroup` | 5 |
+
+**结论**：① 每个实体都配一个 `CEditGameClassProps` 元素（1:1，小图上没注意到的独立一层）；
+② 反编译/塌陷过的 surf 图会把每个笔刷都变成 `CMapMesh`（4124 个）；
+③ **遍历元素表（12,958 次 vtable 读）比走世界树（8,546 个元素）更贵**，所以「列地图对象」
+一律优先走树 —— 表只用于「找不在树里的元素」这种诊断场景。
+
+#### 15.7.2 🐛 bug：`_enum_elements` 的 `limit=8192` 静默截断
+
+旧实现是 `for i in range(min(cap, limit))` 且 `limit` 默认 **8192** ——
+`cap=97,102` 时**只扫了表的前 8.4%**，且不报错、不提示。后果：
+
+| 现象 | 实际 | 旧报告 |
+|---|---|---|
+| `cs2_mesh_list` 的 mesh 总数 | 4,124 | **338** |
+| `cs2_area_query` 的 `mesh_total` | 4,124 | **338** |
+| 同一个小盒查询命中的 mesh | **18** | **4** |
+
+即 `area_query` **漏掉了 78% 的命中对象**（handle ≥ 8192 的完全看不到）——
+大图上「按范围取内容」这个核心用途直接失真。
+
+**修法**（2026-09-27）：
+1. `_enum_elements`：`limit<=0`（新默认）= 扫全表；表数据改走 `_dm_table()` 批量读
+   （97k 项 ≈ 190 次块读 0.3s），只对非零项读一次 vtable；文档写清代价与「优先走树」。
+2. `cs2_mesh_list` / `cs2_area_query` **改走一趟 `_walk_elements`**：走树时 vtable
+   顺带就有（不用额外读），用 `vt` 分类收集 mesh 与实体。
+   - `area_query` 顺带把「先扫表找 mesh、再走树找实体」的两趟合成一趟（原来重复劳动）。
+   - 输出里的 `h=` 是句柄，走树只拿到地址 → 新增 `_dm_handle_map(table)`（纯本地反查，无 IPC）。
+   - 顺带修掉 `area_query` 头部把「实体 x/**8546**」写成分母为**元素总数**的措辞问题，
+     现在分母是真正的实体数 4403。
+
+修复后复测：`cs2_mesh_list` → **4,124** 个；小盒查询 → **mesh 18/4124 实体 1/4403**。
+
+#### 15.7.3 大图功能测试（全部通过）
+
+| 项目 | 结果 |
+|---|---|
+| 全部 `CMapMesh` 读运行时几何 | **4,124 个全成功**（0 失败、0 缺 poly），合计 36,715 顶点 / 27,095 面，平均 8.9 顶点/mesh |
+| 材质分布 | `toolsnodraw` 3345 / `zoo/concrete` 1672 / `zoo/tile` 1239 / `toolsplayerclip` 547 / `toolstrigger` 275 … |
+| 全部实体读原生 IO | 4,403 个实体中 **155 个有连接、共 820 条**（3.5%） |
+| IO 内容抽样 | `OnTrigger→server:Command param='mp_freezetime 1'`、`zr_infect_mzombie_respawn 120`、`OnStartTouch→!self:Kill`、`OnStartTouch→tele_05:Enable delay=40.0` |
+| 单个 mesh 几何 | `h=13`：8 顶点 / 24 半边 / 6 面 / 1 材质，本地坐标为整数、世界 = 本地 + origin，UV 与法线正确 |
+| 实体属性/变换/类名 | `trigger_hurt` / `targetname='falldmg_tr'` / origin 精确 |
+
+#### 15.7.4 大图性能实测（背景数据，同一繁忙会话 ~3ms/往返）
+
+| 工具 | 耗时 | 往返 |
+|---|---|---|
+| `cs2_entity_list(limit=200)` | 52.86s | 14,969 |
+| `cs2_entity_list` 全量（4403 实体） | 194.40s | 65,602 |
+| `cs2_mesh_list(10)`（修复前） | 13.95s | 9,268 |
+| 全量读 4,124 mesh 几何 | 701s | ~72k `read_value` |
+| 全量读 4,403 实体 IO | 47.41s | — |
+
+⚠ **`limit` 不省成本**：必须先走完整棵树才知道总数，所以大图上 `limit=200` 也要 52.86s
+（占全量的 27%）。「只想瞄一眼」在大图上依然慢 —— 这是已知的待优化项（方向：
+early-exit、树遍历合并块读），本轮按用户要求暂不动。
 
 
 
