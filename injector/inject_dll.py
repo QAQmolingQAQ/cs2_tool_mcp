@@ -191,7 +191,7 @@ def main():
     # Get DLL path
     script_dir = os.path.dirname(os.path.abspath(__file__))
     dll_path = os.path.join(
-        script_dir, "..", "injected_dll", "build_msvc", "Release", "cs2_tool.dll"
+        script_dir, "..", "injected_dll", "build_vs18", "Release", "cs2_tool.dll"
     )
 
     # Get PID
@@ -202,6 +202,8 @@ def main():
         if not pid:
             print("ERROR: Cannot find hammer.exe (or cs2.exe). Start Hammer first!")
             sys.exit(1)
+    if len(sys.argv) > 2:
+        dll_path = sys.argv[2]
 
     print(f"=== cs2_tool.dll Injector ===")
     print(f"  Target PID: {pid}")

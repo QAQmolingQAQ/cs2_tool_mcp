@@ -1,8 +1,11 @@
 # CS2 Tool MCP — 进展记录
 
-> 最后更新：2026-09-24
+> 最后更新：2026-09-26
 > 目的：让 AI 通过 MCP 操控 CS2 Hammer 工具模式（地图 / 实体 / 粒子 / 撤销 / 贴图）。
 > 本文件记录**进度与决策**；底层逆向地址细节见 [REVERSE_NOTES.md](./REVERSE_NOTES.md)。
+>
+> ⚠️ §2～§7 是**旧版本 hammer.dll + 旧环境（实体机/SSH 推 VM）**的记录，部分 RVA 已失效。
+> **最新状态看 §8**；RVA 一律以 REVERSE_NOTES §11 为准。
 
 > ⚠️ **开发位置已变更（2026-09-24）**：改为**在虚拟机内直接用 Trae 开发**
 > （编辑器、运行环境、目标进程同机，改完即可验证），不再走「实体机写码 → SSH 推 VM」。
@@ -347,7 +350,8 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 | `injected_dll/ipc_pipe.cpp`      | 新增 10 个方法分发；`call_function` 新增 `on_main_thread` / `timeout_ms`；`read_memory` 单次上限 1024 字节                                                                                                               |
 | `injected_dll/dllmain.cpp`       | 保存模块句柄供主线程钩子使用                                                                                                                                                                                             |
 | `injected_dll/CMakeLists.txt`    | 加 `/utf-8`（源码含中文注释，MSVC 默认按 936 解码会编译失败）                                                                                                                                                            |
-| `mcp_server/cs2_mcp_server.py`   | 分层结构，**28** 个工具；实体属性读写（`cs2_entity_get_attr`/`set_attr`/`find_attr`）+ `cs2_map_info` + Datamodel undo scope 包装（`_ensure_undo_enabled` / `_undo_scope_begin` / `_undo_scope_end`）                    |
+| `mcp_server/cs2_mcp_server.py`   | 分层结构，**41** 个工具（含 `cs2_mesh_*` 几何/UV/材质读取、`cs2_area_query` 范围查询、`cs2_entity_*_io`）；实体属性读写（`cs2_entity_get_attr`/`set_attr`/`find_attr`）+ `cs2_map_info` + Datamodel undo scope 包装（`_ensure_undo_enabled` / `_undo_scope_begin` / `_undo_scope_end`）                    |
+| `injector/mcp_smoke.py`          | 新增（**真·MCP stdio 冒烟测试**：起服务进程 → `initialize`/`tools/list`/`tools/call`，改完服务器代码用它验发布路径）                                                                                                      |
 | `injector/ida_mcp_call.py`       | 新增（IDA MCP HTTP 查询助手）                                                                                                                                                                                            |
 | `injector/probe_mapdoc.py`       | 新增（对象成员指针/vtable 探测，支持 `--base` / `--vt`）                                                                                                                                                                 |
 | `injector/probe_undo.py`         | 新增（CUndoManager 探测 + 撤销/重做验证）                                                                                                                                                                                |
@@ -428,3 +432,90 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 | 改了属性但 Hammer 的 Ctrl+Z 撤不掉 | 属性修改走 **Datamodel 撤销栈**（`cs2_undo`），Ctrl+Z 走地图历史（`CMapDocHistory`），两套独立。见 REVERSE_NOTES §2.12                |
 | `setattr` 后 DMX 栈没变            | undo 总开关（`CUndoManager+132` bit3）关着时 SetValue 不记录；`cs2_entity_set_attr` 会自动打开它                                      |
 | `dm-undo`/`cs2_undo` 没反应        | 同上：总开关关着时 `CUndoManager::Undo` 直接返回                                                                                      |
+
+---
+
+## 8. 2026-09-24 新版 hammer.dll：重定位 + 工具「底层化」改造（最新）
+
+> Steam 于 2026-09-24 更新 `hammer.dll`（MD5 `DED2B1071B76EB3F71389EEBB865B023`），
+> **旧 RVA 全部失效**。本节记录重定位结果与新增的底层工具。
+> 详细地址表见 [REVERSE_NOTES.md §11](./REVERSE_NOTES.md)。
+
+### 8.1 环境（当前有效）
+
+| 项 | 值 |
+| --- | --- |
+| 开发位置 | **VM 内直接用 Trae**（同机跑 cs2 + 编辑器） |
+| 构建目录 | `injected_dll/build_vs18`（本机是 **Visual Studio 18 2026 BuildTools**，不是 VS2022） |
+| 构建命令 | `cmake -G "Visual Studio 18 2026" -A x64 -B build_vs18` → `cmake --build build_vs18 --config Release` |
+| CMake 路径 | `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe` |
+| 注入用 DLL | `C:\cs2_tool_mcp\injected_dll\build_vs18\Release\cs2_tool.dll` |
+| IDA MCP | 端口 **13337**，库 `c:\cs2_tool_mcp\ida_db\hammer_new.dll.i64`，imagebase `0x180000000` |
+| IDA 查询 | `python injector\ida_eval.py 13337 --exec <脚本.py>`（脚本内用 `def _main():` + `_main()`） |
+| 拉起 Hammer | `schtasks /run /tn HammerLaunch` → 等 `MainWindowTitle=Asset Browser` → 点 Hammer 图标 → 等 `hammer.dll` 加载 → 注入 |
+
+### 8.2 已完成
+
+| # | 事项 | 说明 |
+| --- | --- | --- |
+| 1 | **新版 RVA 全量重定位** | DLL 侧 + Python 侧硬编码全部更新并重编译、重注入。见 REVERSE_NOTES §11.1 |
+| 2 | **端到端验证通过** | `map_list_docs`（count/路径）、`cs2_entity_list`（类名正确）、`cs2_map_info`、`cs2_read_qword("hammer.dll+0x24B7C80")` 精确命中 |
+| 3 | **map 保存打通** | 有真实路径 + 脏状态时 `cs2_map_save()`（Qt 菜单）约 4.8s 返回并落盘；新图首次另存为要走 Win32 `#32770` 对话框 |
+| 4 | **空栈 Undo 致命错误修复** | 空 DMX undo 栈调 `cs2_undo()` 后**保存地图时会弹 `FATAL ERROR: Error in the undo system!` 并杀死 cs2**。已在 `_undo_redo()` 加计数守卫 |
+| 5 | **⭐ 底层写属性链路重定位 + 活体验证** | `sub_18062C9A0`（按名写字符串属性，内部自动 intern/创建）= **RVA `0x62C9A0`**；`CDmAttribute` 值写入 = `0x5CF020`；intern = CDataModel vtable **byte 424**。实测对 world 写 `name` 再读回一致 ✔ |
+| 6 | **`cs2_entity_set_attr` 真正启用** | 之前是哨兵占位（等重定位），现走 `0x62C9A0` |
+| 7 | **新增 `cs2_entity_set_classname`** | ~~CMapEntity vtable byte 2144（`sub_180896390`）~~ **该路径实测无效，已改为属性直写 `0x62C9A0`，见第 12 行** |
+| 8 | **新增 `cs2_particle_set_definition`** | ① `0x62C9A0` 写 `effect_name` ② 实体内存扫 `CParticleHelper`（vptr=`base+0x17500B8`）+ 主线程调 `SetDefinitionByName`（`0x7F5350`）写 `helper+0xB8` |
+| 9 | **DLL 新增 `scan_heap`** | 全进程堆扫描。**整块扫描实测会把 cs2 扫崩**，已改 `__try/__except` + 256KB 分块，并加 2GB 扫描上限 |
+| 10 | **⭐ 底层「新建实体」链路打通** | `sub_1805BBB90(dm,"CMapEntity",name,1,0)`（CDataModel 通用创建，RVA `0x5BBB90`）→ `sub_1805BA670` 取句柄 → `sub_1805BB7F0` 查工厂表 → 工厂 slot0 `0x898D10`（new 6232 + `sub_180811220`）。CE 硬件断点活体验证：实体工具一次放 2 个实体，该断点命中 2 次 ✔。详见 REVERSE_NOTES §11.8 |
+| 11 | **新增 `cs2_entity_create(classname, name)`** | 实测能建出合法元素（返回 handle + element，props 已建，CUndoCreateElement 已登记）；**但尚未挂进 CMapWorld 子节点表**，见 8.3 |
+| 12 | **`cs2_entity_set_classname` 改为有效链路** | vfn2144(`0x896390`) 实测**改不动 classname**（既有实体也无效）；改为属性直写 `0x62C9A0` 写 props 的 `classname` → 实测 `info_player_start` → `info_particle_system` 读回一致 ✔ |
+| 13 | **修正上一轮地址算错的坑** | 工厂 Create 运行时地址应为 `base+0x898D10`（`0x7FF9E4128D10`），此前写成 `base+0x888D10`，导致断点 0 命中、误判"实体不经工厂创建"。CE hit `timestamp` 另有 −8h 时区偏差，勿据此判断断点死活 |
+| 14 | **⭐ 实体坐标打通（本轮主任务）** | 坐标不在 DMX 属性里，是 `CMapEntity` 原生 Vec3D：**`+0xA0` origin / `+0xAC` angles / `+0xB8` scales**。用「UI 放置的实体 vs 新建实体」对比确认（放置的为网格整数倍 `(-576,-320,0)` 等，新建的为 `(0,0,0)`）。`cs2_entity_list` 现在带 `origin=`，新增 `cs2_entity_get_transform`。详见 REVERSE_NOTES §11.9.1 |
+| 15 | **元素类清单 + DMX 类型编码 + mesh/IO 结构** | datamodel 元素表（`dm+0x90`）枚举出 9 类元素（CMapEntity/CEditGameClassProps/CMapWorld/CMapRootElement/CMapSelectionSet/CMapVariableSetStorage/CVisibilityMgr/CStoredCameras/CStoredCamera）；属性类型编码（5=string, 33=数组<元素>, 37=数组<string>，bit 0x20=数组标志）；mesh = `CMapMesh.meshData → CDmePolygonMesh`（半边缘）+ 顶点流 `position/texcoord/normal/tangent`。详见 REVERSE_NOTES §11.9 |
+| 16 | **VRF 仓库对照补全 + IO/mesh 读取工具** | 用户 clone 了 `third_party/ValveResourceFormat`；据 `IO/ContentFormats/ValveMap.cs` 更正继承链（`MapNode(origin/angles/scales) → BaseEntity(connectionsData/relayPlugData) → CMapEntity`）、IO 字段（`DmeConnectionData` 7 字段）、mesh 流位置（position 在 vertexData/loc3，texcoord 在 faceVertexData/loc1，materialindex 在 faceData/loc8）；解析出 **CMapMesh 虚表 RVA `0x176B8E0`**、`CDmePolygonMesh` `0x1D70620`；摸清 DMX **数组属性内存布局**并通用化。新增 `cs2_entity_get_io` / `cs2_mesh_list` / `cs2_mesh_get_geometry`。详见 REVERSE_NOTES §11.10 |
+| 17 | **⭐ mesh 几何真实位置查明（测试发现）** | 用户画了 9 个 CMapMesh：**origin 读到了**（`+0xA0` 对 CMapMesh 同样成立），但 `meshData` 全是无效句柄、进程里**没有 CDmePolygonMesh 实例** → 编辑期几何不在 DMX 里，而在 **`CMapMesh+0x498` 内嵌的 `CHammerPolyMesh : CPolygonMesh`**（半边缘，~13632B，`+0x560` 自指回）。已拿到两个类的主虚表（`0x1766ED8` / `0x18143D0`）与两个构造函数的成员初始化清单。另新增通用排障工具 `cs2_mem_scan` / `cs2_find_by_vtable`（自检：按 `0x176B8E0` 精确找到 9 个 CMapMesh）。详见 REVERSE_NOTES §11.11 |
+| 18 | **待验证的两项** | ① 9 个 mesh 里只有 2 个真有几何（AABB 非 ±FLT_MAX），其余是空 mesh；② ~~所有实体 `connectionsData` 仍为 0，IO 读取尚未验证~~ → **已解决，见第 21 行**（`connectionsData` 是保存期临时镜像，真数据在 `entity+0x4A0`） |
+| 19 | **⭐ IO 实测结论：编辑期同样不落 DMX** | 用户在 `trigger_multiple` 上加了 `OnStartTouch → !self:Kill`：20+ 实体 `connectionsData` **全 size=0**、元素表**无 `CDmeConnectionData` 实例**、`entity_properties` 里**没有** `On...` 键；但**保存后的 `untitled_2.vmap` 里有**（`DmeConnectionData` + `outputName/inputName/targetName/overrideParam` + `OnStartTouch/Kill/!self`，与 VRF 字段名一致）。⇒ Hammer **保存时**才把原生连接转成 DMX 元素。已拿到 `CDmeConnectionData` 虚表 RVA `0x1779D30`、工厂 Create `sub_180983AE0`(`new(264)`，基类 152 + **7×16 字节字段**)。另发现「元素被编辑过」的字段簇（`+0x100/+0x198/+0x200/+0x220/+0x228/+0x278`，只有动过的那个元素非 0）。详见 REVERSE_NOTES §11.12 |
+| 20 | **下一步（IO 活体读取，二选一）** | ~~**A**：CE 在 `sub_180983AE0` 设硬件断点 + 用户再保存一次地图 → 抓调用栈回溯原生连接结构~~（栈回溯已证明不可靠）；**B**：先实现 .vmap 文件解析 |
+| 21 | **⭐⭐⭐ 方案 A 完成：实体 IO 原生结构已定位 + 读/增/删全部打通** | 不走栈回溯，改走**静态反编译 + 剪贴板链路**：从 KV3 字段名反查 xref → `sub_18020D240`（Outputs 面板 Paste，读 `QGuiApplication::clipboard()` 的 KV3 文本）→ **`sub_180986EA0(entity, out[4], const Conn*)` 追加连接**。<br>**结论**：编辑期连接存在 **`CMapEntity + 0x4A0` 的原生 `CUtlVector<Conn>`**（size@+0 / pad@+4 / data@+0x8 / alloc@+0x10），`Conn` **80 字节**：`+0x00` sourceEntity / `+0x08` output / `+0x10` targetEntity / `+0x18` input / `+0x20` param / `+0x28` ioTargetType / `+0x30` m_paramMap(KV3,16B) / `+0x40` float delay / `+0x44` int timesToFire / `+0x48` relay / `+0x49` globalRelay / `+0x4C` 唯一 id。<br>**活体实证** trigger_multiple `0x26426690C00`：`out="OnStartTouch" tgt="!self" in="Kill" type=7 delay=0 timesToFire=-1`，与用户 KV3 **逐字段一致**。<br>**`connectionsData` 假象解开**：它只是保存 .vmap 时的临时镜像，写完即清零（只剩 `alloc=8` + 陈旧句柄 `0x18E`(398)）。<br>**工具**：重写 `cs2_entity_get_io`（读原生向量）+ 新增 `cs2_entity_add_io`（调 Hammer 自己的追加函数，实测 `1→2` 条且 Hammer 自动分配唯一 id）+ `cs2_entity_remove_io`（后移 80B + 计数--，实测 `2→1`）。另解出 `ioTargetType` 枚举表（`0x1816CF740`：-1 INVALID / 2 ENTITYNAME / 6 EHANDLE / 7 ENTITYNAME_OR_CLASSNAME）。详见 REVERSE_NOTES §11.13 |
+| 22 | **⭐⭐⭐ `cs2_map_save()` 真正落盘 + 「保存后主线程卡死」定位** | 之前调**最外层** `sub_1801363C0(session,0,0,1)`：文件写成功了，但 `a3==0` 会多跑一段「编辑器会话布局保存」（`sub_180147DD0` → `assetsystem.dll+0x8950E` → `tier0.dll+0x12153`）**把主线程永久卡死**（管道一起挂）。<br>**修法**：改调 **per-document 壳 `sub_1801639B0(doc, 0, 0, 1, 0, 0)`**（a4=1 强制保存、跳过脏判定，且不走布局分支）。doc = `*(session+312)+16` = `_map_doc()`。<br>**实测**：0.2s 返回、`main_thread_status=0`、`ret=0x1`，连调 2 次无副作用，Hammer 保持响应。<br>**端到端**：加 IO（param=`E2E_MARK_003852`）→ 保存 → 文件 `68869381→68869511` B，新文件命中该标记 1 处、保存前备份 0 处 ✔。详见 REVERSE_NOTES §12 |
+| 23 | **⭐⭐⭐ mesh 几何读取打通（本轮主任务）** | 从官方访问器 `sub_180CC2830`（面→顶点坐标）反推出完整链路：**面池(32B)@poly+0x90 → 首半边 handle → 半边池(80B)@poly+0x58（+0=起点顶点 handle、+0x20=下一条半边）→ 顶点池(32B)@poly+0x20（+0x10=位置通道下标）→ 位置 = 通道指针@poly+0x8E0 + 12*下标**；三张 `handle(低22位索引)→槽位` 映射表在 `+0x38/+0x70/+0xA8`（24B/项）。数据通道数组 `poly+0x8D8+24*ch`（ch0=position）。<br>**轴序定案**：标准 (x,y,z)、z 朝上（用「z 厚度为 0 的地板 / y 厚度为 0 的墙」判定），世界坐标 = 本地 + `CMapMesh+0xA0`。<br>**活体验证**：用户放的 3 个方块（32³ `0x5bac7ba0000`、64³ `0x5bac7ba4000`、128³ `0x5bac7b8c000`）全部返回 8 顶点 + 6 个 4 顶点面环，坐标全整数、与包围盒自洽；`cs2_mesh_get_geometry` 已从「占位报错」改成真正读运行时几何 ✔。详见 REVERSE_NOTES §13 |
+| 24 | **⭐⭐ 面/半边属性打通：UV + 法线 + 切线 + 材质** | 用 VRF `HammerMeshBuilder.WriteMesh`（`CPolygonMesh` → `.vmap` 的官方写法）对齐出运行时偏移：逐半边 `texcoord@0x1240 / normal@0x1328 / tangent@0x1428`，逐面 `textureScale@0x3118 / axisU@0x3300 / axisV@0x3318 / materialindex@0x33B8 / flags@0x33D0 / lightmap@0x33E8`，材料名表 `CUtlVector<CUtlString>@0x3448`（16B/条，条首 qword=名字）。<br>**关键坑**：逐半边属性按 **`poly+0x1110` 的「密集序」**排列，**不能**按池槽位或 handle 直读（否则串面；判据=同面 4 条半边法线必须一致）。<br>**实测**：32 方块材质 `materials/dev/reflectivity_30.vmat`、每面 4 角 UV 成规整 0.5×0.5 矩形、法线即面法线；地图自带多材质 mesh（`h=11`）读出 3 个材质名 + 每面不同 scale ✔。<br>`cs2_mesh_get_geometry` 已带上 `材质=` / `贴图 scale,U,V` / 每角 `uv=` `n=`。实体 IO（`cs2_entity_get_io`）一并复验：12 个实体有连接 ✔。详见 REVERSE_NOTES §13.8 |
+| 26 | **⭐⭐⭐ 编辑 mesh 大小：官方顶点写入算子 `SetVertexPositions` 打通** | 从 `CPolygonMesh` 虚表后面那张操作名表（`SetVertexPositions/AddFace/MirrorAcrossPlane/FlipAllFaces/DissolveEdge/…`）反查到实现 `sub_180CDC6E0(poly, 顶点handle向量, 3×4矩阵, 位置向量)`；元素级包装 `sub_1809B8880(element, handles, positions)` 会先取元素变换再调它，`sub_180BFDAA0(矩阵,x,y,z)` 是那个 3×4 行主序矩阵变换。<br>**做法**：传**单位矩阵**直调底算子 → 写进去的就是我们给的值，不依赖「local+origin=世界」（tile mesh 不满足）。顶点 handle 从 `poly+0x30` 映射表枚举（低22位==下标即活跃）。<br>**实测**（`cs2_mesh_scale`）：手绘盒子 32×8×32 `scale="2 2 2"` → 精确 64×16×64、`0.5` 完全还原、非等比 `1 2 1`@自定义pivot 正确、tile mesh 本地轴精确；0.13s/次、可重复、Hammer 保持响应 ✔。详见 REVERSE_NOTES §13.10 |
+| 27 | **⭐⭐⭐ 修改实体参数已打通（本轮主任务）+ IO 修改收尾** | **关键发现**：实体 keyvalue **一律以 AT_STRING(类型码 5) 存储**，数值/向量型也是字符串 ——活体枚举 `CEditGameClassProps` 链实测 `spawnflags='0'` / `speed='100'` / `movedir='0 0 0'` / `rendercolor='255 255 255'`，所以「修改数值/向量参数」**不需要按类型分派的写入器**（原「`sub_18062CA90` 一族」的待办作废）。<br>**两条写入链路**：① keyvalue 用 `sub_18083E0D0(entity, name, value)`（RVA `0x83E0D0`，属性缺失时按类型 5 创建，带类回调/targetname 索引/包围盒脏通知）；② 变换 `origin/angles/scales` 用 `sub_18086B550(entity, name, value, 0)`（RVA `0x86B550`，属性表变换 pin → 直接写 `CMapEntity+0xA0/+0xAC/+0xB8` 原生 Vec3D；用 keyvalue 写入器只会凭空造同名 AT_STRING）。<br>`cs2_entity_set_attr` 已按此改写，实测：`spawnflags 0→3→0`、`rendercolor →255 0 0→还原`、`speed 100→150→100`、`targetname h8→probe→h8`、`origin/angles/scales` 写读一致且**立即生效**（真 MCP 通道复验 ✔）。<br>**副产物**：属性链是 `element+0x48` 单向链表（无独立哈希索引），按 §14.4 配方可安全摘链删属性（本轮实测摘掉两个测试键，其余属性完好）；keyvalue 写入会推进 Datamodel undo 栈，变换写入不会。<br>IO 修改（增/删/查）此前已完成，本轮用真 MCP 通道复核净零改动 ✔。详见 REVERSE_NOTES §14 |
+
+
+
+| 28 | **⭐⭐⭐ 收尾补齐 + undo 重定位 + 官方放置序列（本轮，前两项已验证）** | ① **收尾补齐**（已验证）：新增 `cs2_entity_remove_attr`（摘链删属性，带脏传播）、`cs2_entity_set_transform`（一次设 origin/angles/scales），`cs2_entity_get_attr` 现在带类型码并按类型解码（string/int/color/vec3/句柄数组/字符串数组）。工具数 42→44。<br>② **地图撤销 Pop 重定位**：旧 `0x14080D0` → 新 **`0x1529E80`**（`CMapDocHistory::Pop`，反编译与旧版逐行一致；虚表 `0x1763E00`，全局开关 `hammer.dll+0x221A418`，空栈有 CanUndo 守卫）。已接进 `cs2_map_undo/redo`。⚠ 端到端待验（需地图里先有真实编辑历史）。详见 §15.1<br>③ **官方「放置对象」序列挖出**（`sub_180180190` = mapviewdroptarget.cpp）：`工厂 Create → vfn2144 SetClassName → sub_180866D70 → sub_180879170(doc, child, 0)`，其中 **`0x879170` = CMapNode::AddChild** 才是「挂进世界」那一步（第一参数是 **CMapDoc**，不是 world）。另确认 `0x864EA0`=GetParent、`0x864EB0`=GetRoot。详见 §15.2<br>④ **⭐ 端到端验证通过**（§15.4c）：`cs2_entity_create("info_particle_system", …)` → 类名生效、world 子节点 **130→131**、`GetParent == CMapWorld`、游戏类 `+0x550` 已绑定、**CParticleHelper 已创建**，1.73s；随后 `cs2_entity_set_classname(…, "info_target")` → `+0x550` **换成目标类对象**、helper 归 0。**「新建实体 → 挂进世界 → 绑定游戏类/重建 helper」整链打通**。<br>⑤ **重大纠错**：长期结论「vfn2144 SetClassName 无效」是**错的** —— 真因是管道自带的 `call_virtual` 会**静默丢弃 `str:` 参数**（`ipc_pipe.cpp` 里它只把字符串当模块地址解析），导致函数收到空类名直接 return。已新增 `_call_vfn`（自己解析虚表槽 + `call_function`）替代，所有相关调用点已改。<br>⑥ 三条踩坑见 §15.3/§15.4：别对 world 调 `sub_1805C81C0(world,3)`（entity_list 从 1s 变 200s）；别在主线程派发中途杀客户端（Hammer 永久死锁）；`call_virtual` 别传 `str:` 参数（**该 DLL 缺陷已于第 29 行修复**）。 |
+| 29 | **⭐⭐⭐ `cs2_entity_list` 提速 48.6× + DLL `call_virtual` / 编码修复（本轮）** | **性能**（同会话成对实测，输出逐字节一致）：`limit=200` **114.12s / 34,487 次往返 → 2.35s / 3,145 次**；`limit=20` 22.65s → 0.56s；刚开图的繁忙会话里 265.82s → 12.54s（绝对耗时随 Hammer 忙闲漂移，故以成对测量为准）。手段（①~⑤ 全在 Python 侧）：<br>① **句柄→元素改查 CDataModel 元素表**（`+0x90` 数据 / `+0x88` 容量，16B/项，元素指针在 +8；下标 = 句柄低 22 位）—— 实测与 vfn168 `_resolve_handle` 逐项一致，于是**彻底免掉「每个子句柄一次主线程 `call_virtual`」**（~31ms/次，原 limit=20 就 303 次）。<br>② **属性链块读**：CDmAttribute 按 **0x30 步长连续分配**（实测相邻地址差恒 48、偶有跳跃），一次块读覆盖 ~21 个节点；属性名走**驻留串指针缓存**（命中零额外读取）；`classname`+`name` **一次遍历取齐**（原先 props 链要遍历两遍）。<br>③ 树遍历**每节点一次块读**（vtable@+0 与子节点字段@+0x1F8/+0x200 都落在 0x208 字节内）。<br>④ **管道长连接**（DLL 的 `ClientThread` 本来就是「读请求→处理→写响应」循环；Python 侧原先每次调用都 `CreateFileW`+`CloseHandle`）+ 缓存 kernel32 绑定（原每次 Win32 调用都重建 `WinDLL`）。<br>⑤ **缓存 hammer 基址**：DLL 的 `get_module` 单次要 **40ms**（模块枚举很贵），优化前每实体一次共 624 次 ≈ 25s；缓存后 1 次，**管道重连（Hammer 重启/重注入）时由 `_invalidate_address_cache()` 自动失效**。<br>**DLL 侧**：⑥ `call_virtual` 与 `call_function` 的参数解析合并为 `ParseCallArgs`（支持 `str:`；解析失败的字符串**压 0 保持参数个数**，不再左移），响应新增 `arg_count` 便于验证 ⑦ `read_memory` 上限 1024→**8192** + 十六进制改**查表编码**（实测 64B 与 8KB 单次耗时相同 ≈1.4ms，编码开销≈0）⑧ `SendResponse` 改**循环写**（大响应可能超过管道缓冲区，单次 `WriteFile` 只写一部分会让响应流错位）。<br>**验证**：`call_virtual(str:"info_target")` → `arg_count=3`、classname 生效、`+0x550` 游戏类对象替换；再改回原类名后 classname 与 `+0x550` **精确还原，净零改动**；畸形字符串参数也保持 `arg_count=3`。回归 `get_attr`/`get_transform`/`find_attr`/`map_info`/`area_query`/`mesh_list` 全部正常。详见 REVERSE_NOTES §15.6 |
+
+### 8.3 待办 / 卡点
+
+| 优先级 | 事项 | 说明 |
+| --- | --- | --- |
+| ~~P0~~ | ~~**新元素挂进 CMapWorld**~~ | ✅ **已完成并端到端验证**，见 8.2 第 28 行 / REVERSE_NOTES §15.2/§15.4c。官方 API = `sub_180879170(doc, child, 0)`（CMapNode::AddChild）；`cs2_entity_create` 现在按官方序列建实体并挂进世界 |
+| ~~P0~~ | ~~**改类名要重建游戏类/helper**~~ | ✅ **已完成并验证**：`cs2_entity_set_classname` 走 `vfn2144` + 属性直写 + `sub_180866D70`；实测 `+0x550` 游戏类重建、CParticleHelper 按类创建/销毁。⚠ 真因纠错见 §15.4b：不是 vfn2144 无效，是 `call_virtual` 丢 `str:` 参数；已用 `_call_vfn` 绕开 |
+| ~~P0~~ | ~~**写回实体坐标（place entity 收尾）**~~ | ✅ **已完成**，见 8.2 第 27 行 / REVERSE_NOTES §14.3：写坐标走 `sub_18086B550(entity, "origin"/"angles"/"scales", "x y z", 0)`（属性表变换 pin → 原生 `+0xA0/+0xAC/+0xB8` 成员），实测立即生效；`cs2_entity_set_attr` 已接入 |
+| ~~P0~~ | ~~**mesh 坐标读取**~~ | ✅ **已完成**，见 8.2 第 23 行 / REVERSE_NOTES §13。编辑期几何在 `CMapMesh+0x498` 内嵌的 `CHammerPolyMesh`，已按半边缘 DCEL 读出顶点/面环/包围盒 |
+| ~~P1~~ | ~~**实体 IO 读取/写入**~~ | ✅ **已完成**，见 8.2 第 21 行 / REVERSE_NOTES §11.13。读 `entity+0x4A0` 原生 `CUtlVector<Conn>`；增/删走 Hammer 自己的 `sub_180986EA0` / 手动移位 |
+| ~~P1~~ | ~~**让 `cs2_map_save()` 真正落盘（脏标记）**~~ | ✅ **已完成**，见 8.2 第 22 行 / REVERSE_NOTES §12。不再依赖脏标记：直接调 `sub_1801639B0(doc, 0, 0, 1, 0, 0)`（a4=1 强制）。原 Qt 菜单方案作废（文档干净时 QAction 是 disabled） |
+| ~~P1~~ | ~~**修 DLL 的 `call_virtual`（会丢 `str:` 参数）**~~ | ✅ **已完成并验证**，见 8.2 第 29 行 / REVERSE_NOTES §15.6：`ipc_pipe.cpp` 里 `call_virtual` 与 `call_function` 的参数解析已合并为 `ParseCallArgs`，支持 `str:`，且**解析失败的字符串压 0 保持参数个数**（不再左移）。已重新构建 `cs2_tool.dll` 并注入验证：`arg_count=3`、类名生效、`+0x550` 游戏类对象随类名替换并精确还原。Python 侧的 `_call_vfn` 保留（少一次虚表解析往返，且不依赖 DLL 版本） |
+| **P1** | **IO 编辑的 UI/undo 收尾** | `cs2_entity_add_io` 只调 `sub_180986EA0` 追加原生向量，没走 Outputs 面板的表格提交（`sub_180206BC0`）与 undo scope；`sub_180206BC0` 是否为 undo/刷新必需尚未验证 |
+| ~~P0~~ | ~~**mesh 几何读取（新线索）**~~ | ✅ **已完成**，见 8.2 第 23 行 / REVERSE_NOTES §13。官方访问器 = `sub_180CC2830`，`cs2_mesh_get_geometry` 已读运行时几何 |
+| **P1** | **非手画 mesh 的完整变换** | 地图自带 tile mesh 的 `+0xA0` 与顶点不在同一参照系（见 §13.6），怀疑还差 `sub_180BFDAA0(a3)` 的矩阵，需要时再查调用点 |
+| ~~P2~~ | ~~**贴图 / UV**~~ | ✅ **已完成**（读），见 8.2 第 24 行 / REVERSE_NOTES §13.8。逐角 texcoord + 逐面 scale/axis + 材料名表都能读；笔刷 mesh 的 texcoord/normal/tangent 数组**不是**通道（通道只有 position），在 `poly+0x1240/0x1328/0x1428`，按 `poly+0x1110` 的密集序索引 |
+| **P2** | **贴图轴 w 分量** | `textureAxisU/V.w` 代入 VRF 的 `uv=(dot/scale+offset)/texSize` 对不上（见 §13.8.3），含义待定；当前工具直接输出存储的 texcoord（权威值） |
+| ~~P1~~ | ~~**同步 VRF 参考仓库**~~ | ✅ **已完成**：`third_party/ValveResourceFormat` 已有完整源码（`ValveResourceFormat.slnx` + `IO/ContentFormats/ValveMap.cs` 等），§13/§14 的字段口径都据此对齐 |
+| ~~P1~~ | ~~**CMapDocHistory 通用 pop**~~ | ✅ **已完成**（待端到端验证）：新地址 `0x1529E80`，见 8.2 第 28 行 / REVERSE_NOTES §15.1 |
+| ~~P1~~ | ~~**`cs2_entity_list` 太慢（~200s）**~~ | ✅ **已完成**：同会话实测 `limit=200` **114.12s / 34,487 次往返 → 2.35s / 3,145 次（48.6×）**。根因不是「往返 2.2ms」而是三块：① 每个子句柄一次**主线程** `call_virtual`（~31ms）② 每实体一次 `get_module`（**40ms**）③ 属性链逐字段往返。已按 ①句柄查元素表 ②属性链块读+驻留串缓存 ③树遍历单区块读 ④管道长连接 ⑤缓存基址 全部解决，见 8.2 第 29 行 / REVERSE_NOTES §15.6 |
+| **P2** | 非实体元素的类型化属性 | **实体参数不需要**（keyvalue 全为 AT_STRING，变换走属性 pin，见 §14）。仅 world/mesh 等非实体元素还有类型化属性；如需读写再按 §14.2 的类型码表选 `CUndoAttributeSetValueElement<T>` 对应的 setter |
+| ~~P2~~ | ~~清理测试实体~~ | ✅ **已自然消失**：2026-09-27 那批测试实体都**未保存**，重启 Hammer 并重新打开 `cs_script_demo.vmap` 后已不存在（实体数 186→182、场景元素 264→260） |
+
+### 8.4 工作方式约定（用户明确要求）
+
+* **MCP 必须走底层**：直接调用 `hammer.dll` 内部函数/虚函数，**不要用快捷键、坐标点击等 UI 手段**。
+  UI 自动化脚本只作为**测试夹具**时备用。
+* **有新进度就写进 md**（本文件 + REVERSE_NOTES.md）。
+* 已加载可用：**Cheat Engine**（`cheatengine-x86_64-SSE4-AVX2.exe`，pid 会变）与 **Computer Use MCP**。
+  需要**其他 DLL 的 IDA MCP**（pet.dll / particles.dll 等）时提前提出来，由用户添加。

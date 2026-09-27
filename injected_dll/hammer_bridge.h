@@ -75,6 +75,10 @@ public:
     // --- pattern scan --------------------------------------------------
     bool FindPattern(const std::string& module, const std::string& pattern,
                      size_t limit, std::vector<uintptr_t>& out);
+    // Scan committed private/RW heap regions across the whole process.
+    // Only qword-aligned matches are reported. Optional [lo,hi) bounds.
+    bool ScanHeap(const std::string& pattern, size_t limit,
+                  uintptr_t lo, uintptr_t hi, std::vector<uintptr_t>& out);
 
     // --- generic invocation --------------------------------------------
     // Calls fn with up to 6 integer/pointer args (x64 fastcall).

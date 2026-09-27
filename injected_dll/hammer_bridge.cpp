@@ -105,9 +105,16 @@ namespace HammerAddr {
     constexpr uintptr_t kToolSystemFactoryRva = 0x115270;
     constexpr uintptr_t kToolSystemNameRva = 0x1CB1B58;
 
-    // CMapDoc registry (see REVERSE_NOTES.md 2.7)
-    constexpr uintptr_t kMapDocCountRva = 0x2355020;
-    constexpr uintptr_t kMapDocArrayRva = 0x2355028;
+    // 2026-09 新版 hammer.dll（见 REVERSE_NOTES.md §3）：
+    // 旧全局文档表 (0x2355020/0x2355028) 已失效，改为运行时对象链枚举：
+    //   CHammerApp+0x58 / +0x60 = CHammerEditorSession* 的 CUtlVector
+    //   session+0x138                = 当前活动 CMapDocSession*
+    //   CMapDoc 内嵌在 session 包装里：doc = wrapper + 0x10
+    constexpr uintptr_t kAppSessionVecCount = 0x58;
+    constexpr uintptr_t kAppSessionVecMem   = 0x60;
+    constexpr uintptr_t kSessionActiveWrap  = 0x138;
+    constexpr uintptr_t kWrapperDocEmbed    = 0x10;
+    constexpr uintptr_t kCMapDocVtableRva   = 0x1764188;
 }
 
 HammerBridge& HammerBridge::Instance() {
@@ -513,6 +520,84 @@ bool HammerBridge::FindPattern(const std::string& module, const std::string& pat
     return true;
 }
 
+namespace {
+// SEH-protected scan of one contiguous chunk. POD-only locals so __try is legal.
+// The target process is running; heap pages can be decommitted concurrently, so a
+// read may fault mid-scan. We catch it and keep whatever matches we found.
+int ScanChunkSEH(const uint8_t* base, size_t span, const PatternByte* pat,
+                 size_t n, size_t limit, uintptr_t* out) {
+    size_t count = 0;
+    __try {
+        for (size_t i = 0; i + n <= span && count < limit; i += 8) {
+            bool hit = true;
+            for (size_t j = 0; j < n; j++) {
+                if (!pat[j].wildcard && base[i + j] != pat[j].value) { hit = false; break; }
+            }
+            if (hit) out[count++] = (uintptr_t)(base + i);
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        // keep partial results
+    }
+    return (int)count;
+}
+} // namespace
+
+bool HammerBridge::ScanHeap(const std::string& pattern, size_t limit,
+                            uintptr_t lo, uintptr_t hi,
+                            std::vector<uintptr_t>& out) {
+    out.clear();
+    if (!limit) limit = 64;
+
+    std::vector<PatternByte> pat;
+    if (!ParsePattern(pattern, pat)) return false;
+    const size_t n = pat.size();
+
+    SYSTEM_INFO si{};
+    GetSystemInfo(&si);
+    uintptr_t cur = (uintptr_t)si.lpMinimumApplicationAddress;
+    const uintptr_t maxaddr = (uintptr_t)si.lpMaximumApplicationAddress;
+    const size_t kChunk = 256 * 1024;   // scan in 256 KB chunks so one fault loses little
+    const size_t kMaxScan = (size_t)2 * 1024 * 1024 * 1024;  // hard cap on bytes scanned
+    size_t scanned = 0;
+
+    while (cur < maxaddr && out.size() < limit && scanned < kMaxScan) {
+        MEMORY_BASIC_INFORMATION mbi{};
+        if (VirtualQuery((LPCVOID)cur, &mbi, sizeof(mbi)) == 0) break;
+        const uintptr_t region = (uintptr_t)mbi.BaseAddress;
+        const uintptr_t region_end = region + mbi.RegionSize;
+
+        bool scan_ok = false;
+        if (mbi.State == MEM_COMMIT &&
+            (mbi.Type == MEM_PRIVATE || mbi.Type == MEM_MAPPED)) {
+            const DWORD prot = mbi.Protect & 0xFF;
+            if (prot == PAGE_READWRITE || prot == PAGE_WRITECOPY)
+                scan_ok = true;
+        }
+        if (scan_ok) {
+            uintptr_t s = region;
+            uintptr_t e = region_end;
+            if (lo && s < lo) s = lo;
+            if (hi && e > hi) e = hi;
+            s = (s + 7u) & ~(uintptr_t)7;
+            while (s + n <= e && out.size() < limit) {
+                size_t span = (size_t)(e - s);
+                if (span > kChunk) span = kChunk;
+                if (span >= n && IsRangeReadable(s, n)) {
+                    std::vector<uintptr_t> tmp(limit - out.size());
+                    const int got = ScanChunkSEH((const uint8_t*)s, span, pat.data(), n,
+                                                 tmp.size(), tmp.data());
+                    for (int k = 0; k < got; k++) out.push_back(tmp[k]);
+                }
+                s += span;
+                scanned += span;
+            }
+        }
+        if (region_end <= cur) break;
+        cur = region_end;
+    }
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 // generic invocation
 // ---------------------------------------------------------------------------
@@ -711,21 +796,31 @@ uint64_t HammerBridge::CallVirtual(uintptr_t this_ptr, size_t vtable_offset,
 // hammer map docs
 // ---------------------------------------------------------------------------
 std::vector<uintptr_t> HammerBridge::ListMapDocs() {
+    // 新版 hammer.dll（2026-09 更新后）：经 ToolSystem(CHammerApp) 运行时对象链枚举。
+    //   app+0x58/+0x60 = CHammerEditorSession* CUtlVector
+    //   session+0x138  = 活动 CMapDocSession 包装；CMapDoc 内嵌于 wrapper+0x10
     std::vector<uintptr_t> out;
-    if (!hammer_base_) return out;
+    if (!hammer_base_ || !hammer_app_instance_) return out;
 
-    const uintptr_t count_addr = hammer_base_ + HammerAddr::kMapDocCountRva;
-    const uintptr_t array_addr = hammer_base_ + HammerAddr::kMapDocArrayRva;
-    if (!IsRangeReadable(count_addr, 4) || !IsRangeReadable(array_addr, 8)) return out;
+    const uintptr_t app = (uintptr_t)hammer_app_instance_;
+    if (!IsRangeReadable(app + HammerAddr::kAppSessionVecCount, 4)) return out;
 
-    int32_t count = *(int32_t*)count_addr;
-    uintptr_t arr = *(uintptr_t*)array_addr;
+    int32_t count = *(int32_t*)(app + HammerAddr::kAppSessionVecCount);
+    uintptr_t arr = *(uintptr_t*)(app + HammerAddr::kAppSessionVecMem);
     if (count <= 0 || count > 64 || !arr) return out;
     if (!IsRangeReadable(arr, (size_t)count * 8)) return out;
 
+    const uintptr_t want_vtable = hammer_base_ + HammerAddr::kCMapDocVtableRva;
     for (int32_t i = 0; i < count; i++) {
-        uintptr_t doc = ((uintptr_t*)arr)[i];
-        if (doc && IsRangeReadable(doc, 8)) out.push_back(doc);
+        uintptr_t session = ((uintptr_t*)arr)[i];
+        if (!session || !IsRangeReadable(session + HammerAddr::kSessionActiveWrap, 8)) continue;
+        uintptr_t wrapper = *(uintptr_t*)(session + HammerAddr::kSessionActiveWrap);
+        if (!wrapper || !IsRangeReadable(wrapper + HammerAddr::kWrapperDocEmbed, 8)) continue;
+        uintptr_t doc = wrapper + HammerAddr::kWrapperDocEmbed;
+        // vptr 校验，确保确实是 CMapDoc
+        if (IsRangeReadable(doc, 8) && *(uintptr_t*)doc == want_vtable) {
+            out.push_back(doc);
+        }
     }
     return out;
 }

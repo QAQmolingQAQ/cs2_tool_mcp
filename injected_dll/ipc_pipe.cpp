@@ -55,6 +55,73 @@ bool GetAddressParam(const JsonValue* params, HammerBridge& bridge, uintptr_t& o
     return bridge.ResolveAddress(s, out);
 }
 
+// 单次 read_memory 上限。响应里是十六进制字符串，实际载荷 = 2 × size + JSON 开销。
+constexpr int kMaxReadSize = 8192;
+
+// 十六进制编码：查表代替逐字节 snprintf（read_memory 用，快一个数量级）。
+struct HexTable {
+    char t[512];
+    HexTable() {
+        const char* d = "0123456789abcdef";
+        for (int i = 0; i < 256; ++i) {
+            t[i * 2] = d[i >> 4];
+            t[i * 2 + 1] = d[i & 15];
+        }
+    }
+};
+
+std::string ToHex(const uint8_t* data, size_t n) {
+    static const HexTable tbl;   // C++11 保证函数内静态初始化线程安全
+    std::string out;
+    out.resize(n * 2);
+    for (size_t i = 0; i < n; ++i) {
+        const char* p = tbl.t + (size_t)data[i] * 2;
+        out[i * 2] = p[0];
+        out[i * 2 + 1] = p[1];
+    }
+    return out;
+}
+
+// 解析 args 数组 -> 原始参数值（call_function / call_virtual 共用）：
+//   Number     -> 值本身
+//   "str:文本" -> 在本进程分配一份 UTF-8 C 字符串并传其指针
+//                 （地址记进 str_allocs，调用返回后由 FreeCallArgs 释放）
+//   其它字符串 -> 当「模块地址表达式」解析（"hammer.dll+0x1234" / "0x1234"）
+//   ⚠ 每个元素**必须压一个参数**：解析失败压 0。旧版 call_virtual 遇到字符串
+//     解析失败会**跳过不压**，导致参数整体左移、被调函数收到错位参数
+//     （vfn2144 拿到空类名直接 return，被长期误判成「该虚函数无效」）。
+void ParseCallArgs(const JsonValue* arr, HammerBridge& bridge,
+                   std::vector<uint64_t>& out, std::vector<void*>& str_allocs) {
+    if (!arr || arr->type != JsonValue::Type::Array) return;
+    for (auto& v : arr->arr) {
+        if (v.type == JsonValue::Type::Number) {
+            out.push_back((uint64_t)v.nval);
+        } else if (v.type == JsonValue::Type::String) {
+            const std::string& s = v.sval;
+            if (s.rfind("str:", 0) == 0) {
+                const std::string text = s.substr(4);
+                void* mem = VirtualAlloc(nullptr, text.size() + 1,
+                                         MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+                if (mem) {
+                    memcpy(mem, text.c_str(), text.size() + 1);
+                    str_allocs.push_back(mem);
+                }
+                out.push_back((uint64_t)mem);
+            } else {
+                uintptr_t a = 0;
+                bridge.ResolveAddress(s, a);   // 失败时 a 保持 0
+                out.push_back((uint64_t)a);
+            }
+        } else {
+            out.push_back(0);   // bool / null / 数组 / 对象：占位，保持参数个数
+        }
+    }
+}
+
+void FreeCallArgs(std::vector<void*>& str_allocs) {
+    for (void* p : str_allocs) VirtualFree(p, 0, MEM_RELEASE);
+}
+
 } // namespace
 
 IpcPipeServer& IpcPipeServer::Instance() {
@@ -202,10 +269,18 @@ bool IpcPipeServer::SendResponse(HANDLE hPipe, const std::string& json_response)
     if (!WriteFile(hPipe, &header, sizeof(header), &bytes_written, nullptr)) {
         return false;
     }
-    if (json_response.size() > 0) {
-        if (!WriteFile(hPipe, json_response.data(), (DWORD)json_response.size(), &bytes_written, nullptr)) {
+    if (bytes_written != sizeof(header)) return false;
+    // 循环写：(read_memory 之类的) 大响应可能超过管道缓冲区，单次 WriteFile
+    // 只写进去一部分 —— 那样响应流会错位，客户端读到的就是垃圾。
+    size_t total = 0;
+    while (total < json_response.size()) {
+        DWORD written = 0;
+        if (!WriteFile(hPipe, json_response.data() + total,
+                       (DWORD)(json_response.size() - total), &written, nullptr)) {
             return false;
         }
+        if (written == 0) return false;
+        total += written;
     }
     FlushFileBuffers(hPipe);
     return true;
@@ -272,17 +347,11 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         uintptr_t addr = 0;
         if (!GetAddressParam(params, bridge, addr)) return error("invalid 'address'");
         int size = (int)params->GetInt("size", 8);
-        if (size <= 0 || size > 1024) return error("invalid size");
+        if (size <= 0 || size > kMaxReadSize) return error("invalid size");
         std::vector<uint8_t> buf(size);
         if (!bridge.ReadMem(addr, buf.data(), size)) return error("read failed");
-        std::string hex;
-        hex.reserve(size * 2 + 2);
-        hex += "0x";
-        for (auto b : buf) {
-            char tb[4];
-            snprintf(tb, sizeof(tb), "%02x", b);
-            hex += tb;
-        }
+        std::string hex = "0x";
+        hex += ToHex(buf.data(), buf.size());
         return success(JsonMakeObject({
             {"address", JsonMakeInt((int64_t)addr)},
             {"size", JsonMakeInt(size)},
@@ -452,39 +521,33 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
             {"matches", JsonMakeArray(items)}
         }));
     }
+    if (method == "scan_heap") {
+        if (!params) return error("missing params");
+        std::string pattern = params->GetString("pattern");
+        if (pattern.empty()) return error("missing 'pattern'");
+        size_t limit = (size_t)params->GetInt("limit", 64);
+        uintptr_t lo = 0, hi = 0;
+        const JsonValue* plo = params->Get("start");
+        if (plo && plo->type == JsonValue::Type::String) bridge.ResolveAddress(plo->sval, lo);
+        const JsonValue* phi = params->Get("end");
+        if (phi && phi->type == JsonValue::Type::String) bridge.ResolveAddress(phi->sval, hi);
+        std::vector<uintptr_t> hits;
+        if (!bridge.ScanHeap(pattern, limit, lo, hi, hits)) return error("heap scan failed");
+        std::vector<std::string> items;
+        for (auto h : hits) items.push_back(JsonMakeString(Hex(h)));
+        return success(JsonMakeObject({
+            {"pattern", JsonMakeString(pattern)},
+            {"count", JsonMakeInt((int64_t)hits.size())},
+            {"matches", JsonMakeArray(items)}
+        }));
+    }
     if (method == "call_function") {
         if (!params) return error("missing params");
         uintptr_t fn = 0;
         if (!GetAddressParam(params, bridge, fn)) return error("invalid 'address'");
         std::vector<uint64_t> args;
         std::vector<void*> str_allocs;   // "str:" 参数的本进程分配，调用后释放
-        const JsonValue* arr = params->Get("args");
-        if (arr && arr->type == JsonValue::Type::Array) {
-            for (auto& v : arr->arr) {
-                if (v.type == JsonValue::Type::Number) {
-                    args.push_back((uint64_t)v.nval);
-                } else if (v.type == JsonValue::Type::String) {
-                    const std::string& s = v.sval;
-                    if (s.rfind("str:", 0) == 0) {
-                        // "str:文本"：在本进程分配一份 UTF-8 C 字符串并传其指针。
-                        // 仅在**调用期间**有效（调用返回后释放），适合只读取参数名的 API。
-                        const std::string text = s.substr(4);
-                        void* mem = VirtualAlloc(nullptr, text.size() + 1,
-                                                 MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-                        if (!mem) continue;
-                        memcpy(mem, text.c_str(), text.size() + 1);
-                        str_allocs.push_back(mem);
-                        args.push_back((uint64_t)mem);
-                    } else {
-                        uintptr_t a = 0;
-                        if (bridge.ResolveAddress(s, a)) args.push_back((uint64_t)a);
-                    }
-                }
-            }
-        }
-        auto free_str_allocs = [&str_allocs]() {
-            for (void* p : str_allocs) VirtualFree(p, 0, MEM_RELEASE);
-        };
+        ParseCallArgs(params->Get("args"), bridge, args, str_allocs);
         // on_main_thread=true 时在目标进程主线程执行（文档/UI 相关操作必需，
         // 否则函数可能永不返回并让历史留在 busy 状态）
         const bool on_main = params->GetBool("on_main_thread", false);
@@ -492,7 +555,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         const uint64_t ret = on_main
             ? bridge.CallFunctionOnMainThread(fn, args, timeout_ms)
             : bridge.CallFunction(fn, args);
-        free_str_allocs();
+        FreeCallArgs(str_allocs);
         return success(JsonMakeObject({
             {"address", JsonMakeString(Hex(fn))},
             {"on_main_thread", JsonMakeBool(on_main)},
@@ -522,25 +585,21 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         uintptr_t this_ptr = 0;
         if (!GetAddressParam(params, bridge, this_ptr)) return error("invalid 'this'");
         size_t vtable_offset = (size_t)params->GetInt("vtable_offset", 0);
+        // ★ 与 call_function 共用同一套参数解析：支持 "str:文本"（本进程分配后传指针），
+        //   且解析失败的字符串压 0 而不是跳过 —— 跳过会让参数错位（见 ParseCallArgs 注释）。
         std::vector<uint64_t> args;
-        const JsonValue* arr = params->Get("args");
-        if (arr && arr->type == JsonValue::Type::Array) {
-            for (auto& v : arr->arr) {
-                if (v.type == JsonValue::Type::Number) args.push_back((uint64_t)v.nval);
-                else if (v.type == JsonValue::Type::String) {
-                    uintptr_t a = 0;
-                    if (bridge.ResolveAddress(v.sval, a)) args.push_back((uint64_t)a);
-                }
-            }
-        }
+        std::vector<void*> str_allocs;
+        ParseCallArgs(params->Get("args"), bridge, args, str_allocs);
         // 与 call_function 一致：文档/UI 相关的虚函数必须走主线程
         const bool on_main = params->GetBool("on_main_thread", false);
         const DWORD timeout_ms = (DWORD)params->GetInt("timeout_ms", 5000);
         uint64_t ret = bridge.CallVirtual(this_ptr, vtable_offset, args, on_main, timeout_ms);
+        FreeCallArgs(str_allocs);
         return success(JsonMakeObject({
             {"this", JsonMakeString(Hex(this_ptr))},
             {"vtable_offset", JsonMakeInt((int64_t)vtable_offset)},
             {"on_main_thread", JsonMakeBool(on_main)},
+            {"arg_count", JsonMakeInt((int64_t)args.size())},
             // 0=成功 1=超时 2=无主线程 3=钩子失败 4=调用中异常（仅 on_main_thread 时有意义）
             {"main_thread_status", JsonMakeInt(bridge.LastMainThreadStatus())},
             {"ret", JsonMakeInt((int64_t)ret)},
@@ -601,6 +660,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
             JsonMakeString("read_string"),
             JsonMakeString("read_ptr_chain"),
             JsonMakeString("find_pattern"),
+            JsonMakeString("scan_heap"),
             JsonMakeString("call_function"),
             JsonMakeString("call_virtual"),
             JsonMakeString("main_thread_selftest"),
