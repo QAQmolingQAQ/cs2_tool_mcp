@@ -3407,6 +3407,85 @@ cs2_area_query(min="-13010 11854 126", max="-12974 11890 162", kinds="mesh")
 | DLL 浮点参数 | `InvokeStub` 不支持 xmm → 带 float 形参的函数都调不了（本轮踩坑）。要支持得改 DLL 并重新注入。 |
 | 元素 origin 写法 | 直接写 `el + 0xA0`（Vec3D）。官方走 `vfn136/vfn144`（设位置/矩阵）；我们这条对无旋转的笔刷够用，**带旋转的笔刷需要改走虚函数**。 |
 
+---
+
+## 17. 工具系统 / 可绑定命令（Hammer 的 Key Bindings 那一套）—— 2026-09-27 初步摸底
+
+用户贴了 **Hammer Options → Key Bindings** 的截图（列 `Context` / `Command Name` / `Input Sequence`），
+问「原版类似这些功能，怎么实现」。这一节是目前摸清的部分（**尚未实现**）。
+
+### 17.1 接口层：`ToolSystem2` 就是 `CHammerApp`
+
+- `CreateInterface("ToolSystem2_001")` 的 InterfaceReg 在 `0x186776598`
+  （`{createFn = sub_180122F70, name = "ToolSystem2_001", next}`）。
+- **`sub_180122F70` 是 `CHammerApp` 的静态取用函数** —— 它初始化并返回 `&p____7CHammerApp__6B_`，
+  里面挂的是 `CHammerApp::vftable`、`CBindTargetProxy::vftable`、`CToolEventMapRegistrationHelper<CHammerApp>::vftable`。
+- → **`CreateInterface("ToolSystem2_001")` 返回的就是 `CHammerApp` 单例**，工具系统的公共 API
+  直接挂在 `??_7CHammerApp@@6B@`（**RVA `0x1DF0130`**）上（另有 `_0/_1/_2/_3` 四个次虚表
+  `0x1DF00E0 / 0x1DF02F0 / 0x1DF02E0 / 0x1DF02C8`，多继承的各基类视图）。
+- RTTI 里的层次：`IToolSystem2` → `CBaseToolSystem2` → `CTier0/1/2/3AppSystem<IToolSystem2>`
+  （符号 `0x18239D088`~`0x18239D1F8`）。
+
+### 17.2 ⭐ 描述符注册表是一条**全局链表**
+
+每个工具类在自己的**静态初始化**里登记，模板是 `CBindableTargetDescriptorInstance`。
+例：`sub_1802E7EB0` 注册 `ToolMeshDisplacement` ↔ `CToolMeshDisplacement`（并带命令 `PickNormal`；
+`"PickNormal"` 字符串全模块只被这一个函数引用）。
+
+注册函数 **`sub_1813038B0(desc)`**（头插法）：
+
+```c
+*(desc + 0x00) = &CBaseBindTargetDescriptor::vftable;
+*(desc + 0x38) = qword_18272D898;   // ← next
+qword_18272D898 = desc;             // ← 成为新链表头
+```
+
+| 项 | 值 |
+|---|---|
+| **链表头全局** | **`hammer + 0x272D898`**（`qword_18272D898`，RVA `0x272D898`） |
+| 节点布局 | `+0x00` vtable · **`+0x38` next** ·（其余字段待查） |
+| **`vtable[0]`** | **取「目标名」**（返回 `char*`，如 `"ToolMeshDisplacement"`） |
+| 链表头访问器 | `sub_181305000`（12 字节，就一句读全局返回） |
+| 基类 | `CBaseBindTargetDescriptor`（vtable RVA `0x1A1F830`） |
+
+### 17.3 ⭐ 枚举 + 序列化（Key Bindings 的数据源）
+
+**`sub_181303250(?, kvParent, ?)`**：遍历整条链表 →
+
+```c
+for (node = head; node; node = *(node + 0x38)) {
+    name = (*node->vptr[0])();                  // 目标名
+    hash = sub_18009D980(name, len, len ^ 0x31415926);
+    kvChild = sub_1813EB940(kv, &hash, 0);      // KV 子节点
+    if (!sub_1813040A0(node, kvChild, opts)) break;   // ★ 把该工具的命令写进 KV
+}
+```
+
+整棵树挂在键名 **`"bind_targets"`** 下。**这就是 Key Bindings 列表的来源。**
+
+### 17.4 命令对象的布局（从对话框填充代码反推）
+
+Key Bindings 表格填充 = **`sub_1813255B0(dlg)`**：
+
+- `dlg + 0x6C`(108) = 上下文数组（`&0x7FFFFFFF` 取计数、数据 `+0x70`(112)、容量 `+0x74`），**32 字节/条**
+- 每条：`+0x00` 上下文名 `char*`；`+0x18` = `CUtlVector`（计数 `+0x20`、数据 `+0x28`）of 命令指针
+- **命令对象 `+0x40` = 命令名 `char*`**
+- 按键序列：`sub_1813418B0(cmd, &CUtlString 输出)`（把输入序列取成字符串）
+- 三个列头字面量在 `0x181A26210/218/228` = `"Context"` / `"Command Name"` / `"Input Sequence"`
+
+### 17.5 建议实现顺序（待办）
+
+1. **`cs2_bind_list`（只读，最省）**：走 `hammer+0x272D898` 链表枚举；对每个节点调 `vfn0()` 取名字
+   （或直接读 `sub_181303250` 生成的那棵 `bind_targets` KV）。给出「工具 → 命令名 → 按键」全表。
+2. **`cs2_bind_run(工具名, 命令名)`**：先逆 `sub_1813040A0` 拿到**命令表字段布局**
+   （名字 / ID / 回调），再按名字找描述符 → 找命令 → 调它的回调
+   （回调是静态 lambda：符号形如 `_Func_impl_no_alloc<lambda_…>`）。
+3. **状态准备**：大量命令**依赖 UI 状态**（活动工具、选择集、视口），脱离 UI 直调可能无效甚至崩。
+   务实策略是「**上下文用现成底层链路准备**（选中/工具模式），**动作走命令**」。
+
+⚠ 注意：`IToolSystem2` 的公共方法没有符号，若要走「先拿 `CHammerApp` → 调虚表槽」这条路，
+只能靠逐个 slot 反查用途；**优先用 17.2 的链表 + 17.3 的 KV 这条有名字的路。**
+
 
 
 
