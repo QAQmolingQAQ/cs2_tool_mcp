@@ -483,11 +483,21 @@ def _hammer_addr(rva: int) -> str:
     return f"hammer.dll+{rva:#x}"
 
 
+_UINT_WIDTH = {"u8": 1, "u16": 2, "u32": 4, "u64": 8}
+
+
 def _read_int(address: int, type_: str) -> int:
+    """读整数。**无符号类型强制按位宽还原** —— DLL 的 `read_value` 返回的是有符号
+    JSON 整数，最高位为 1 的值（高地址指针、referenceID 这类 64 位 ID）会变成负数，
+    直接 `hex()` 出来就是 `0x-...`。"""
     resp = _get_pipe().call("read_value", {"address": address, "type": type_})
     if "error" in resp:
         raise RuntimeError(resp["error"])
-    return resp["result"]["value"]
+    val = resp["result"]["value"]
+    width = _UINT_WIDTH.get(type_)
+    if width:
+        val &= (1 << (width * 8)) - 1
+    return val
 
 
 def _call_addr(address: int | str, args: list, timeout: int = 15000) -> tuple[str, str]:
@@ -834,6 +844,143 @@ def cs2_map_info() -> str:
     return "\n".join(lines)
 
 
+@mcp.tool()
+def cs2_map_groups() -> str:
+    """列出地图的**组织信息**：分组 / 可见性组 / 当前选择集 / 地图变量 / 相机。
+
+    Hammer 的 Groups、Visgroups 面板与「当前选中了什么」都在这里（2026-09 实测，
+    见 REVERSE_NOTES.md §15.8）。链路：
+      `CMapDoc+0x80` -> CMapRootElement，它的属性引用：
+        `rootSelectionSet` -> CMapSelectionSet（当前选择集）
+        `visbility`        -> CVisibilityMgr（可见性组，`nodes` = 元素句柄表）
+        `mapVariables`     -> CMapVariableSetStorage（地图变量）
+        `3dcameras` / `defaultcamera` -> CStoredCameras / CStoredCamera
+      **分组**是 CMapWorld 子树里的 `CMapGroup`，成员在其 `children` 属性（元素句柄表）。
+
+    成员显示为 `h=<句柄>(<类名>)`：句柄经元素表直查，类名走 entity_properties。
+    """
+    try:
+        base = _hammer_base()
+        doc = _map_doc()
+        root = _read_int(doc + CMAPDOC_ROOT_OFFSET, "u64")
+        if not root or _read_int(root, "u64") != base + RVA_CMAPROOT_VTABLE:
+            return f"ERROR CMapRootElement 无效（root={root:#x}）"
+        world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
+        table, cap = _dm_table()
+        refs = _dm_find_attrs(root, ("rootSelectionSet", "visbility", "mapVariables",
+                                     "3dcameras", "defaultcamera"))
+
+        def _ref_elem(name: str) -> int:
+            """root 上的 type=1 引用属性 -> 元素地址（0 = 无效/未设置）。"""
+            item = refs.get(name)
+            if not item:
+                return 0
+            h = _dm_value_at(item[1], item[2])
+            return _dm_handle_element(h, table, cap) if isinstance(h, int) else 0
+
+        def _label(handle: int) -> str:
+            el = _dm_handle_element(handle, table, cap)
+            cls = "?"
+            if el:
+                try:
+                    vt = _read_int(el, "u64")
+                except Exception:  # noqa: BLE001
+                    vt = 0
+                if vt == base + RVA_CMAPENTITY_VTABLE:
+                    cls = _entity_get_attrs(el, ("classname",)).get("classname") or "?"
+                elif vt == base + RVA_CMAPMESH_VTABLE:
+                    cls = "CMapMesh"
+                elif vt == base + RVA_CMAPGROUP_VTABLE:
+                    cls = "CMapGroup"
+                else:
+                    cls = f"vt={vt - base:#x}"
+            return f"h={handle}({cls})"
+
+        def _member_list(el: int, arr_name: str, maxn: int = 12) -> str:
+            got = _dm_find_attrs(el, (arr_name,))
+            if arr_name not in got:
+                return "（无该属性）"
+            arr = _dm_value_at(got[arr_name][1], got[arr_name][2])
+            if not isinstance(arr, list) or not arr:
+                return "（空）"
+            shown = "  ".join(_label(h) for h in arr[:maxn])
+            if len(arr) > maxn:
+                shown += f"  … 共 {len(arr)} 个"
+            return shown
+
+        def _attr_of(el: int, name: str):
+            got = _dm_find_attrs(el, (name,))
+            return _dm_value_at(*got[name][1:]) if name in got else None
+
+        def _fmtv(v) -> str:
+            """vec3 友好显示，其余交给 str()。"""
+            if isinstance(v, tuple) and len(v) == 3:
+                return "(%.1f, %.1f, %.1f)" % v
+            return str(v)
+
+        lines = [f"地图组织信息  CMapRootElement={root:#x}  CMapWorld={world:#x}"]
+
+        groups = [el for el, vt in _walk_elements(world, table, cap)
+                  if vt == base + RVA_CMAPGROUP_VTABLE]
+        lines.append(f"\n── 分组 CMapGroup（{len(groups)} 个）──")
+        for n, el in enumerate(groups):
+            lines.append(f"  [{n}] {el:#x}  nodeID={_attr_of(el, 'nodeID')}")
+            lines.append(f"      成员: {_member_list(el, 'children')}")
+        if not groups:
+            lines.append("  （无）")
+
+        vis = _ref_elem("visbility")
+        lines.append(f"\n── 可见性组 CVisibilityMgr @{vis:#x} ──")
+        if vis:
+            lines.append(f"  nodes：{_member_list(vis, 'nodes')}")
+            lines.append(f"  hiddenFlags：{_attr_of(vis, 'hiddenFlags')}")
+        else:
+            lines.append("  （CMapRootElement 上没有 visbility 引用）")
+
+        sel = _ref_elem("rootSelectionSet")
+        lines.append(f"\n── 当前选择集 CMapSelectionSet @{sel:#x} ──")
+        if sel:
+            for nm, atype, val in _dm_walk_attrs(sel):
+                if nm != "name":
+                    lines.append(_fmt_attr_line(nm, atype, val))
+        else:
+            lines.append("  （CMapRootElement 上没有 rootSelectionSet 引用）")
+
+        vars_el = _ref_elem("mapVariables")
+        lines.append(f"\n── 地图变量 CMapVariableSetStorage @{vars_el:#x} ──")
+        if vars_el:
+            shown_any = False
+            for nm, atype, val in _dm_walk_attrs(vars_el):
+                if nm == "name" or (isinstance(val, list) and not val):
+                    continue
+                lines.append(_fmt_attr_line(nm, atype, val))
+                shown_any = True
+            if not shown_any:
+                lines.append("  （本图没有定义任何地图变量）")
+        else:
+            lines.append("  （CMapRootElement 上没有 mapVariables 引用）")
+
+        lines.append("\n── 相机 ──")
+        cams = _ref_elem("3dcameras")
+        cam = _ref_elem("defaultcamera")
+        if cams:
+            cl = _attr_of(cams, "cameras")
+            lines.append(f"  CStoredCameras @{cams:#x}: "
+                         f"cameras {len(cl) if isinstance(cl, list) else 0} 个, "
+                         f"activecamera={_attr_of(cams, 'activecamera')}")
+        if cam:
+            lines.append(f"  CStoredCamera @{cam:#x}: "
+                         f"position={_fmtv(_attr_of(cam, 'position'))}")
+            lines.append(f"      lookat={_fmtv(_attr_of(cam, 'lookat'))}")
+        if not cams and not cam:
+            lines.append("  （无）")
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Qt 自动化：触发菜单项（保存等 UI 操作，等价于点菜单，不依赖窗口焦点）
 # 原理见 REVERSE_NOTES §2.14：Qt5 以 mangled 名导出全部 public 符号；
@@ -1072,6 +1219,9 @@ def cs2_map_save() -> str:
 # ---------------------------------------------------------------------------
 RVA_CMAPENTITY_VTABLE = 0x1758D00   # ??_7CMapEntity@@6B@（运行时实测）
 RVA_CMAPWORLD_VTABLE = 0x1772920    # CMapWorld
+# CMapGroup：分组（组成员在 `children` 属性里，元素句柄表）。RVA 由 ze_surf_easy
+# 元素表类型分布反查（IDA 按 RVA 取符号名，完整 RVA→类名对照见 REVERSE_NOTES §15.7.1）
+RVA_CMAPGROUP_VTABLE = 0x178B4A8
 CMAPDOC_WORLD_OFFSET = 0x88         # CMapDoc -> CMapWorld*（136，旧版同偏移）
 
 # CMapNode/CMapWorld/CMapEntity 共用子树布局（与旧版完全一致）：
@@ -1087,16 +1237,23 @@ ATTR_OFF_OWNER = 0x10               # 所属 element 回指
 ATTR_OFF_TYPE = 0x1C                # 低 6 位为类型（字符串 type=5 时此字节=0x5）
 ATTR_OFF_NAME = 0x20                # CUtlSymbolLarge 即裸 char*
 DM_ATTR_TYPE_STRING = 5             # AT_STRING
-# 类型码 -> 名字（`attr+0x1C` 低 6 位）。证据见 REVERSE_NOTES.md §14.2：
+DM_ATTR_TYPE_BOOL = 4               # AT_BOOL —— **值存储只占 1 字节**
+DM_ATTR_TYPE_ID = 15                # referenceID 之类的 8 字节对象 ID
+DM_ATTR_TYPE_ARRAY_UNK = 34         # CUtlVector 数组，但元素类型尚未确定
+# 类型码 -> 名字（`attr+0x1C` 低 6 位）。证据见 REVERSE_NOTES.md §14.2 / §15.8：
 # 5/8/10 由对应 setter 的 CUndoAttributeSetValueElement<T> 实例反查，
-# 1/2/3/4/7 由 sub_1805CE490（int 写入器）的接受分支反查，33/37 由活体属性枚举。
+# 1/2/3/7 由 sub_1805CE490（int 写入器）的接受分支反查，33/37 由活体属性枚举，
+# 4/15/34 由 ze_surf_easy 实测值存储字节数反查。
 DM_ATTR_TYPE_NAMES = {
     DM_ATTR_TYPE_STRING: "string",
     1: "element_handle",
-    2: "int", 3: "int", 4: "int", 7: "int",
+    2: "int", 3: "int", 7: "int",
+    DM_ATTR_TYPE_BOOL: "bool",
     8: "color",
     10: "vec3",
+    DM_ATTR_TYPE_ID: "id",
     33: "element_array",
+    DM_ATTR_TYPE_ARRAY_UNK: "array",
     37: "string_array",
 }
 # CDmElement::MarkDirty(this, flags)（sub_1805C81C0）：把标志或进 element+0x5E/+0x60
@@ -1510,25 +1667,23 @@ def _dm_read_name(nameptr: int) -> str:
     return nm
 
 
-def _dm_find_attrs(element: int, names) -> dict[str, tuple[int, int, int]]:
-    """一次遍历属性链，收集 names 里命中的属性 -> {name: (attr, 类型码, 值指针)}。
+def _dm_iter_attrs(element: int, maxn: int = 512):
+    """按链序产出 `(attr, 名字, 类型码, 值指针)` —— 属性链遍历的唯一实现。
 
     **块读优化**：CDmAttribute 对象按 0x30 步长连续分配（实测同一元素的链上
-    相邻节点地址差恒为 48，偶有跳跃），所以一次 1024 字节读能覆盖 ~21 个节点，
-    只在遇到断点时补读下一块 —— 整条链的读取次数从「每节点一次」降到「每块一次」。
-    名字走驻留串缓存（命中零额外读取）。找齐 names 即提前结束。
+    相邻节点地址差恒为 48，偶有跳跃），所以一次块读能覆盖 ~21 个节点，
+    只在跳出块时补读 —— 整条链的读取次数从「每节点一次」降到「每块一次」。
+    名字走驻留串缓存（命中零额外读取）。
     """
-    want = set(names)
-    found: dict[str, tuple[int, int, int]] = {}
     hdr_len = ATTR_OFF_NAME + 8
     try:
         attr = _read_int(element + ELEMENT_OFF_ATTR_HEAD, "u64")
     except Exception:  # noqa: BLE001
-        return found
+        return
     blk_addr, blk = 0, b""
-    for _ in range(512):
-        if not attr or attr < 0x10000 or not want:
-            break
+    for _ in range(maxn):
+        if not attr or attr < 0x10000:
+            return
         if not (blk_addr and blk_addr <= attr and attr + hdr_len <= blk_addr + len(blk)):
             blk_addr = attr
             try:
@@ -1537,20 +1692,43 @@ def _dm_find_attrs(element: int, names) -> dict[str, tuple[int, int, int]]:
                 try:  # 块尾可能压到未映射页，退回只读一个节点头
                     blk = _read_bytes(attr, hdr_len)
                 except Exception:  # noqa: BLE001
-                    break
+                    return
         off = attr - blk_addr
         nameptr = int.from_bytes(blk[off + ATTR_OFF_NAME:off + ATTR_OFF_NAME + 8], "little")
-        if nameptr >= 0x10000:
-            nm = _dm_read_name(nameptr)
-            if nm in want:
-                found[nm] = (
-                    attr,
-                    blk[off + ATTR_OFF_TYPE] & 0x3F,
-                    int.from_bytes(blk[off + ATTR_OFF_VALUE:off + ATTR_OFF_VALUE + 8], "little"),
-                )
-                want.discard(nm)
+        nm = _dm_read_name(nameptr) if nameptr >= 0x10000 else ""
+        atype = blk[off + ATTR_OFF_TYPE] & 0x3F
+        valptr = int.from_bytes(
+            blk[off + ATTR_OFF_VALUE:off + ATTR_OFF_VALUE + 8], "little")
+        yield attr, nm, atype, valptr
         attr = int.from_bytes(blk[off + ATTR_OFF_NEXT:off + ATTR_OFF_NEXT + 8], "little")
+
+
+def _dm_find_attrs(element: int, names) -> dict[str, tuple[int, int, int]]:
+    """一次遍历属性链，收集 names 里命中的属性 -> {name: (attr, 类型码, 值指针)}。
+
+    找齐 names 即提前结束（不要改成遍历全链，那会把热路径变慢）。
+    """
+    want = set(names)
+    found: dict[str, tuple[int, int, int]] = {}
+    for attr, nm, atype, valptr in _dm_iter_attrs(element):
+        if nm and nm in want:
+            found[nm] = (attr, atype, valptr)
+            want.discard(nm)
+            if not want:
+                break
     return found
+
+
+def _dm_walk_attrs(element: int, maxn: int = 512) -> list[tuple[str, int, Any]]:
+    """遍历**整条**属性链 -> [(名字, 类型码, 值)]（用于「列出全部属性」）。"""
+    out: list[tuple[str, int, Any]] = []
+    for _attr, nm, atype, valptr in _dm_iter_attrs(element, maxn):
+        try:
+            val = _dm_value_at(atype, valptr)
+        except Exception:  # noqa: BLE001
+            val = "<解码失败>"
+        out.append((nm or "?", atype, val))
+    return out
 
 
 def _dm_find_attr(element: int, name: str) -> int:
@@ -1575,26 +1753,44 @@ def _dm_attr_value(attr: int):
 def _dm_value_at(atype: int, valptr: int):
     """按（类型码, 值存储指针）解码属性值。
 
-    5=string -> str；8=color / 1,2,3,4,7=int -> int；10=vec3 -> (x,y,z)；
-    33=元素句柄数组 -> list[int]；37=字符串数组 -> list[str]；
-    其余类型返回 '<type=N 原始 …>' 形式的原样十六进制（不做猜测）。
+    5=string -> str；2,3,7=int / 8=color -> int；10=vec3 -> (x,y,z)；
+    **4=bool -> 只读 1 字节**；**15=id -> 8 字节 ID 的 hex 串**；
+    33=元素句柄数组 / 37=字符串数组 -> list；34=数组（元素类型未定）-> 带表头的说明串；
+    其余类型返回 '<type=N 原始 …>'（不做猜测）。
     """
     if not valptr:
         return None
     if atype == DM_ATTR_TYPE_STRING:
         cp = _read_int(valptr, "u64")  # 字符串：[值存储] = char*
         return _read_string(cp, 2048) if cp else ""
-    if atype in (1, 2, 3, 4, 7, 8):    # 句柄 / 整数族 / 颜色：内联 32 位
+    if atype == DM_ATTR_TYPE_BOOL:
+        # ⚠ 值存储**只有 1 字节**。按 u32 读会把后面 3 字节的未初始化内存当高位
+        # （实测 isProceduralEntity 被读成 3472246784 这类垃圾；见 §15.8）
+        return _read_bytes(valptr, 1)[0] != 0
+    if atype == DM_ATTR_TYPE_ID:
+        # 8 字节对象 ID（如 referenceID）。**不要读 16 字节** —— 后 8 字节是相邻内存
+        return f"0x{_read_int(valptr, 'u64'):016x}"
+    if atype == 1:                     # 元素句柄：无效哨兵显示成「无引用」
+        h = _read_int(valptr, "u32")
+        return None if h == INVALID_DMX_HANDLE else h
+    if atype in (2, 3, 7, 8):          # 整数族 / 颜色：内联 32 位
         return _read_int(valptr, "u32")
     if atype == 10:                    # Vec3D<float>：内联 12 字节
         return struct.unpack("<3f", _read_bytes(valptr, 12))
-    if atype in (33, 37):              # 数组：值存储里是 CUtlVector 头
+    if atype in (33, 34, 37):          # 数组：值存储里是 CUtlVector 头
         size = _read_int(valptr + ARR_OFF_SIZE, "u32")
         data = _read_int(valptr + ARR_OFF_DATA, "u64")
         if not size or not data or size > 100000:
             return []
         if atype == 33:
             return list(struct.unpack(f"<{size}I", _read_bytes(data, 4 * size)))
+        if atype == DM_ATTR_TYPE_ARRAY_UNK:
+            # 已证实是 CUtlVector（hiddenFlags 实测 count=6069 / cap=6069），
+            # 但元素宽度还没定（本图里数据全 0），所以先只报表头 + 前几字节
+            cap = _read_int(valptr + ARR_OFF_ALLOC, "u32")
+            head = _read_bytes(data, min(16, size))
+            return (f"<type=34 数组 n={size} cap={cap} 元素类型未定, "
+                    f"前 {len(head)}B: {head.hex(' ')}>")
         return [_read_string(_read_int(data + 8 * i, "u64"), 512) or ""
                 for i in range(size)]
     raw = _read_bytes(valptr, 16)
@@ -1778,8 +1974,9 @@ def _read_vec3(address: int) -> tuple[float, float, float]:
     return struct.unpack("<3f", _read_bytes(address, 12))
 
 
-def list_entities(limit: int = 200) -> tuple[list[tuple[int, Any, Any, Any]], int, int, int]:
-    """返回 (rows[(entity, classname, targetname, origin)], 场景元素总数, doc, world, 实体数)。"""
+def list_entities(limit: int = 200
+                  ) -> tuple[list[tuple[int, Any, Any, Any, Any]], int, int, int, int]:
+    """返回 (rows[(entity, classname, targetname, origin, nodeID)], 场景元素总数, doc, world, 实体数)。"""
     doc = _map_doc()
     world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
     if not world:
@@ -1796,17 +1993,19 @@ def list_entities(limit: int = 200) -> tuple[list[tuple[int, Any, Any, Any]], in
         if vt == ent_vtable:
             ents.append(el)
 
-    rows: list[tuple[int, Any, Any, Any]] = []
+    rows: list[tuple[int, Any, Any, Any, Any]] = []
     for ent in ents[:limit]:
         try:
-            attrs = _entity_get_attrs(ent, ("classname", ENTITY_TARGETNAME_ATTR))
+            attrs = _entity_get_attrs(
+                ent, ("classname", ENTITY_TARGETNAME_ATTR, "nodeID"))
         except Exception:  # noqa: BLE001
             attrs = {}
         try:
             origin = _read_vec3(ent + ENTITY_OFF_ORIGIN)
         except Exception:  # noqa: BLE001
             origin = None
-        rows.append((ent, attrs.get("classname"), attrs.get(ENTITY_TARGETNAME_ATTR), origin))
+        rows.append((ent, attrs.get("classname"), attrs.get(ENTITY_TARGETNAME_ATTR),
+                     origin, attrs.get("nodeID")))
     return rows, total, doc, world, len(ents)
 
 
@@ -1836,8 +2035,10 @@ def cs2_entity_list(limit: int = 200) -> str:
     if not rows:
         return head
     lines = [head, ""]
-    for n, (ent, cls, tname, origin) in enumerate(rows):
+    for n, (ent, cls, tname, origin, node_id) in enumerate(rows):
         label = cls or "?"
+        if node_id is not None:
+            label += f"  id={node_id}"
         if tname:
             label += f"  name={tname}"
         if origin:
@@ -1944,6 +2145,73 @@ def cs2_entity_find_attr(entity: str, name: str) -> str:
     if not attr:
         return f"{name!r} 未找到  (entity={ent:#x})"
     return f"{name} -> attr={attr:#x}  ({where} 链, entity={ent:#x})"
+
+
+def _fmt_attr_line(name: str, atype: int, value: Any, name_w: int = 26) -> str:
+    """一行属性：`名字  类型(码) = 值`（向量/数组做紧凑显示）。"""
+    tname = DM_ATTR_TYPE_NAMES.get(atype, "?")
+    if isinstance(value, tuple) and len(value) == 3:
+        shown = "(%.4g, %.4g, %.4g)" % tuple(float(v) for v in value)
+    elif isinstance(value, list):
+        items = ", ".join(repr(x) if isinstance(x, str) else str(x) for x in value[:12])
+        shown = f"[{items}]"
+        if len(value) > 12:
+            shown = shown[:-1] + f", … 共 {len(value)} 项]"
+    elif isinstance(value, str):
+        shown = repr(value)
+    else:
+        shown = str(value)
+    if len(shown) > 220:
+        shown = shown[:220] + "…"
+    return f"  {name:<{name_w}} {tname}({atype}) = {shown}"
+
+
+@mcp.tool()
+def cs2_entity_attrs(entity: str, limit: int = 200) -> str:
+    """列出实体的**全部**属性 —— 等价 Hammer「Object Properties」面板，外加引擎字段。
+
+    两条链分别列出，都是整条遍历（纯内存，无主线程调用）：
+      · `entity_properties`(CEditGameClassProps) —— **全部 keyvalue**（实测 trigger_hurt
+        有 23 项：damage/damagecap/spawnflags/StartDisabled…；logic_script 有 Group00~15）。
+        注意 keyvalue 一律以字符串存储（类型码 5），数值/向量型也是字符串。
+      · 实体自身链 —— 引擎字段：`nodeID`(Hammer 里的对象编号，分组/可见性组就是引用它)、
+        `referenceID`(8 字节对象 ID)、`isProceduralEntity`(bool)、`hitNormal`(vec3)、
+        `children`、`variableNames`/`variableTargetKeys`、`relayPlugData` 等。
+
+    值按类型码解码（见 REVERSE_NOTES §14.2 / §15.8）：
+    5=string(string) · 1=element_handle · 2/3/7=int · **4=bool(只读 1 字节)** ·
+    8=color · 10=vec3 · **15=id(8 字节)** · 33/37=数组 · 34=数组(元素类型未定)。
+
+    Args:
+        entity: 实体地址（cs2_entity_list 给出）。
+        limit: 每条链最多列多少项。
+    """
+    try:
+        ent = _parse_addr(entity)
+        n_lim = max(1, int(limit))
+        props = _entity_class_props(ent)
+        ent_attrs = _dm_walk_attrs(ent)
+        props_attrs = _dm_walk_attrs(props) if props else []
+        cls = _entity_get_attrs(ent, ("classname",), props=props).get("classname")
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+
+    lines = [f"实体 {ent:#x}  [CMapEntity]  classname={cls!r}"]
+    if props_attrs:
+        lines.append(f"\n── CEditGameClassProps @{props:#x}"
+                     f"（keyvalue，{len(props_attrs)} 项）──")
+        lines += [_fmt_attr_line(*a) for a in props_attrs[:n_lim]]
+        if len(props_attrs) > n_lim:
+            lines.append(f"  … 还有 {len(props_attrs) - n_lim} 项")
+    else:
+        lines.append("\n── 没有 entity_properties（不是普通实体元素？）──")
+    lines.append(f"\n── 实体自身链（{len(ent_attrs)} 项）──")
+    lines += [_fmt_attr_line(*a) for a in ent_attrs[:n_lim]]
+    if len(ent_attrs) > n_lim:
+        lines.append(f"  … 还有 {len(ent_attrs) - n_lim} 项")
+    return "\n".join(lines)
 
 
 @mcp.tool()

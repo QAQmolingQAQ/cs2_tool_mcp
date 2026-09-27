@@ -2858,6 +2858,130 @@ call_virtual(this=ent, 2144, ["not_a_module_expr", 0, 0]) -> arg_count=3   （�
 （占全量的 27%）。「只想瞄一眼」在大图上依然慢 —— 这是已知的待优化项（方向：
 early-exit、树遍历合并块读），本轮按用户要求暂不动。
 
+---
+
+### 15.8 ⭐⭐ 元素类型全谱 / 属性类型码补全 / 补齐「漏读的数据」（2026-09-27）
+
+接着 §15.7 的大图，把「图里存在但工具没读」的数据系统盘了一遍，并补上两个工具。
+
+#### 15.8.1 元素表 RVA → 类名全谱（IDA 按 RVA 取符号名）
+
+| RVA | 类 | ze_surf_easy 里的数量 |
+|---|---|---|
+| `0x1758D00` | `CMapEntity` | 4,403 |
+| `0x175E2B8` | `CEditGameClassProps` | 4,404 |
+| `0x176B8E0` | `CMapMesh` | 4,124 |
+| `0x176C3E0` | `CMapStaticOverlay` | 13 |
+| `0x178B4A8` | `CMapGroup` | 5 |
+| `0x17C2718` | `CMapSelectionSet` | 1 |
+| `0x1763FA8` | `CMapRootElement` | 1 |
+| `0x17F1428` | `CMapVariableSetStorage` | 1 |
+| `0x17EC118` | `CVisibilityMgr` | 1 |
+| `0x1763EA8` | `CStoredCameras` | 1 |
+| `0x1763E28` | `CStoredCamera` | 1 |
+| `0x1772920` | `CMapWorld` | 1 |
+| `0x16C37D0` | `CDmElement`（基类，doc 级杂项） | 2 |
+
+#### 15.8.2 各元素的属性清单（实测；★ = 本轮之前工具没暴露的）
+
+**CMapEntity 自身链（11 项）** —— 注意**每个实体都有一个 1:1 的 `CEditGameClassProps` 元素**：
+```
+isProceduralEntity(4)  hitNormal(10)  entity_properties(1)  connectionsData(33)
+relayPlugData(1)       variableNames(37)  variableTargetKeys(37)  children(33)
+referenceID(15)  nodeID(2)  name(5)
+```
+★ `nodeID` = Hammer 里的对象编号（`CMapGroup.children` / `CVisibilityMgr.nodes` 引用的就是句柄，
+实测 entity 的 nodeID 与句柄常常相同但不保证）；★ `referenceID` = 8 字节对象 ID；
+★ `children` 是 DMX 镜像（走树用的是原生 `+0x1F8/+0x200`）。
+
+**CMapMesh（7 项）**：`meshData(1,in编辑期 INVALID)` `variableNames` `variableTargetKeys`
+`children` `referenceID` `nodeID` `name` —— **几何全在原生 CHammerPolyMesh，DMX 里没有**，
+而原生几何我们已读（§13）。所以 mesh 侧只剩 `textureAxisU/V.w` 语义未定。
+
+**CMapStaticOverlay（8 项）**：`projectionTargets(34)` `meshData(1,INVALID)`
+`variableNames` `variableTargetKeys` `children` `referenceID` `nodeID` `name`
+→ 实际贴花数据（材质/渲染顺序/投影参数）**在原生结构里，尚未逆向**（已知缺口）。
+
+**CMapRootElement（16 项）** —— 地图文档根：
+```
+nodeInstanceData(33)  m_bCordonsVisible(4)  m_bIsCordoning(4)  m_ReferencedMeshSnapshots(33)
+rootSelectionSet(1)   mapVariables(1)  visbility(1)  world(1)  3dcameras(1)  defaultcamera(1)
+itemFile(5)  editorversion(2)  editorbuild(2)  isprefab(4)  name(5)  $prefix_attribute$(1)
+```
+链路：`CMapDoc+0x80` -> root（vtable `0x1763FA8`，与 `_find_map_histories` 同源）。
+实测 `editorversion=400`、`editorbuild=10912`。
+
+**CMapWorld（12 项）**：`mapUsageType(5)='standard'` `fixupEntityNames(4)` `nextDecalID(2)`
+`entity_properties(1)` `connectionsData` `relayPlugData` `variableNames` `variableTargetKeys`
+`children(33)` `referenceID` `nodeID=1` `name`
+
+**CMapGroup（6 项）**：`children(33)`（= 成员**元素句柄**表）`variableNames`
+`variableTargetKeys` `referenceID` `nodeID` `name`
+**CVisibilityMgr（8 项）**：`nodes(33)`（= 6069 个元素句柄）`hiddenFlags(34)`
+`variableNames` `variableTargetKeys` `children` `referenceID` `nodeID=0` `name`
+> 实测 `nodes` 与 `hiddenFlags` 长度**都是 6069** → 两者并行，`hiddenFlags` 是逐节点的标志数组。
+**CMapSelectionSet（4 项）**：`selectionSetData(1)`（当前选中，INVALID=空）`selectionSetName(5)`
+`children(33)` `name`
+**CMapVariableSetStorage（8 项）**：`variableNames/VariableValues/variableGroupNames/
+variableTypeNames/variableTypeParameters(37 数组)` + `variableAndChoiceOrder(34)` + `m_ChoiceGroups(33)`
+**CStoredCameras（3）**：`cameras(33)` `activecamera(2)` `name`
+**CStoredCamera（3）**：`lookat(10)` `position(10)` `name`
+
+#### 15.8.3 属性类型码补全（实测值存储字节数）
+
+| 码 | 名字 | 值存储 | 证据 |
+|---|---|---|---|
+| 1 | element_handle | 4B（`0xFFFFFFFF`=无效） | 全图通用 |
+| 2 | int | 4B | `nodeID` 读数干净（9/11/12…） |
+| **4** | **bool** | **1B** | ⚠ 见下 |
+| 5 | string | 8B（char*） | 全图 keyvalue |
+| 10 | vec3 | 12B | `hitNormal`/`position` |
+| **15** | **id** | **8B** | `referenceID` |
+| 33 | element_array | 24B（CUtlVector 头） | `children` |
+| **34** | **数组** | 24B（CUtlVector 头） | `hiddenFlags` 实测 count=6069/cap=6069 |
+| 37 | string_array | 24B | `variableNames` |
+
+**⚠ 踩坑：`type=4` 是 1 字节 bool，按 u32 读会带上后 3 字节的未初始化内存。**
+实测同一个字段：`entity.isProceduralEntity` 原始 `00 7b 53 3f …` → 读成 `1062435584`；
+`world.fixupEntityNames` 原始 `01 00 00 00 …` → 恰好后 3 字节为 0 所以看起来正常（更隐蔽）。
+已改成只读 1 字节。
+
+**⚠ 踩坑：`type=15` 只占 8 字节**，别读 16 —— 后 8 字节是相邻内存（实测都是 `0x549_xxxx` 形态的堆指针，
+连续多个属性共享同一高位段）。读 16 会把垃圾当 ID 的高半。
+
+**`type=34` 已证实是 CUtlVector**（`hiddenFlags`：`count=6069 / cap=6069`，数据全 0），
+但元素宽度未定（`projectionTargets`、`variableAndChoiceOrder` 都是空数组，没有反例），
+所以只报表头 + 前 16 字节，不猜。
+
+#### 15.8.4 修 `_read_int(u64)` 的有符号问题
+
+DLL 的 `read_value` 返回的是**有符号** JSON 整数，最高位为 1 的值会变负数 —— `referenceID`
+曾被打印成 `'0x-114e62cf3cd44a44'`，高位地址同理（`hex()` 出来是负的，回传给 DLL 还会解析失败）。
+`_read_int` 现在按声明位宽强制还原无符号（`_UINT_WIDTH`）。
+
+#### 15.8.5 新增两个工具
+
+* **`cs2_entity_attrs(entity)`** —— 列出实体**全部**属性（keyvalue 链 + 实体自身链，各带类型码）。
+  补上了「只能按名字猜着查 keyvalue」这个最大的实用缺口。实测 `trigger_hurt` 有 23 项 keyvalue
+  （`damage='999999'` / `damagecap='999999'` / `spawnflags='4097'` / `StartDisabled='1'` …），
+  `logic_script` 有 `Group00~Group15` + `vscripts='ze_surf_easy/ze_surf_easy.nut'`。
+* **`cs2_map_groups()`** —— 分组 / 可见性组 / 当前选择集 / 地图变量 / 相机。
+  实测 ze_surf_easy：5 个分组（328 个实体 / 3585 个 CMapMesh / 光照探针 6 个 / 18 个 ambient_generic），
+  可见性组 `nodes` 6069 个，选择集为空，无地图变量，`defaultcamera` 有 position/lookat。
+* `cs2_entity_list` 每行补 `id=<nodeID>`。
+
+实现上把属性链遍历抽成了**单一实现** `_dm_iter_attrs()`（生成器），`_dm_find_attrs`（找齐即停）
+与 `_dm_walk_attrs`（全量）都基于它，避免两份块读逻辑漂移。
+
+#### 15.8.6 仍未获取的数据（已知缺口）
+
+1. **`CMapStaticOverlay` 的实际贴花数据** —— DMX 里只有 `meshData`(编辑期 INVALID) 与
+   `projectionTargets`，材质/渲染顺序/投影参数在原生结构里，未逆向。
+2. **`type=34` 数组的元素宽度**（疑似 1 字节 bool，缺反例）。
+3. **`textureAxisU/V.w` 语义**（§13.8.3，老遗留）。
+4. **Hammer 视口 / 网格 / 当前工具等 UI 状态**（不在 DMX，需从 CHammerApp 侧挖）。
+5. **`0x175E2B8` 之外的游戏类侧数据**（`CMapEntity+0x550` 游戏类对象内部字段，未展开）。
+
 
 
 
