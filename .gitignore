@@ -1,5 +1,6 @@
-﻿# ---- 构建产物 ----
+# ---- 构建产物 ----
 injected_dll/build_msvc/
+injected_dll/build_vs18/
 *.obj
 *.pdb
 *.ilk
@@ -7,6 +8,12 @@ injected_dll/build_msvc/
 *.lib
 *.dll
 *.exe
+
+# ---- 外部依赖 / 分析产物（体积大，不入库）----
+# clone 的 ValveResourceFormat 参考源码
+third_party/
+# IDA 数据库（hammer_new.dll.i64 等，数百 MB）
+ida_db/
 
 # ---- Python ----
 __pycache__/
