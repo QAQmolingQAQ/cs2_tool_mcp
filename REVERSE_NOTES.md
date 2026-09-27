@@ -3206,6 +3206,39 @@ target 下拉、Entity Report 之类）仍会列出它；但凡走**世界树**�
 根因：**纯摘除（`vfn0x1D0`）不改 Hammer 的名字/选择索引**。根治方向 = 改走 15.10.3 的记录型删除
 （Hammer 自己的删除路径会顺带把这些索引收拾干净）。
 
+**进一步取证（2026-09-27，用户补充「outliner 有、3D 也有，但选不中/属性打不开」）**：
+
+逐个排查孤儿被谁引用，**全部为空**：
+
+| 容器 | 结果 |
+|---|---|
+| `CMapDoc+1632` 节点表（`sub_1808944C0` 插入） | **计数 = 0**（空向量） |
+| `CVisibilityMgr.nodes`（渲染可见性表） | 6069 项，**不含 handle 10** |
+| `CMapGroup[5].children` | 328 / 3585 / 4 / 6 / 18 项，**都不含** |
+| `rootSelectionSet` / `mapVariables` / `3dcameras` | 无关 |
+
+**元素表 vs 世界树的差额 = 8 个孤儿实体**：
+
+```
+handle=10     mcp_place_test      info_target      target='mcp_place_test'
+handle=85141  (无名)              info_player_start origin=(-12992,11872,80)  ★ Hammer 自己产生
+handle=97109  mcp_del_n0          info_target
+handle=97111  mcp_del_n1          info_target
+handle=97113  del_tool_a          info_target      target='del_tool_a'
+handle=97115  mcp_del_check       info_target
+handle=97117  hist_probe          info_target
+handle=97119  ord_x               info_target
+```
+
+⭐ **`handle=85141` 是关键反例**：它是**用户在 Hammer 里手动放置、再用 `CMapDocHistory::Pop` 撤销掉**
+的 `info_player_start`。也就是说 —— **孤儿是 Hammer 撤销系统的固有产物，不是我们删除独有的副作用**：
+元素必须活着，重做（redo）才能靠 id 把它挂回去。
+
+因此「outliner/3D 看得到、选不中」很可能**不是「孤儿」本身导致的**（否则用户自己撤销的实体也会这样）。
+待判定：outliner 是「枚举所有活元素」（则 8 个孤儿全都在列 → 系统固有行为），
+还是「按 targetname 索引列出」（则只有 `mcp_place_test` / `del_tool_a` 等**带 targetname 的**会出现
+→ 说明是**摘除时没注销名字注册**）。
+
 
 
 
