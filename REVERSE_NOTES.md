@@ -3289,6 +3289,124 @@ handle=97119  ord_x               info_target
 
 **仍未覆盖**：属性修改（`cs2_entity_set_attr`）—— 见 15.10.7。
 
+---
+
+## 16. 从零创建笔刷（盒形 solid）—— 2026-09-27
+
+### 16.1 结论速览
+
+CS2 里**笔刷 = `CMapMesh` 元素 + 它内嵌的运行时 `CHammerPolyMesh`**。而且
+`CreateElement("CMapMesh")` 出来的**新元素已经自带一个空的、可用的 CHammerPolyMesh**
+（`el + 0x498`，vtable = `RVA_CHAMMERPOLYMESH_VTABLE`，顶点数 0）—— 不需要额外初始化，
+也**不需要碰 `CDmePolygonMesh`**（`meshData` 属性在编辑期是无效句柄，存盘时才写）。
+
+所以要建一个笔刷，只要：建元素 → 往运行时网格里加面 → 挂进世界。
+
+### 16.2 `CMapSolid` 是旧类型，不是创建路径
+
+`"CMapSolid"` 字符串（`0x1816CDD38`）只被 `sub_18064C5B0` 引用 —— 那是**加载期的版本迁移**
+（把 CS:GO 的 `CMapSolid` 元素转换成 `CMapMesh`，并修 `flipVCoordinates`）。所以现实地图里
+**一个 CMapSolid 都没有**（ze_surf_easy 元素类型普查结论一致）。
+
+### 16.3 CPolygonMesh 算子表（完整）
+
+字符串表在 `0x181814428` ~ `0x181814720`：
+
+```
+RemoveVertex  RemoveFaces  RemoveFace  RemoveEdge  AddVertices  SetVertexPositions  AddFace
+MirrorAcrossPlane  FlipAllFaces  DissolveEdge  AddVertexToEdge  AddEdgeToFace
+CollapseEdge  CollapseFace  CopyFaceMaterialIndex  ConnectEdges  BevelVertex  BevelFaces
+QuadSliceFace  MergeVerticesWithinDistance  SplitEdges  SetSmoothingAngle
+RemoveInvalidComponents  RemoveIsolatedVertices
+SetVertexStreamDataFromPerFacePerVertexData  SetFaceVertexStreamData  ClipFacesByPlane
+```
+
+算子实现地址示例：`SetVertexPositions`=`sub_180CDC6E0` · `AddFace`=`sub_180C8F3A0`/`sub_180C99320`
+· `AddVertices`=`sub_180C91A10` · `RemoveFaces`=`sub_180CD7540` · `FlipAllFaces`=`sub_180CBFEA0`
+· `SetFaceVertexStreamData`=`sub_180CDBB90`/`sub_180CDBCC0`。
+
+⚠ `AddVertices` **只把「已存在的顶点句柄」纳入网格**（实现 `sub_180C916E0` 会拿句柄去
+顶点池校验），它**不创建**新顶点 —— 建顶点/建面走 §16.4 那条高层函数。
+
+### 16.4 建面 API（可直接调用，全整数参数）
+
+```c
+sub_180901F40(CMapMesh* el, Vector* 点数组, void* 贴图轴默认值, int 点数, const char* 材质名)
+// = 内部：开 op 上下文("CreateFaceLocalFromPoints") → sub_1808CAE90 建面 → sub_1808BB240 指定材质
+```
+
+- 点是 **12 字节/个**（`{float x, y, z}`，**网格本地坐标**，原点由元素 `+0xA0` 提供）。
+- 贴图轴默认值 = **32 字节**，取自两张常量：`hammer+0x1E4E300` = `(0,1,1,1)`、
+  `hammer+0x1E4E180` = `(1,0,0,0)`（拼起来 `0,1,1,1,1,0,0,0`）。
+- 材质名是裸 `char*`（写进 poly 的材质表 `poly+0x3448`）。
+- 返回值恒为 `0xffff`（没意义，别当失败）。
+
+**`sub_180901F40` = `RVA_MESH_BUILD_FACE` = `0x901F40`。**
+
+### 16.5 ⚠ 为什么不能用官方的 `sub_180901DF0`
+
+`sub_180901DF0(el, float 宽, float 高, const char* 材质)` 是更短的官方封装（建一个
+`宽×高`、位于 z=0 的 XY 面），但它的**第 2/3 参数是 float → 走 xmm 寄存器**，而注入 DLL 的
+调用桥 `InvokeStub` **只设整数寄存器 rcx/rdx/r8/r9 + 栈**（`hammer_bridge.cpp:608`），
+浮点传不进去 → 实测调它建出来是**空的**（宽度收到 0，直接退化返回）。
+
+`sub_180901F40` 的参数全是整数/指针，所以能用。**以后再遇到「调了没反应」，先查目标函数
+有没有 float/double 形参。**
+
+### 16.6 官方完整流程（样板）
+
+`sub_1801813E0`（源码路径 `tools/hammer/mapviewdroptarget.cpp` 第 696 行，拖放贴花）：
+
+```c
+v31 = sub_180901D40(...)                              // 建元素
+sub_180901DF0(v31, 宽, 高, 材质名)                     // 建面 + 材质
+(*(*v31 + 136))(v31, &pos);  (*(*v31 + 144))(v31, &mtx)  // 设位置 / 朝向矩阵
+sub_180866D70(v31, 0)                                 // PostClass
+sub_180879170(v12 /*CMapDoc*/, v31, 0)                // AddChild ← 与建实体同一条
+```
+
+### 16.7 实现：`cs2_mesh_create_box`
+
+`mcp_server/cs2_mcp_server.py`：
+
+```
+CreateElement("CMapMesh", name)            → el（自带空网格）
+写 el + 0xA0（Vec3D） = 盒心
+6 次 RVA_MESH_BUILD_FACE(el, 该面 4 点, _BOX_FACE_AXES, 4, 材质名)
+RVA_NODE_POST_CLASS(el, 0) → RVA_NODE_ADD_CHILD(doc, el, 0)
+_hist_push_step + _hist_record_object(added=True) + _hist_notify
+```
+
+面表：8 角按 `(±1,±1,±1)` 占位再乘半边长；6 个面按外法线逆时针
+`(0,3,2,1)(4,5,6,7)(0,1,5,4)(2,3,7,6)(0,4,7,3)(1,2,6,5)`。
+
+### 16.8 实测验收（ze_surf_easy，2026-09-27）
+
+```
+cs2_mesh_create_box(center="-12992 11872 144", size="32", name="cs2_cube32")
+  已建盒形笔刷 元素=0x5496ff04000  顶点=24（每面 4 个，未焊接）
+  元素缓存 AABB = (-13008.000, 11856.000, 128.000) ~ (-12976.000, 11888.000, 160.000)
+  材质表 = ['materials/tools/toolsnodraw.vmat']
+  AddChild ret=0x0 err=''   world 子节点 638 -> 639
+  GetParent = 0x54958488000
+  Ctrl+Z 历史: 步数=96 栈顶='Extract Faces'(4 条命令) -> 步数=97 栈顶='cs2: create box 32x32x32'(1 条命令)
+
+cs2_area_query(min="-13010 11854 126", max="-12974 11890 162", kinds="mesh")
+  [mesh ] h=265591 0x5496ff04000  nv=24  nf=6  mat=[tools/toolsnodraw]  box=(-13008,11856,128)~(-12976,11888,160)
+```
+
+位置/尺寸/材质/世界挂接/历史记录**全部正确**；AABB 与请求的 32³ 盒心完全吻合。
+
+### 16.9 已知差异与待办
+
+| 项 | 现状 |
+|---|---|
+| **顶点未焊接** | 每个面各带自己的 4 个顶点 → **24 顶点 / 6 面**（原生 Box 工具是 **8 顶点**）。几何/AABB/渲染/存档都正确，作为笔刷可用；但顶点工具编辑不如原生顺手。焊接可试 `MergeVerticesWithinDistance` 算子（未逆向）。 |
+| 贴图轴 | 用的是官方样板那套默认值，没有按面朝向拟合 UV 轴（原点处的面朝 XY，其它面贴图可能拉伸）。 |
+| 其它形状 | 目前只做盒。棱柱/圆柱可复用同一条链（多给几个点 / 多几个面）。 |
+| DLL 浮点参数 | `InvokeStub` 不支持 xmm → 带 float 形参的函数都调不了（本轮踩坑）。要支持得改 DLL 并重新注入。 |
+| 元素 origin 写法 | 直接写 `el + 0xA0`（Vec3D）。官方走 `vfn136/vfn144`（设位置/矩阵）；我们这条对无旋转的笔刷够用，**带旋转的笔刷需要改走虚函数**。 |
+
 
 
 

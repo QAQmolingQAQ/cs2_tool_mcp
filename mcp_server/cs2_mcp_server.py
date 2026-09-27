@@ -1480,6 +1480,7 @@ RVA_MESH_SET_VERTEX_POSITIONS = 0x9B8880
 # CPolygonMesh 本体的算子（元素级包装就是调它）：(poly, handles, 3x4矩阵, positions)
 # 传单位矩阵 = 直接把 positions 原样写进位置通道（不改参照系）
 RVA_POLY_SET_VERTEX_POSITIONS = 0xCDC6E0
+RVA_MESH_BUILD_FACE = 0x901F40       # sub_180901F40(el, 点数组, 默认贴图轴, 点数, 材质名)
 # ⚠ 2026-09-26 实测：运行时的 mesh 几何**不在** CDmePolygonMesh 里。
 # CMapMesh 的 `meshData` 属性值是无效句柄 0xFFFFFFFF，元素表里也没有 CDmePolygonMesh 实例；
 # 真正存几何的是 **CHammerPolyMesh : CPolygonMesh**（半边缘 DCEL）：
@@ -3363,6 +3364,123 @@ def cs2_mesh_scale(mesh: str, scale: str = "1 1 1", pivot: str = "") -> str:
             % (*sc, *pw, len(after), *mn, *mx, *box)
         )
         return body + "（缓存由 Hammer 异步刷新，可能延迟一拍）"
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+
+
+# 盒子 8 角（±1 占位）与 6 个面（外法线方向逆时针）
+_BOX_CORNERS = ((-1, -1, -1), (1, -1, -1), (1, 1, -1), (-1, 1, -1),
+                (-1, -1, 1), (1, -1, 1), (1, 1, 1), (-1, 1, 1))
+_BOX_FACES = ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (2, 3, 7, 6), (0, 4, 7, 3), (1, 2, 6, 5))
+# 官方样板 sub_180901F40 传的「默认贴图轴」（hammer+0x1E4E300 / +0x1E4E180 两张常量）
+_BOX_FACE_AXES = struct.pack("<8f", 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0)
+
+
+@mcp.tool()
+def cs2_mesh_create_box(center: str = "", size: str = "32 32 32",
+                        material: str = "materials/tools/toolsnodraw.vmat",
+                        name: str = "cs2_box") -> str:
+    """从零建一个**盒形笔刷**（CMapMesh + 6 个面），挂进世界并记进 Hammer 的 Ctrl+Z 历史。
+
+    链路（2026-09-27 逆向，见 REVERSE_NOTES §16）：
+
+        CreateElement("CMapMesh")       → 元素自带一个**空的** CHammerPolyMesh（el+0x498）
+        每个面: sub_180901F40(el, 4 个点(12B/点), 默认贴图轴(32B), 4, 材质名)
+        PostClass sub_180866D70(el, 0)  → AddChild sub_180879170(doc, el, 0)
+
+    ⚠ 用 `sub_180901F40` 而**不是**官方的 `sub_180901DF0(el, 宽, 高, 材质)`：后者第 2/3 个
+    参数是 float（走 xmm 寄存器），而注入 DLL 的调用桥只设整数寄存器（`InvokeStub`），
+    浮点传不进去 —— 实测那样建出来是空的。
+
+    ⚠ 每个面各带自己的 4 个顶点，所以结果是 **24 个顶点 / 6 个面（未焊接）**。
+    几何、AABB、材质都正确，作为笔刷可用；但不等价于 Hammer Block 工具的 8 顶点焊接结果。
+
+    Args:
+        center: 盒心世界坐标 "x y z"（留空 = 世界原点）。
+        size: 三个方向的边长 "sx sy sz"（单个数字 = 正方体）。
+        material: 材质路径（写进网格的材质表）。
+        name: 元素名（显示在 Hammer 里）。
+    """
+    base = _hammer_base()
+    try:
+        ctr = _parse_vec3_arg(center, "center") if str(center).strip() else (0.0, 0.0, 0.0)
+        # 单个数字 = 正方体（和 cs2_mesh_scale 一个口径）
+        if "," in str(size) or " " in str(size).strip():
+            sz = _parse_vec3_arg(size, "size")
+        else:
+            s = float(str(size).strip())
+            sz = (s, s, s)
+        if min(sz) <= 0:
+            return "ERROR size 必须为正数"
+        doc = _map_doc()
+        world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
+
+        ret, err = _call_fn(RVA_DATAMODEL_CREATE_ELEMENT, [
+            base + RVA_CDATAMODEL_GLOBAL, "str:CMapMesh", f"str:{name}",
+            ENTITY_CREATE_FLAGS, 0], timeout=20000)
+        if err:
+            return f"ERROR 建 CMapMesh 元素失败: {err}"
+        el = _resolve_handle(int(ret, 16) & 0xFFFFFFFF)
+        poly = _poly_ready(el)
+        if not poly:
+            return f"ERROR 新建的 {el:#x} 没有运行时 CHammerPolyMesh"
+        _write_mem_chunked(el + ENTITY_OFF_ORIGIN, struct.pack("<3f", *ctr))
+
+        hx, hy, hz = sz[0] * 0.5, sz[1] * 0.5, sz[2] * 0.5
+        corners = [(hx * c[0], hy * c[1], hz * c[2]) for c in _BOX_CORNERS]
+        mb = str(material).encode() + b"\x00"
+        mem = _alloc_mem(48 * len(_BOX_FACES) + 32 + len(mb) + 8)
+        pts, defs, matp = mem, mem + 48 * len(_BOX_FACES), mem + 48 * len(_BOX_FACES) + 32
+        try:
+            buf = bytearray()
+            for face in _BOX_FACES:
+                for i in face:
+                    buf += struct.pack("<3f", *corners[i])
+            _write_mem_chunked(pts, bytes(buf))
+            _write_mem_chunked(defs, _BOX_FACE_AXES)
+            _write_mem_chunked(matp, mb)
+            for k in range(len(_BOX_FACES)):
+                _qt_call(base + RVA_MESH_BUILD_FACE,
+                         [el, pts + 48 * k, defs, 4, matp], timeout=20000)
+        finally:
+            _free_mem(mem)
+
+        _qt_call(base + RVA_NODE_POST_CLASS, [el, 0], timeout=20000)
+        before = _read_int(world + NODE_OFF_CHILD_COUNT, "u32")
+        add_ret, add_err = _call_fn(RVA_NODE_ADD_CHILD, [doc, el, 0], timeout=30000)
+        after = _read_int(world + NODE_OFF_CHILD_COUNT, "u32")
+
+        hist_note = ""
+        try:
+            undo_hist, _rd = _find_map_histories(doc)
+            hist_before = _hist_state(undo_hist)
+            _hist_push_step(undo_hist, f"cs2: create box {sz[0]:g}x{sz[1]:g}x{sz[2]:g}")
+            _hist_record_object(undo_hist, el, added=True)
+            _hist_notify(undo_hist)
+            hist_note = (f"  Ctrl+Z 历史: {hist_before} -> {_hist_state(undo_hist)}"
+                         f"  记录 node={el + NODE_IFACE_OFFSET:#x}")
+        except Exception as e:  # noqa: BLE001
+            hist_note = f"  ⚠ 未记入 Ctrl+Z 历史（{type(e).__name__}: {e}）"
+
+        verts = _mesh_live_vertices(el, poly) or []
+        try:
+            box = struct.unpack("<7f", _read_bytes(el + MESH_OFF_AABB, 28))[1:7]
+        except Exception:  # noqa: BLE001
+            box = (0.0,) * 6
+        parent_hex, _pe = _call_fn(RVA_NODE_GET_PARENT, [el])
+        return (
+            f"已建盒形笔刷 元素={el:#x}  顶点={len(verts)}（每面 4 个，未焊接）\n"
+            f"  center=({ctr[0]:g}, {ctr[1]:g}, {ctr[2]:g})  size=({sz[0]:g}, {sz[1]:g}, {sz[2]:g})"
+            f"  材质={material!r}\n"
+            f"  元素缓存 AABB = ({box[0]:.3f}, {box[1]:.3f}, {box[2]:.3f})"
+            f" ~ ({box[3]:.3f}, {box[4]:.3f}, {box[5]:.3f})\n"
+            f"  材质表 = {_poly_materials(poly)}\n"
+            f"  AddChild ret={add_ret} err={add_err!r}  world 子节点 {before} -> {after}\n"
+            f"  GetParent = {parent_hex}\n"
+            + hist_note
+        )
     except ConnectionError as e:
         return f"ERROR 管道未连接: {e}"
     except Exception as e:  # noqa: BLE001
