@@ -2982,6 +2982,89 @@ DLL 的 `read_value` 返回的是**有符号** JSON 整数，最高位为 1 的�
 4. **Hammer 视口 / 网格 / 当前工具等 UI 状态**（不在 DMX，需从 CHammerApp 侧挖）。
 5. **`0x175E2B8` 之外的游戏类侧数据**（`CMapEntity+0x550` 游戏类对象内部字段，未展开）。
 
+### 15.9 ⭐⭐ 删除实体：`AddChild` 的对偶虚表槽 `父节点+0x1D0`（2026-09-27）
+
+#### 15.9.1 定位过程
+
+`cs2_entity_create` 用的官方 AddChild 是 `sub_180879170(doc, child, 0)`，其反编译里
+出现关键一行 `(*(*(a3) + 456))(a3, a2)` —— **加子节点是父节点虚表字节偏移 456(0x1C8)
+的虚函数**。于是对称地找移除槽：
+
+| 类 | `+0x1C8` AddChild | `+0x1D0` RemoveChild |
+|---|---|---|
+| `CMapWorld` | `sub_180925C10` | **`sub_180925C60`** |
+| `CMapEntity` | `sub_18084F2F0` | **`sub_18084F400`** |
+| `CMapGroup` 等 6 个类 | `sub_1809EB6F0` | `sub_1809EB760` |
+
+静态校验：`CMapWorld` vtable 运行时 `0x7fff8ca92920` = `base + 0x1772920`，
+`+0x1D0` → IDA 里 `0x181772af0` 存的确实是 `sub_180925C60` ✅；
+`CMapEntity` 的 `base + 0x1758D00 + 0x1D0 = 0x181758ed0` 存的是 `sub_18084F400` ✅。
+
+```
+sub_180925C60(parent, child):            // CMapWorld 的槽，第三参数 r8 **原样透传**
+    sub_18084F400(parent, child, r8)     // 指令级确认：mov rbx,rcx / mov rdi,rdx 后直接 call，**没有设 r8**
+    rcx = *(parent + 0x1820)
+    if (rcx) sub_180BA05A0(rcx, child)
+
+sub_18084F400(parent, child, notify):    // 真正的移除实现
+    id = sub_1800897C0(child)
+    if (sub_1805E0000(parent + 504, &id) == -1) return;   // ⚠ 守卫：child 不在 parent 子表里就什么都不做
+    ... 从 parent 子表摘除 ...
+    (*(child_vtable + 504))(child, 0)                     // 清 child 的父指针
+    if (notify) {
+        (*(parent_vtable + 128))(parent, 2)
+        v7 = (*(parent_vtable + 1272))(parent, 0)
+        if (v7) sub_1808786F0(v7, child + 308)            // 追加 24B 记录到 doc 的待处理表
+    }
+```
+
+`notify` 取值依据：`CMapGroup` 等 6 个类的槽实现在 `sub_1809EB760` 里**硬编码传 1**
+（`sub_18084F400(a1, a2, 1)`，之后再做一批子类收尾），而 world/entity 的槽是透传本轮
+调用方给的值。故删除工具**默认 `notify=True`**。
+
+#### 15.9.2 关键结论：`children` 是 DMX 属性，与原生子表同构
+
+`parent + 0x1F8`（计数）/ `+0x200`（句柄指针）**就是** `children` 属性（AT 33
+元素句柄数组）的内联 CUtlVector 头，不是两套数据：
+
+```
+原生 +0x1F8 子节点数 = 636
+DMX 属性 children 元素数 = 636
+  两者集合相同: True           ← 逐项一致
+  原生里有而属性里没有: 0
+  属性里有而原生没有: 0
+```
+
+所以删除是**一致且可存档**的（`children` 属性同步 → 保存 .vmap 不会写回被删实体），
+不是只改内存镜像。实测被摘除的 3 个临时实体在原生表与 `children` 属性里**都已消失**。
+
+#### 15.9.3 实测（A/B + 端到端，全部成功）
+
+| 用例 | 结果 |
+|---|---|
+| 裸链路建临时实体 → `vfn0x1D0(child, 0)` | `children 637→636`、`GetParent → 0x0`、6ms |
+| 同上但 `notify=1` | `children 637→636`、`GetParent → 0x0`、8ms、`ret` 非 0 |
+| 新工具 `cs2_entity_delete` 正常删除 | `637→636`、`GetParent 0x54958488000→0x0`、`仍在 children 属性里: False`、5ms |
+| 新工具删 `CMapWorld` | 直接拒绝（返回提示，不调用） |
+| 新工具重复删同一实体 | 报「没有父节点（已是游离节点）」+ 打印元素表 handle |
+
+#### 15.9.4 已知语义（重要，写进工具的 docstring）
+
+* **不产生 Undo 历史** —— `vfn0x1D0` 直接改原生子表，不经过 Hammer 的 Undo 命令层，
+  Ctrl+Z 恢复不了。（这也是用户看到「没有历史」的原因。）
+* 被摘下的 `CDmElement` **仍留在 CDataModel 元素表里**（孤儿），本会话内不回收；
+  已不属于世界树，`cs2_entity_list` / `cs2_mesh_list` 都看不到。
+* 实体自带的 `CMapMesh` 子节点**随整棵子树一起脱离世界**（不做逐节点递归摘除）——
+  实测 `trigger_hurt` / `trigger_once` / `func_buyzone` 等实体各有 1 个 `CMapMesh` 子节点；
+  `CMapWorld` 的直接子节点里有 39 个 `CMapMesh`、5 个 `CMapGroup`、4 个 `CMapStaticOverlay`、588 个 `CMapEntity`。
+* 该槽对**任意** `CMapNode` 都可用（不限于实体），工具非实体时只报 vtable RVA。
+
+#### 15.9.5 新工具
+
+**`cs2_entity_delete(entity, notify=True)`** —— 摘除实体整棵子树；返回父节点、随之脱离的
+子树规模（实体/mesh/其他计数）、`children` 计数前后、`GetParent` 前后、是否仍在属性里，
+并显式提示「不产生 Undo 历史 / 元素成孤儿」。
+
 
 
 

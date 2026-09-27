@@ -1315,6 +1315,11 @@ RVA_NODE_POST_CLASS = 0x866D70     # sub_180866D70(node, flag)
 RVA_NODE_ADD_CHILD = 0x879170      # sub_180879170(doc, child, siblingOr0)
 RVA_NODE_GET_PARENT = 0x864EA0     # sub_180864EA0(node) -> 父节点（实测：func_brush 的父就是 CMapWorld）
 RVA_NODE_GET_ROOT = 0x864EB0       # sub_180864EB0(node) -> 根/世界（实测全部实体都指向 CMapWorld）
+# ★ AddChild 的对偶：父节点**虚表字节偏移 0x1D0** 的虚函数 = 移除子节点。
+#   CMapWorld  +0x1D0 -> sub_180925C60（第三参数透传给 sub_18084F400）
+#   CMapEntity +0x1D0 -> sub_18084F400（直接；notify 非 0 时多做 doc 侧簿记）
+#   CMapGroup  等 6 个类 -> sub_1809EB760，**强制 notify=1**，故删除默认也传 1
+NODE_VFN_REMOVE_CHILD = 0x1D0
 # CParticleHelper::SetDefinitionByName(this, const char* vpcfPath)
 RVA_PARTICLE_SET_DEFINITION = 0x7F5350
 # CParticleHelper 主 vtable RVA —— 用于在堆/实体内存里识别 helper 对象
@@ -3711,6 +3716,111 @@ def cs2_entity_create(classname: str = "", name: str = "") -> str:
         + ("（本次顺带打开了 Datamodel undo 总开关）" if undo_was_off else "")
         + (f"\n  ⚠ AddChild 失败: {add_err}" if add_err else "")
     )
+
+
+@mcp.tool()
+def cs2_entity_delete(entity: str, notify: bool = True) -> str:
+    """删除一个实体（= 把它整棵子树从父节点上摘除），纯 hammer.dll 底层调用。
+
+    这是 `cs2_entity_create` 里 AddChild 的**对偶**（见 REVERSE_NOTES.md §15.9）：
+
+      1) `sub_180864EA0(entity)`                     取父节点
+      2) `parent->vfn0x1D0(entity, notify)`          ★ 官方「移除子节点」虚函数
+         · CMapWorld  +0x1D0 -> `sub_180925C60`（第三参数透传）
+         · CMapEntity +0x1D0 -> `sub_18084F400`（notify 非 0 时多做 doc 侧簿记）
+         · CMapGroup  等 6 个类 -> `sub_1809EB760`，**内部强制 notify=1**
+      函数内同步更新父节点的 `children` DMX 属性（type=33 元素句柄数组，与原生
+      `+0x1F8` 计数 / `+0x200` 句柄表同构）——实测两边逐项一致，所以删除结果
+      **会写入 .vmap**，不是只改内存镜像。
+
+    ⚠ 已知语义（2026-09-27 实测，两个临时实体 A/B 对照）：
+      · **不产生 Undo 历史**：vfn0x1D0 直接改原生子表，不经过 Hammer 的 Undo 命令层，
+        Ctrl+Z 恢复不了。
+      · 被摘下的 CDmElement **仍留在 CDataModel 元素表里**（孤儿），本会话内不回收；
+        它已不属于世界树，`cs2_entity_list` / `cs2_mesh_list` 都看不到。
+      · 实体自带的 CMapMesh 等子节点随整棵子树一起脱离世界（不做逐个递归摘除）。
+
+    Args:
+        entity: 实体地址（cs2_entity_list 给出）。
+        notify: 是否执行 doc 侧收尾通知，默认 True（与官方各类虚表槽实现一致）。
+    """
+    try:
+        ent = _parse_addr(entity)
+        base = _hammer_base()
+        vtable = _read_int(ent, "u64")
+        if vtable == base + RVA_CMAPWORLD_VTABLE:
+            return f"拒绝：{ent:#x} 是 CMapWorld（世界根），不能删除。"
+        ent_vtable = base + RVA_CMAPENTITY_VTABLE
+        mesh_vtable = base + RVA_CMAPMESH_VTABLE
+        is_entity = vtable == ent_vtable
+        if is_entity:
+            try:
+                attrs0 = _entity_get_attrs(ent, ("classname", ENTITY_TARGETNAME_ATTR))
+            except Exception:  # noqa: BLE001
+                attrs0 = {}
+            label = (f"classname={attrs0.get('classname')!r}  "
+                     f"targetname={attrs0.get(ENTITY_TARGETNAME_ATTR)!r}")
+        else:
+            label = f"vtable=RVA {vtable - base:#x}（非 CMapEntity）"
+
+        doc = _map_doc()
+        world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
+        parent_hex, perr = _call_fn(RVA_NODE_GET_PARENT, [ent])
+        if perr:
+            return f"ERROR 取父节点失败: {perr}"
+        parent = int(parent_hex, 16) if parent_hex else 0
+
+        table, cap = _dm_table()
+        handle = next((i for i, e in enumerate(table) if e == ent), None)
+        if not parent:
+            return (f"{ent:#x} 没有父节点（已是游离节点，可能此前被摘除过）。\n"
+                    f"  元素表 handle={handle}")
+
+        # 子树规模（不递归摘除，只统计有多少节点跟着一起脱离世界）
+        n_ent = n_mesh = n_other = 0
+        for el, vt in _walk_elements(ent, table, cap):
+            if el == ent:
+                continue
+            if vt == ent_vtable:
+                n_ent += 1
+            elif vt == mesh_vtable:
+                n_mesh += 1
+            else:
+                n_other += 1
+
+        cnt_before = _read_int(parent + NODE_OFF_CHILD_COUNT, "u32")
+        t0 = time.perf_counter()
+        ret, err = _call_vfn(parent, NODE_VFN_REMOVE_CHILD,
+                             [ent, 1 if notify else 0], timeout=30000)
+        elapsed = time.perf_counter() - t0
+        cnt_after = _read_int(parent + NODE_OFF_CHILD_COUNT, "u32")
+        parent2_hex, _perr2 = _call_fn(RVA_NODE_GET_PARENT, [ent])
+        parent2 = int(parent2_hex, 16) if parent2_hex else 0
+        still_in_attr = handle in _dm_array_handles(parent, "children") if handle is not None else None
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+
+    where = "CMapWorld" if parent == world else f"节点 {parent:#x}"
+    ok = (not err and parent2 == 0 and cnt_after == cnt_before - 1 and still_in_attr is False)
+    lines = [
+        f"删除实体 {ent:#x}",
+        f"  属性       : {label}",
+        f"  父节点     : {parent:#x}（{where}）",
+        f"  随之脱离的子树: 实体 {n_ent} + mesh {n_mesh} + 其他 {n_other}",
+        f"  vfn{NODE_VFN_REMOVE_CHILD:#x}(parent, child{', 1' if notify else ', 0'})"
+        f" -> ret={ret}  err={err!r}  用时 {elapsed:.3f}s",
+        f"  父节点子节点数: {cnt_before} -> {cnt_after}",
+        f"  GetParent     : {parent:#x} -> {parent2:#x}",
+        f"  仍在 children 属性里: {still_in_attr}",
+    ]
+    if ok:
+        lines.append("✔ 已从世界树摘除（children 属性同步，保存后不会写回 .vmap）")
+    else:
+        lines.append("⚠ 摘除结果与预期不符，请核对上面各项")
+    lines.append(f"⚠ 不产生 Undo 历史（Ctrl+Z 恢复不了）；元素仍在元素表，handle={handle}（孤儿）")
+    return "\n".join(lines)
 
 
 @mcp.tool()
