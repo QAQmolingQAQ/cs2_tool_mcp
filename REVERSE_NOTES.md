@@ -3239,6 +3239,50 @@ handle=97119  ord_x               info_target
 还是「按 targetname 索引列出」（则只有 `mcp_place_test` / `del_tool_a` 等**带 targetname 的**会出现
 → 说明是**摘除时没注销名字注册**）。
 
+**✅ 判定结果（用户实测）**：outliner 里**只有 `mcp_place_test` 一个**，同带 targetname 的
+`del_tool_a` 反而**不在**。两者的差别只有一个 —— **当初的 `notify` 参数**：
+
+| 实体 | 摘除方式 | 是否出现在 outliner |
+|---|---|---|
+| `mcp_place_test` | 早期探针 `_t_del.py`，**只传了 child（notify 未传）** | **在**（幽灵） |
+| `del_tool_a` / `mcp_del_check` / `hist_probe` / `ord_x` | `cs2_entity_delete`，**notify=1** | 不在 |
+
+→ **结论：`notify=1` 会顺带把 Hammer 的名字/选择索引收拾干净，`notify=0` 不会。**
+所以删除工具默认 `notify=True` 的行为**本来就是对的**，`mcp_place_test` 只是旧探针的遗留物
+（重开地图即消失）。**这不是待修的 bug，而是一条「必须保持 notify=1」的约束**（已写进工具 docstring）。
+
+### 15.10.9 ✅ 已实现并往返验收（2026-09-27）
+
+**实现**（`mcp_server/cs2_mcp_server.py`）：新增常量
+`RVA_MAP_HISTORY_PUSH_STEP`(0x1529290) / `REC_ADDED`(0x15290B0) / `REC_REMOVED`(0x1528EC0)
+/ `NOTIFY`(0x1529700) / `NODE_IFACE_OFFSET`(0xC8)，与 4 个辅助函数
+`_hist_push_step` / `_hist_record_object` / `_hist_notify` / `_hist_state`。
+
+* `cs2_entity_create`：挂进世界**之后**压步并记「新增」（kind=2 不读父节点，故与操作顺序无关；
+  放后面可以避免建失败时留下空步）。
+* `cs2_entity_delete`：**摘除之前**压步并记「移除」（kind=1 要读 `vfn64()` = 父节点）。
+* 两处历史逻辑各自 `try/except` 包裹 —— **记录失败只回显警告，不影响建/删本身**。
+
+**验收（自包含往返，脚本 `_t_undo2.py`）**：
+
+| 步骤 | undo 步数 | world 子节点 | 结果 |
+|---|---|---|---|
+| 基线 | 40 | 636 | — |
+| `cs2_entity_create` | 41 | 637 | 栈顶 `'cs2: create info_target'`(1 命令)；**A: 在树内 ✅** |
+| `cs2_map_undo` | 40（redo 1） | 636 | **B: 已移出 ✅**（`GetParent=0`） |
+| `cs2_map_redo` | 41（redo 0） | 637 | **C: 回来了 ✅** |
+| `cs2_entity_delete` | 42 | 636 | 栈顶 `'cs2: delete info_target'`(1 命令)；已移出 |
+| `cs2_map_undo` | 41（redo 1） | 637 | **D: 挂回来了 ✅**（`GetParent=CMapWorld`） |
+
+🐛 **踩坑：步名必须是 ASCII。** 参数经管道以 ANSI 字符串传给 `V_strncpy`，中文会变成 `??`
+（实测 `'cs2: 创建 info_target'` 存进去成了 `'cs2: ?? info_target'`）。已改为
+`cs2: create <类名>` / `cs2: delete <类名> (<targetname>)`，并在 `_hist_push_step` docstring 里标注。
+
+📌 **副产物（正常现象）**：redo 之后栈顶那步会变成 **2 条命令** —— 这是 Hammer 自身行为
+（Pop 应用 kind2 时会往配对栈记一条 kind1，重做时再记回来），不是我们重复记录。
+
+**仍未覆盖**：属性修改（`cs2_entity_set_attr`）—— 见 15.10.7。
+
 
 
 

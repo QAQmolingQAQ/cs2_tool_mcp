@@ -659,6 +659,16 @@ RVA_MAP_HISTORY_POP = 0x1529E80
 # Pop 最外层那个全局开关（旧版 byte_1820F2088，新版 byte_18221A418）
 RVA_MAP_HISTORY_GATE = 0x221A418
 
+# --- CMapDocHistory 的「记录型」写入接口（2026-09-27 定位，见 REVERSE_NOTES.md §15.10）---
+# 栈里每一项是一个 192B「步」对象（名字在 +0x24），步里挂若干个 80B「命令包装」；
+# 包装的 kind 就是动作类型：0=通用命令 / 1=对象被移除 / 2=对象被新增。
+# ⚠ 传的对象必须是 **元素 + 0xC8**（CMapNode 接口子对象），不是元素本身。
+RVA_MAP_HISTORY_PUSH_STEP = 0x1529290   # sub_181529290(hist, name, 0, 0) 压入具名步（并清空重做栈）
+RVA_MAP_HISTORY_REC_ADDED = 0x15290B0   # sub_1815290B0(hist, node) 记录「对象被新增」(kind=2)
+RVA_MAP_HISTORY_REC_REMOVED = 0x1528EC0  # sub_181528EC0(hist, node) 记录「对象被移除」(kind=1)
+RVA_MAP_HISTORY_NOTIFY = 0x1529700      # sub_181529700(hist, 2) 通知监听者（刷新 Undo 菜单/工具态）
+NODE_IFACE_OFFSET = 0xC8                # CDmElement -> 内嵌的 CMapNode 接口子对象
+
 # 主线程派发状态（与 injected_dll/hammer_bridge.cpp 的 g_last_dispatch_status 对应）
 MAIN_THREAD_STATUS_NAMES = {
     0: "成功",
@@ -731,6 +741,58 @@ def _find_map_histories(doc: int | None = None) -> tuple[int, int]:
     if not redo_h or _read_int(redo_h, "u64") != want:
         raise RuntimeError(f"redo 历史对象异常: {redo_h:#x}")
     return undo_h, redo_h
+
+
+# ---------------------------------------------------------------------------
+# 往 Hammer 的 Ctrl+Z 历史里写记录（REVERSE_NOTES.md §15.10）
+# ---------------------------------------------------------------------------
+# 为什么需要它：我们的工具走的是底层调用，只会进 DMX 的 CUndoManager（属性级），
+# 而 Hammer 的 Ctrl+Z 读的是 **CMapDocHistory**（root+0x240）—— 实测两者互不相通
+# （一次 create+delete 后 CMapDocHistory 计数 27→27 完全不动）。所以必须显式记录。
+#
+# ⚠ 三条硬约束（都是实测得出）：
+#   1) 传的对象是 **元素 + 0xC8**（CMapNode 接口子对象），不是元素本身；
+#   2) 记录是**追加到栈顶步**的 —— 所以要先压步，否则会自动建一个**无名**步；
+#   3) 记「移除」**必须在摘除之前** —— 记录函数会读 `node->vfn64()`（= 父节点）存起来
+#      供撤销挂回用，而摘除后它立刻变成 0。
+#
+# 撤销/重做无需我们实现：Pop 应用 kind1/kind2 时会自动往配对栈写反向记录（§15.10.4）。
+
+
+def _hist_push_step(hist: int, name: str) -> int:
+    """压入一个具名撤销步（名字会显示在 Hammer 的 Undo 菜单里）-> 压入后的步数。
+
+    ⚠ 名字**必须是 ASCII**：参数经管道以 ANSI 字符串传给 `V_strncpy`，中文会变成 `??`
+    （实测 `'cs2: 创建 info_target'` 存进去成了 `'cs2: ?? info_target'`）。
+    """
+    _call_fn(RVA_MAP_HISTORY_PUSH_STEP, [hist, f"str:{name}", 0, 0], timeout=20000)
+    return _read_int(hist + HISTORY_OFF_COUNT, "u32")
+
+
+def _hist_record_object(hist: int, element: int, added: bool) -> int:
+    """把元素登记进**当前（栈顶）撤销步**：added=True 记「新增」，False 记「移除」。
+
+    返回传入的 node 指针（= element + 0xC8）。调用方需保证 step 已压好；
+    且记「移除」时必须**在摘除之前**调用。
+    """
+    node = element + NODE_IFACE_OFFSET
+    _call_fn(RVA_MAP_HISTORY_REC_ADDED if added else RVA_MAP_HISTORY_REC_REMOVED,
+             [hist, node], timeout=20000)
+    return node
+
+
+def _hist_notify(hist: int) -> None:
+    """通知历史对象上的监听者（刷新 Undo/Redo 菜单与工具状态）。"""
+    _call_fn(RVA_MAP_HISTORY_NOTIFY, [hist, 2], timeout=20000)
+
+
+def _hist_state(hist: int) -> str:
+    """回显撤销栈状态：`步数=N 栈顶='名字'(K 条命令)`（工具返回值里用于验证记录生效）。"""
+    n = _read_int(hist + HISTORY_OFF_COUNT, "u32")
+    if not n:
+        return "步数=0"
+    top = _read_int(_read_int(hist + HISTORY_OFF_ARRAY, "u64") + 8 * (n - 1), "u64")
+    return f"步数={n} 栈顶={_read_string(top + 0x24, 128)!r}({_read_int(top, 'u32')} 条命令)"
 
 
 def _map_undo_redo(action: str) -> str:
@@ -3639,6 +3701,10 @@ def cs2_entity_create(classname: str = "", name: str = "") -> str:
     ⚠ 不要改用 `sub_1805C81C0(world, 3)` 这种粗粒度置脏 —— 实测会触发病态的整世界重建
     （`cs2_entity_list` 从 ~1s 变成 200s，最终把主线程拖死）。AddChild 内部自己会更新索引。
 
+    **会写进 Hammer 的 Ctrl+Z 历史**（2026-09-27 新增，见 REVERSE_NOTES.md §15.10）：
+    挂进世界后压一个具名步 `cs2: create <类名>` 并把该对象登记为「新增」，
+    于是 Ctrl+Z 能撤销掉这次新建（撤销/重做由 Hammer 自己处理，无需我们实现）。
+
     Args:
         classname: FGD 类名（如 'info_player_start'）。留空则只建一个空 CMapEntity。
         name: 元素 name。留空由 Hammer 自行命名。
@@ -3694,6 +3760,24 @@ def cs2_entity_create(classname: str = "", name: str = "") -> str:
         parent = int(parent_ret, 16) if parent_ret else 0
         props = _entity_class_props(ent) if ent else 0
         cls = _dm_attr_value(_dm_find_attr(props, "classname")) if props else None
+
+        # 记进 Hammer 的 Ctrl+Z 历史（REVERSE_NOTES.md §15.10）。
+        # 放在操作**之后**：新建用 kind=2（不读父节点），所以不依赖顺序，
+        # 这样万一建/挂失败也不会留下空步。
+        if in_world:
+            try:
+                undo_hist, _redo_hist = _find_map_histories(doc)
+                hist_before = _hist_state(undo_hist)
+                # 步名保持 ASCII（管道是 ANSI，中文会变 `??`，见 _hist_push_step）
+                _hist_push_step(undo_hist, f"cs2: create {classname or ENTITY_DMX_TYPE}")
+                node = _hist_record_object(undo_hist, ent, added=True)
+                _hist_notify(undo_hist)
+                hist_note = (f"  Ctrl+Z 历史: {hist_before} -> {_hist_state(undo_hist)}"
+                             f"  记录 node={node:#x}")
+            except Exception as e:  # noqa: BLE001
+                hist_note = f"  ⚠ 未记入 Ctrl+Z 历史（{type(e).__name__}: {e}）"
+        else:
+            hist_note = "  ⚠ 未挂进世界，跳过 Ctrl+Z 历史记录"
     except ConnectionError as e:
         return f"ERROR 管道未连接: {e}"
     except Exception as e:  # noqa: BLE001
@@ -3713,7 +3797,8 @@ def cs2_entity_create(classname: str = "", name: str = "") -> str:
         f"  world {world:#x} 子节点数 {children_before} -> {children_after}  "
         f"父节点 = {parent:#x}  -> {mounted}\n"
         f"  undo: scope_committed={scope_committed}"
-        + ("（本次顺带打开了 Datamodel undo 总开关）" if undo_was_off else "")
+        + ("（本次顺带打开了 Datamodel undo 总开关）" if undo_was_off else "") + "\n"
+        + hist_note
         + (f"\n  ⚠ AddChild 失败: {add_err}" if add_err else "")
     )
 
@@ -3733,12 +3818,19 @@ def cs2_entity_delete(entity: str, notify: bool = True) -> str:
       `+0x1F8` 计数 / `+0x200` 句柄表同构）——实测两边逐项一致，所以删除结果
       **会写入 .vmap**，不是只改内存镜像。
 
-    ⚠ 已知语义（2026-09-27 实测，两个临时实体 A/B 对照）：
-      · **不产生 Undo 历史**：vfn0x1D0 直接改原生子表，不经过 Hammer 的 Undo 命令层，
-        Ctrl+Z 恢复不了。
+    **会写进 Hammer 的 Ctrl+Z 历史**（2026-09-27 新增，见 REVERSE_NOTES.md §15.10）：
+    摘除前先压一个具名步 `cs2: delete <类名> (<targetname>)` 并把该对象登记为「移除」，
+    于是 Ctrl+Z 能把实体挂回来、Ctrl+Y 再删掉（撤销/重做由 Hammer 自己处理）。
+    ⚠ 记录**必须在摘除之前** —— 记录函数会读 `node->vfn64()`（= 父节点）存起来供撤销挂回，
+    而摘除后它立刻归 0，先删后记会导致撤销无处可挂。
+
+    ⚠ 已知语义（2026-09-27 实测）：
       · 被摘下的 CDmElement **仍留在 CDataModel 元素表里**（孤儿），本会话内不回收；
         它已不属于世界树，`cs2_entity_list` / `cs2_mesh_list` 都看不到。
+        **这是撤销的前提**（Hammer 靠元素 id 把它挂回去），所以别改成真销毁。
       · 实体自带的 CMapMesh 等子节点随整棵子树一起脱离世界（不做逐个递归摘除）。
+      · `notify` 必须保持 True：实测 `notify=1` 会顺带把 Hammer 的名字/选择索引收拾干净，
+        而 `notify=0`（早期探针）会留下「outliner 里看得到、但选不中、属性打不开」的幽灵。
 
     Args:
         entity: 实体地址（cs2_entity_list 给出）。
@@ -3760,8 +3852,13 @@ def cs2_entity_delete(entity: str, notify: bool = True) -> str:
                 attrs0 = {}
             label = (f"classname={attrs0.get('classname')!r}  "
                      f"targetname={attrs0.get(ENTITY_TARGETNAME_ATTR)!r}")
+            step_name = f"cs2: delete {attrs0.get('classname') or ENTITY_DMX_TYPE}"
+            tname = attrs0.get(ENTITY_TARGETNAME_ATTR)
+            if tname:
+                step_name += f" ({tname})"
         else:
             label = f"vtable=RVA {vtable - base:#x}（非 CMapEntity）"
+            step_name = f"cs2: delete node RVA {vtable - base:#x}"
 
         doc = _map_doc()
         world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
@@ -3789,6 +3886,20 @@ def cs2_entity_delete(entity: str, notify: bool = True) -> str:
                 n_other += 1
 
         cnt_before = _read_int(parent + NODE_OFF_CHILD_COUNT, "u32")
+
+        # ★ 记进 Hammer 的 Ctrl+Z 历史（REVERSE_NOTES.md §15.10）—— 必须在**摘除之前**：
+        # 记录函数会读 `node->vfn64()`（= 父节点）存进命令包装供撤销挂回，摘除后它归 0。
+        hist_before = hist_note = ""
+        undo_hist = 0
+        try:
+            undo_hist, _redo_hist = _find_map_histories(doc)
+            hist_before = _hist_state(undo_hist)
+            _hist_push_step(undo_hist, step_name)
+            _hist_record_object(undo_hist, ent, added=False)
+        except Exception as e:  # noqa: BLE001
+            undo_hist = 0
+            hist_note = f"  ⚠ 未记入 Ctrl+Z 历史（{type(e).__name__}: {e}）"
+
         t0 = time.perf_counter()
         ret, err = _call_vfn(parent, NODE_VFN_REMOVE_CHILD,
                              [ent, 1 if notify else 0], timeout=30000)
@@ -3797,6 +3908,14 @@ def cs2_entity_delete(entity: str, notify: bool = True) -> str:
         parent2_hex, _perr2 = _call_fn(RVA_NODE_GET_PARENT, [ent])
         parent2 = int(parent2_hex, 16) if parent2_hex else 0
         still_in_attr = handle in _dm_array_handles(parent, "children") if handle is not None else None
+
+        if undo_hist:
+            try:
+                _hist_notify(undo_hist)
+                hist_note = (f"  Ctrl+Z 历史: {hist_before} -> {_hist_state(undo_hist)}"
+                             f"  记录 node={ent + NODE_IFACE_OFFSET:#x}")
+            except Exception as e:  # noqa: BLE001
+                hist_note = f"  ⚠ Ctrl+Z 历史已记录但通知监听者失败：{type(e).__name__}: {e}"
     except ConnectionError as e:
         return f"ERROR 管道未连接: {e}"
     except Exception as e:  # noqa: BLE001
@@ -3819,7 +3938,9 @@ def cs2_entity_delete(entity: str, notify: bool = True) -> str:
         lines.append("✔ 已从世界树摘除（children 属性同步，保存后不会写回 .vmap）")
     else:
         lines.append("⚠ 摘除结果与预期不符，请核对上面各项")
-    lines.append(f"⚠ 不产生 Undo 历史（Ctrl+Z 恢复不了）；元素仍在元素表，handle={handle}（孤儿）")
+    if hist_note:
+        lines.append(hist_note)
+    lines.append(f"  元素仍在元素表，handle={handle}（孤儿 —— 撤销要靠它挂回去）")
     return "\n".join(lines)
 
 
