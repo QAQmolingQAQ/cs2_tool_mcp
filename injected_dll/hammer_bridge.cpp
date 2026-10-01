@@ -100,10 +100,10 @@ bool ParseValueType(const std::string& s, ValueType& out) {
 }
 
 namespace HammerAddr {
-    constexpr uintptr_t kCreateInterfaceRva = 0x12E1B50;
-    constexpr uintptr_t kInterfaceListHeadRva = 0x26310E8;
+    constexpr uintptr_t kCreateInterfaceRva = 0x13FFCB0;
+    constexpr uintptr_t kInterfaceListHeadRva = 0x2733FB0;
     constexpr uintptr_t kToolSystemFactoryRva = 0x115270;
-    constexpr uintptr_t kToolSystemNameRva = 0x1CB1B58;
+    constexpr uintptr_t kToolSystemNameRva = 0x1CB1C48;
 
     // 2026-09 新版 hammer.dll（见 REVERSE_NOTES.md §3）：
     // 旧全局文档表 (0x2355020/0x2355028) 已失效，改为运行时对象链枚举：
@@ -603,29 +603,53 @@ bool HammerBridge::ScanHeap(const std::string& pattern, size_t limit,
 // ---------------------------------------------------------------------------
 namespace {
 
-// 动态生成 x64 fastcall 调用桩：最多 6 个整数/指针参数
-// （args[0]=RCX, [1]=RDX, [2]=R8, [3]=R9, [4..5] 压栈）
-uint64_t InvokeStub(uintptr_t fn, const std::vector<uint64_t>& args) {
+// 动态生成 x64 fastcall 调用桩：最多 6 个参数
+//   前 4 槽：kind=0 -> RCX/RDX/R8/R9；kind=1/2 -> xmm0..xmm3（movss/movsd 语义，
+//   这里直接把 IEEE 位模式经 eax/rax 中转送进 xmm，等价于 movd/movq）
+//   第 5/6 槽：一律按 8 字节位模式压栈（Win64 每个栈参数占一个 8 字节槽，float 高位补 0）
+uint64_t InvokeStub(uintptr_t fn, const std::vector<FnArg>& args) {
     if (!fn || !IsRangeReadable(fn, 1)) return 0;
 
-    uint64_t a[6] = {0, 0, 0, 0, 0, 0};
+    FnArg a[6];
     for (size_t i = 0; i < args.size() && i < 6; i++) a[i] = args[i];
 
     std::vector<uint8_t> code;
-    code.reserve(100);
+    code.reserve(160);
     auto imm64 = [&](uint64_t v) {
         for (int i = 0; i < 8; i++) code.push_back((uint8_t)(v >> (8 * i)));
     };
+    auto imm32 = [&](uint32_t v) {
+        for (int i = 0; i < 4; i++) code.push_back((uint8_t)(v >> (8 * i)));
+    };
 
-    code.push_back(0x48); code.push_back(0xB9); imm64(a[0]);              // mov rcx, a0
-    code.push_back(0x48); code.push_back(0xBA); imm64(a[1]);              // mov rdx, a1
-    code.push_back(0x49); code.push_back(0xB8); imm64(a[2]);              // mov r8,  a2
-    code.push_back(0x49); code.push_back(0xB9); imm64(a[3]);              // mov r9,  a3
+    // 前 4 槽里的整数/指针参数
+    code.push_back(0x48); code.push_back(0xB9); imm64(a[0].bits);         // mov rcx, a0
+    code.push_back(0x48); code.push_back(0xBA); imm64(a[1].bits);         // mov rdx, a1
+    code.push_back(0x49); code.push_back(0xB8); imm64(a[2].bits);         // mov r8,  a2
+    code.push_back(0x49); code.push_back(0xB9); imm64(a[3].bits);         // mov r9,  a3
     code.push_back(0x48); code.push_back(0x83); code.push_back(0xEC); code.push_back(0x38); // sub rsp, 38h
-    code.push_back(0x48); code.push_back(0xB8); imm64(a[4]);              // mov rax, a4
+    code.push_back(0x48); code.push_back(0xB8); imm64(a[4].bits);         // mov rax, a4
     code.push_back(0x48); code.push_back(0x89); code.push_back(0x44); code.push_back(0x24); code.push_back(0x20); // mov [rsp+20h], rax
-    code.push_back(0x48); code.push_back(0xB8); imm64(a[5]);              // mov rax, a5
+    code.push_back(0x48); code.push_back(0xB8); imm64(a[5].bits);         // mov rax, a5
     code.push_back(0x48); code.push_back(0x89); code.push_back(0x44); code.push_back(0x24); code.push_back(0x28); // mov [rsp+28h], rax
+
+    // 前 4 槽里的浮点参数：统一经 eax/rax 中转，避免触碰整数寄存器。
+    //   float : mov eax, imm32            B8 id
+    //           movd xmmN, eax            66 0F 6E (C0 + N*8)
+    //   double: mov rax, imm64            48 B8 id
+    //           movq xmmN, rax            66 48 0F 6E (C0 + N*8)
+    for (int i = 0; i < 4; i++) {
+        if (a[i].kind == 1) {
+            code.push_back(0xB8); imm32((uint32_t)a[i].bits);
+            code.push_back(0x66); code.push_back(0x0F); code.push_back(0x6E);
+            code.push_back((uint8_t)(0xC0 + i * 8));
+        } else if (a[i].kind == 2) {
+            code.push_back(0x48); code.push_back(0xB8); imm64(a[i].bits);
+            code.push_back(0x66); code.push_back(0x48); code.push_back(0x0F); code.push_back(0x6E);
+            code.push_back((uint8_t)(0xC0 + i * 8));
+        }
+    }
+
     code.push_back(0x48); code.push_back(0xB8); imm64(fn);                // mov rax, fn
     code.push_back(0xFF); code.push_back(0xD0);                          // call rax
     code.push_back(0x48); code.push_back(0x83); code.push_back(0xC4); code.push_back(0x38); // add rsp, 38h
@@ -654,7 +678,7 @@ uint64_t SelfTestTarget() {
 
 struct MainThreadCall {
     uintptr_t fn = 0;
-    std::vector<uint64_t> args;
+    std::vector<FnArg> args;
     uint64_t result = 0;
     HANDLE done = nullptr;
     bool faulted = false;
@@ -725,11 +749,11 @@ DWORD HammerBridge::GetMainThreadId() {
     return first;
 }
 
-uint64_t HammerBridge::CallFunction(uintptr_t fn, const std::vector<uint64_t>& args) {
+uint64_t HammerBridge::CallFunction(uintptr_t fn, const std::vector<FnArg>& args) {
     return InvokeStub(fn, args);
 }
 
-uint64_t HammerBridge::CallFunctionOnMainThread(uintptr_t fn, const std::vector<uint64_t>& args,
+uint64_t HammerBridge::CallFunctionOnMainThread(uintptr_t fn, const std::vector<FnArg>& args,
                                                 DWORD timeout_ms) {
     if (!fn || !IsRangeReadable(fn, 1)) return 0;
 
@@ -776,17 +800,17 @@ uint64_t HammerBridge::SelfTestOnMainThread(DWORD timeout_ms) {
 int HammerBridge::LastMainThreadStatus() const { return g_last_dispatch_status; }
 
 uint64_t HammerBridge::CallVirtual(uintptr_t this_ptr, size_t vtable_offset,
-                                   const std::vector<uint64_t>& args,
+                                   const std::vector<FnArg>& args,
                                    bool on_main_thread, DWORD timeout_ms) {
     if (!IsRangeReadable(this_ptr, 8)) return 0;
     const uintptr_t vtable = *(uintptr_t*)this_ptr;
     if (!IsRangeReadable(vtable + vtable_offset, 8)) return 0;
     const uintptr_t fn = *(uintptr_t*)(vtable + vtable_offset);
 
-    std::vector<uint64_t> full;
+    std::vector<FnArg> full;
     full.reserve(args.size() + 1);
-    full.push_back(this_ptr);
-    for (auto v : args) full.push_back(v);
+    full.push_back(FnArg(this_ptr));
+    for (const auto& v : args) full.push_back(v);
     // 与 call_function 同理：会改文档/UI 的虚函数必须走主线程
     if (on_main_thread) return CallFunctionOnMainThread(fn, full, timeout_ms);
     return CallFunction(fn, full);

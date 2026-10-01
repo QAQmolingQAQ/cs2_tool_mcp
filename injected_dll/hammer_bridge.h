@@ -5,10 +5,27 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <cstring>
 
 namespace cs2tool {
 
 using CreateInterfaceFn = void* (*)(const char* name, int* returnCode);
+
+// 通用调用参数：默认是整数/指针；kind=1/2 时按 float/double 走 xmm0..xmm3（Win64 ABI）。
+// 栈参数（第 5/6 个）无论何种类型都只占一个 8 字节槽，位模式直接入栈，故只需标注前 4 槽。
+struct FnArg {
+    uint64_t bits = 0;
+    uint8_t  kind = 0;   // 0=整数/指针, 1=float32, 2=float64
+    FnArg() = default;
+    FnArg(uint64_t v) : bits(v), kind(0) {}          // 允许从整数字面量隐式构造
+    FnArg(int v) : bits((uint64_t)(int64_t)v), kind(0) {}
+    static FnArg Float(float f) {
+        FnArg a; uint32_t b; memcpy(&b, &f, 4); a.bits = b; a.kind = 1; return a;
+    }
+    static FnArg Double(double d) {
+        FnArg a; memcpy(&a.bits, &d, 8); a.kind = 2; return a;
+    }
+};
 
 // Interface linked list node (from IDA analysis of sub_18004A730)
 // qword[0] = factory_func, qword[1] = interface_name_str, qword[2] = next_node
@@ -81,17 +98,17 @@ public:
                   uintptr_t lo, uintptr_t hi, std::vector<uintptr_t>& out);
 
     // --- generic invocation --------------------------------------------
-    // Calls fn with up to 6 integer/pointer args (x64 fastcall).
-    // args[0] is RCX, args[1] RDX, args[2] R8, args[3] R9, args[4..5] on stack.
-    uint64_t CallFunction(uintptr_t fn, const std::vector<uint64_t>& args);
+    // Calls fn with up to 6 args (x64 fastcall). 参数可用 FnArg::Float/Double 标注浮点，
+    // 浮点按 Win64 ABI 走 xmm0..xmm3；前 4 槽为 rcx/rdx/r8/r9 或 xmm0..3，第 5/6 槽在栈上。
+    uint64_t CallFunction(uintptr_t fn, const std::vector<FnArg>& args);
     // on_main_thread=true 时在目标进程主线程上执行（会改文档/UI 的虚函数必需）
-    uint64_t CallVirtual(uintptr_t this_ptr, size_t index, const std::vector<uint64_t>& args,
+    uint64_t CallVirtual(uintptr_t this_ptr, size_t index, const std::vector<FnArg>& args,
                          bool on_main_thread = false, DWORD timeout_ms = 5000);
 
     // 在目标进程的**主线程**上调用 fn（多线程亲和的操作必须走这里）。
     // 实现：向主线程挂一个临时 WH_GETMESSAGE 钩子，钩子过程里执行 fn 并唤醒调用方。
     // 返回 fn 的返回值；超时或失败返回 0。
-    uint64_t CallFunctionOnMainThread(uintptr_t fn, const std::vector<uint64_t>& args,
+    uint64_t CallFunctionOnMainThread(uintptr_t fn, const std::vector<FnArg>& args,
                                       DWORD timeout_ms = 5000);
 
     // 取目标进程主线程 ID（0 表示未找到）

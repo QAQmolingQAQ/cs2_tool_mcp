@@ -83,19 +83,21 @@ std::string ToHex(const uint8_t* data, size_t n) {
 }
 
 // 解析 args 数组 -> 原始参数值（call_function / call_virtual 共用）：
-//   Number     -> 值本身
-//   "str:文本" -> 在本进程分配一份 UTF-8 C 字符串并传其指针
-//                 （地址记进 str_allocs，调用返回后由 FreeCallArgs 释放）
-//   其它字符串 -> 当「模块地址表达式」解析（"hammer.dll+0x1234" / "0x1234"）
+//   Number      -> 值本身（整数/指针）
+//   "str:文本"  -> 在本进程分配一份 UTF-8 C 字符串并传其指针
+//                  （地址记进 str_allocs，调用返回后由 FreeCallArgs 释放）
+//   "f:0.01"    -> float32（IEEE 位模式进 xmmN，Win64 ABI）
+//   "d:1.5"     -> float64（同上）
+//   其它字符串  -> 当「模块地址表达式」解析（"hammer.dll+0x1234" / "0x1234"）
 //   ⚠ 每个元素**必须压一个参数**：解析失败压 0。旧版 call_virtual 遇到字符串
 //     解析失败会**跳过不压**，导致参数整体左移、被调函数收到错位参数
 //     （vfn2144 拿到空类名直接 return，被长期误判成「该虚函数无效」）。
 void ParseCallArgs(const JsonValue* arr, HammerBridge& bridge,
-                   std::vector<uint64_t>& out, std::vector<void*>& str_allocs) {
+                   std::vector<FnArg>& out, std::vector<void*>& str_allocs) {
     if (!arr || arr->type != JsonValue::Type::Array) return;
     for (auto& v : arr->arr) {
         if (v.type == JsonValue::Type::Number) {
-            out.push_back((uint64_t)v.nval);
+            out.push_back(FnArg((uint64_t)v.nval));
         } else if (v.type == JsonValue::Type::String) {
             const std::string& s = v.sval;
             if (s.rfind("str:", 0) == 0) {
@@ -106,14 +108,18 @@ void ParseCallArgs(const JsonValue* arr, HammerBridge& bridge,
                     memcpy(mem, text.c_str(), text.size() + 1);
                     str_allocs.push_back(mem);
                 }
-                out.push_back((uint64_t)mem);
+                out.push_back(FnArg((uint64_t)mem));
+            } else if (s.rfind("f:", 0) == 0) {
+                out.push_back(FnArg::Float(strtof(s.substr(2).c_str(), nullptr)));
+            } else if (s.rfind("d:", 0) == 0) {
+                out.push_back(FnArg::Double(strtod(s.substr(2).c_str(), nullptr)));
             } else {
                 uintptr_t a = 0;
                 bridge.ResolveAddress(s, a);   // 失败时 a 保持 0
-                out.push_back((uint64_t)a);
+                out.push_back(FnArg((uint64_t)a));
             }
         } else {
-            out.push_back(0);   // bool / null / 数组 / 对象：占位，保持参数个数
+            out.push_back(FnArg());   // bool / null / 数组 / 对象：占位，保持参数个数
         }
     }
 }
@@ -545,7 +551,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         if (!params) return error("missing params");
         uintptr_t fn = 0;
         if (!GetAddressParam(params, bridge, fn)) return error("invalid 'address'");
-        std::vector<uint64_t> args;
+        std::vector<FnArg> args;
         std::vector<void*> str_allocs;   // "str:" 参数的本进程分配，调用后释放
         ParseCallArgs(params->Get("args"), bridge, args, str_allocs);
         // on_main_thread=true 时在目标进程主线程执行（文档/UI 相关操作必需，
@@ -587,7 +593,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         size_t vtable_offset = (size_t)params->GetInt("vtable_offset", 0);
         // ★ 与 call_function 共用同一套参数解析：支持 "str:文本"（本进程分配后传指针），
         //   且解析失败的字符串压 0 而不是跳过 —— 跳过会让参数错位（见 ParseCallArgs 注释）。
-        std::vector<uint64_t> args;
+        std::vector<FnArg> args;
         std::vector<void*> str_allocs;
         ParseCallArgs(params->Get("args"), bridge, args, str_allocs);
         // 与 call_function 一致：文档/UI 相关的虚函数必须走主线程

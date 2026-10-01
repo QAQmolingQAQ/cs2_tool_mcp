@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import json
+import math
 import os
 import struct
 import sys
@@ -424,16 +425,16 @@ def cs2_call_virtual(this_ptr: str, vtable_offset: int, args: list[int] | None =
 # ---------------------------------------------------------------------------
 # 撤销 / 重做（2026-09 新版 hammer.dll 重新定位，见 REVERSE_NOTES.md §3）
 # ---------------------------------------------------------------------------
-# g_CDataModel 是静态内嵌对象（位于 hammer.dll+0x24B7C80）；
-# hammer.dll+0x21B2B68 (off_1821B2B68) 处的 qword 也指向同一对象。
-RVA_CDATAMODEL_GLOBAL = 0x24B7C80   # CDataModel 全局单例（静态初始化 sub_18004F890）
-RVA_CDATAMODEL_PTR_GLOBAL = 0x21B2B68  # qword 指针，值 = base+0x24B7C80
+# g_CDataModel 是静态内嵌对象（2026-10-01 新版在 hammer.dll+0x24B7AC0）；
+# hammer.dll+0x21B2958 (off_1821B2958) 处的 qword 也指向同一对象。
+RVA_CDATAMODEL_GLOBAL = 0x24B7AC0   # CDataModel 全局单例（静态初始化 sub_18004F890）
+RVA_CDATAMODEL_PTR_GLOBAL = 0x21B2958  # qword 指针，值 = base+0x24B7AC0
 RVA_CDATAMODEL_VTABLE = 0x16C25C8   # 用于运行前校验
 UNDO_MANAGER_OFFSET = 240           # CUndoManager 内嵌在 CDataModel + 240（不变）
-RVA_CDATAMODEL_UNDO = 0x5C3160      # 带 UI 通知(vfn+1040)的包装
-RVA_CDATAMODEL_REDO = 0x5C11E0
-RVA_UNDO_MANAGER_UNDO = 0x60F8D0    # CUndoManager::Undo 本体（带 profile）
-RVA_UNDO_MANAGER_REDO = 0x60F440    # CUndoManager::Redo 本体
+RVA_CDATAMODEL_UNDO = 0x5C34A0      # 带 UI 通知(vfn+1040)的包装
+RVA_CDATAMODEL_REDO = 0x5C1520
+RVA_UNDO_MANAGER_UNDO = 0x60FC10    # CUndoManager::Undo 本体（带 profile）
+RVA_UNDO_MANAGER_REDO = 0x60F780    # CUndoManager::Redo 本体
 # 新布局：undo 计数 @+0 / 栈 @+8；redo 计数 @+16 / 栈 @+24（Redo 反编译实测）
 UNDO_MGR_OFF_UNDO_COUNT = 0
 UNDO_MGR_OFF_REDO_COUNT = 16
@@ -655,7 +656,7 @@ HISTORY_OFF_PAIR = 0x80
 #         逐条应用反操作(sub_181529D20); this->busy = 0; free(last); }
 # 撤销/重做共用本函数，靠传入的 history 指针区分（撤销=root+0x240，重做=root+0x248）。
 # ⚠ 内部有 CanUndo 守卫，空栈时整段跳过（不会像 Datamodel undo 那样破坏状态）。
-RVA_MAP_HISTORY_POP = 0x1529E80
+RVA_MAP_HISTORY_POP = 0x152A490
 # Pop 最外层那个全局开关（旧版 byte_1820F2088，新版 byte_18221A418）
 RVA_MAP_HISTORY_GATE = 0x221A418
 
@@ -663,10 +664,13 @@ RVA_MAP_HISTORY_GATE = 0x221A418
 # 栈里每一项是一个 192B「步」对象（名字在 +0x24），步里挂若干个 80B「命令包装」；
 # 包装的 kind 就是动作类型：0=通用命令 / 1=对象被移除 / 2=对象被新增。
 # ⚠ 传的对象必须是 **元素 + 0xC8**（CMapNode 接口子对象），不是元素本身。
-RVA_MAP_HISTORY_PUSH_STEP = 0x1529290   # sub_181529290(hist, name, 0, 0) 压入具名步（并清空重做栈）
-RVA_MAP_HISTORY_REC_ADDED = 0x15290B0   # sub_1815290B0(hist, node) 记录「对象被新增」(kind=2)
-RVA_MAP_HISTORY_REC_REMOVED = 0x1528EC0  # sub_181528EC0(hist, node) 记录「对象被移除」(kind=1)
-RVA_MAP_HISTORY_NOTIFY = 0x1529700      # sub_181529700(hist, 2) 通知监听者（刷新 Undo 菜单/工具态）
+RVA_MAP_HISTORY_PUSH_STEP = 0x15298A0   # sub_181529290(hist, name, 0, 0) 压入具名步（并清空重做栈）
+RVA_MAP_HISTORY_REC_ADDED = 0x15296C0   # sub_1815290B0(hist, node) 记录「对象被新增」(kind=2)
+RVA_MAP_HISTORY_REC_REMOVED = 0x15294D0  # sub_181528EC0(hist, node) 记录「对象被移除」(kind=1)
+RVA_MAP_HISTORY_NOTIFY = 0x1529D10      # sub_181529700(hist, 2) 通知监听者（刷新 Undo 菜单/工具态）
+# 把「被修改的节点（含子/父链）」登记进当前撤销步 —— Hammer 改属性/变换前就是这么干的。
+# 见 REVERSE_NOTES §17.14：sub_18086D9B0(hist, node, 1)
+RVA_HIST_RECORD_NODE = 0x86DCF0
 NODE_IFACE_OFFSET = 0xC8                # CDmElement -> 内嵌的 CMapNode 接口子对象
 
 # 主线程派发状态（与 injected_dll/hammer_bridge.cpp 的 g_last_dispatch_status 对应）
@@ -786,6 +790,19 @@ def _hist_notify(hist: int) -> None:
     _call_fn(RVA_MAP_HISTORY_NOTIFY, [hist, 2], timeout=20000)
 
 
+def _hist_record_node(hist: int, element: int) -> None:
+    """把元素的**节点子树**登记进当前撤销步 —— 记录的是**改动前**的状态。
+
+    Hammer 自己改属性/变换（如 `AlignObjects`）就是：`PushStep` 开步 →
+    逐个 `sub_18086D9B0(hist, node, 1)` 登记节点 → **然后**才真正改。
+    该函数会自己沿父链/子链递归登记，所以**必须在 `_hist_push_step()` 之后、
+    真正修改之前**调用；元素不是节点（如 world）时应由调用方跳过。
+
+    ⚠ 元素多/层级深时会比较慢（递归），超时给得比其它历史调用大。
+    """
+    _call_fn(RVA_HIST_RECORD_NODE, [hist, element + NODE_IFACE_OFFSET, 1], timeout=60000)
+
+
 def _hist_state(hist: int) -> str:
     """回显撤销栈状态：`步数=N 栈顶='名字'(K 条命令)`（工具返回值里用于验证记录生效）。"""
     n = _read_int(hist + HISTORY_OFF_COUNT, "u32")
@@ -795,9 +812,9 @@ def _hist_state(hist: int) -> str:
     return f"步数={n} 栈顶={_read_string(top + 0x24, 128)!r}({_read_int(top, 'u32')} 条命令)"
 
 
-def _map_undo_redo(action: str) -> str:
+def _map_undo_redo(action: str, doc: str = "") -> str:
     try:
-        undo_h, redo_h = _find_map_histories()
+        undo_h, redo_h = _find_map_histories(_map_doc(doc))
         before_u = _read_int(undo_h + HISTORY_OFF_COUNT, "u32")
         before_r = _read_int(redo_h + HISTORY_OFF_COUNT, "u32")
     except ConnectionError as e:
@@ -854,34 +871,42 @@ def _map_undo_redo(action: str) -> str:
 
 
 @mcp.tool()
-def cs2_map_undo() -> str:
+def cs2_map_undo(doc: str = "") -> str:
     """撤销**地图编辑**的上一步操作（真正的 Hammer 撤销，非 Datamodel）。
 
     走 `CMapDocHistory::Pop`（新版 RVA `0x1529E80`，见 REVERSE_NOTES §15），
     撤销/重做共用该函数，靠传入的历史对象区分（`CMapRootElement+0x240` 撤销 /
     `+0x248` 重做）。空栈时会提前拒绝（函数内部也有 CanUndo 守卫）。
+
+    Args:
+        doc: 目标地图文档（多文档时必填）：留空 = 清单第一个；数字 = 索引；
+             其余 = 路径子串。见 `cs2_map_list_docs`。
     """
-    return _map_undo_redo("undo")
+    return _map_undo_redo("undo", doc)
 
 
 @mcp.tool()
-def cs2_map_redo() -> str:
+def cs2_map_redo(doc: str = "") -> str:
     """重做**地图编辑**的下一步操作（真正的 Hammer 重做）。详见 cs2_map_undo。"""
-    return _map_undo_redo("redo")
+    return _map_undo_redo("redo", doc)
 
 
 MAP_DOC_PATH_OFFSET = 0x6A0   # CMapDoc -> 地图全路径（CUtlString，+0 即 char*）
 
 
 @mcp.tool()
-def cs2_map_info() -> str:
-    """返回当前地图文档的信息：路径 / 文件名 / 关键对象地址 / 撤销栈深度。
+def cs2_map_info(doc: str = "") -> str:
+    """返回地图文档的信息：路径 / 文件名 / 关键对象地址 / 撤销栈深度。
 
     `CMapDoc+0x6A0` 指向地图全路径字符串（VM 实测得到
     `.../content/csgo_addons/test/maps/untitled_1.vmap`）。
+
+    Args:
+        doc: 目标地图文档（多文档**务必指定**）：留空 = 清单第一个；数字 = 索引；
+             其余 = 路径子串。见 `cs2_map_list_docs`。
     """
     try:
-        doc = _map_doc()
+        doc = _map_doc(doc)
         world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
         path_ptr = _read_int(doc + MAP_DOC_PATH_OFFSET, "u64")
         path = _read_string(path_ptr, 512) if path_ptr else ""
@@ -897,7 +922,7 @@ def cs2_map_info() -> str:
     lines.append(f"  CMapWorld: {world:#x}")
 
     try:
-        undo_h, redo_h = _find_map_histories()
+        undo_h, redo_h = _find_map_histories(doc)
         lines.append(f"  撤销历史 : {_read_int(undo_h + 8, 'u32')} 步"
                      f"   重做历史: {_read_int(redo_h + 8, 'u32')} 步")
         lines.append(f"  undo历史对象: {undo_h:#x}    redo历史对象: {redo_h:#x}")
@@ -907,7 +932,7 @@ def cs2_map_info() -> str:
 
 
 @mcp.tool()
-def cs2_map_groups() -> str:
+def cs2_map_groups(doc: str = "") -> str:
     """列出地图的**组织信息**：分组 / 可见性组 / 当前选择集 / 地图变量 / 相机。
 
     Hammer 的 Groups、Visgroups 面板与「当前选中了什么」都在这里（2026-09 实测，
@@ -920,10 +945,14 @@ def cs2_map_groups() -> str:
       **分组**是 CMapWorld 子树里的 `CMapGroup`，成员在其 `children` 属性（元素句柄表）。
 
     成员显示为 `h=<句柄>(<类名>)`：句柄经元素表直查，类名走 entity_properties。
+
+    Args:
+        doc: 目标地图文档（多文档**务必指定**）：留空 = 清单第一个；数字 = 索引；
+             其余 = 路径子串。见 `cs2_map_list_docs`。
     """
     try:
         base = _hammer_base()
-        doc = _map_doc()
+        doc = _map_doc(doc)
         root = _read_int(doc + CMAPDOC_ROOT_OFFSET, "u64")
         if not root or _read_int(root, "u64") != base + RVA_CMAPROOT_VTABLE:
             return f"ERROR CMapRootElement 无效（root={root:#x}）"
@@ -1225,8 +1254,8 @@ RVA_HAMMER_SAVE_DOC = 0x1639B0
 
 
 @mcp.tool()
-def cs2_map_save() -> str:
-    """保存当前地图（直接调用 Hammer 底层保存函数，不依赖 UI / 菜单）。
+def cs2_map_save(doc: str = "") -> str:
+    """保存地图（直接调用 Hammer 底层保存函数，不依赖 UI / 菜单）。
 
     走 `sub_1801639B0`（per-document save），语义等价于 Hammer 的 File→Save：
     `a4=1` 强制保存，不要求文档处于「已修改」状态；`a3=0` 保持与交互式保存
@@ -1234,9 +1263,13 @@ def cs2_map_save() -> str:
 
     地图必须已有真实文件路径（`CMapDoc+0x6A0`）。&New 出来的地图只有内存虚拟
     路径，请先 &Open 一张已有 .vmap，或手动另存为。
+
+    Args:
+        doc: 目标地图文档（多文档**务必指定**，否则可能保存错图）：留空 = 清单第一个；
+             数字 = 索引；其余 = 路径子串。见 `cs2_map_list_docs`。
     """
     try:
-        doc = _map_doc()
+        doc = _map_doc(doc)
         path_ptr = _read_int(doc + MAP_DOC_PATH_OFFSET, "u64")
         path = _read_string(path_ptr, 512) if path_ptr else ""
         before = _file_stat(path)
@@ -1286,6 +1319,19 @@ RVA_CMAPWORLD_VTABLE = 0x1772920    # CMapWorld
 RVA_CMAPGROUP_VTABLE = 0x178B4A8
 CMAPDOC_WORLD_OFFSET = 0x88         # CMapDoc -> CMapWorld*（136，旧版同偏移）
 
+# --- 工具系统「可绑定命令」注册表（Hammer Options → Key Bindings 那张表），见 REVERSE_NOTES §17 ---
+# 每个工具类在静态初始化时把一个 CBaseBindTargetDescriptor 头插进这条全局链表。
+RVA_BIND_TARGET_LIST = 0x272D6D8    # 链表头（qword_18272D898）
+BIND_VFN_NAME = 0                   # vtable[0]  = 取工具名 (char*)
+BIND_VFN_CMD_COUNT = 24             # vtable[24] = 命令数 (int)
+BIND_VFN_CMD_AT = 32                # vtable[32] = 取第 i 个命令 (命令对象*)
+BIND_OFF_CLASS = 0x18               # 类名 char*（KV 里的 "ClassName"）
+BIND_OFF_FILE = 0x20                # 注册处源文件（CBufferString）
+BIND_OFF_LINE = 0x28                # 注册处行号 (u32)
+BIND_OFF_NEXT = 0x38                # next
+BIND_CMD_OFF_NAME = 0x08            # 命令对象：命令名 char*
+BIND_CMD_OFF_DESC = 0x18            # 命令对象：描述 char*
+
 # CMapNode/CMapWorld/CMapEntity 共用子树布局（与旧版完全一致）：
 #   +0x1F8 int 子节点数；+0x200 int32 句柄数组指针（每项 4 字节 handle）
 NODE_OFF_CHILD_COUNT = 0x1F8
@@ -1320,7 +1366,7 @@ DM_ATTR_TYPE_NAMES = {
 }
 # CDmElement::MarkDirty(this, flags)（sub_1805C81C0）：把标志或进 element+0x5E/+0x60
 # 并递归通知依赖者。摘掉属性后用它传播脏状态。
-RVA_ELEMENT_MARK_DIRTY = 0x5C81C0
+RVA_ELEMENT_MARK_DIRTY = 0x5C8500
 
 # 句柄 -> 元素：CDataModel vtable slot21（字节偏移 168），args=[handle]，
 # 必须在主线程调用。
@@ -1338,24 +1384,24 @@ RVA_DATAMODEL = RVA_CDATAMODEL_GLOBAL
 # 由 sub_18062C9A0 / sub_18062C880 的调用序列实测确认。
 VFN_OFF_INTERN_STRING = 424
 # CDmAttribute 值写入：sub_1805CF020(attr, const CUtlStringToken*)（旧 0x4C7A10 已失效）
-RVA_ATTR_SET_SYMBOL = 0x5CF020
+RVA_ATTR_SET_SYMBOL = 0x5CF360
 # 更高层、更安全的按名写字符串属性：
 #   sub_18062C9A0(ownerElement, const char* name, const char* value, bool createIfMissing)
 # 内部自行 intern，并在属性缺失时以类型 5(AT_STRING) 创建。Drop/快照等内置逻辑均走它。
-RVA_PROPS_SET_STRING_ATTR = 0x62C9A0
+RVA_PROPS_SET_STRING_ATTR = 0x62CCE0
 # 按名取属性（返回 CDmAttribute*），签名 (ownerElement, const char* name)
-RVA_PROPS_FIND_ATTR = 0x5C7170
+RVA_PROPS_FIND_ATTR = 0x5C74B0
 # 按名写**实体 keyvalue**（推荐入口，比上面那个更高层）：
 #   sub_18083E0D0(entity, const char* name, const char* value)
 # 属性缺失时以类型 5(AT_STRING) 创建；值变化后还会调 CMapEntity 的类回调
 # (vfn+2136)、targetname 名字索引(vfn+1272/2160) 与包围盒/脏通知
 # (sub_1808672E0/sub_180867040)。⚠ origin/angles/scales 不走这里（见下）。
-RVA_ENTITY_SET_KEYVALUE = 0x83E0D0
+RVA_ENTITY_SET_KEYVALUE = 0x83E410
 # 按名写**实体属性表属性**（含变换），签名 (entity, const char* name, const char* value, uint flags)：
 #   sub_18086B550 取实体的 CMapNode 属性表，按属性声明类型分派 —— 变换类属性由
 #   CMapNodeTransformPin 直接落到 CMapEntity 的原生 Vec3D 成员（+0xA0/+0xAC/+0xB8），
 #   普通 keyvalue 仍写 CEditGameClassProps。属性不存在时返回 0（不创建）。
-RVA_ENTITY_SET_NODE_ATTR = 0x86B550
+RVA_ENTITY_SET_NODE_ATTR = 0x86B890
 # sub_18083E0D0 内部用的「实体 -> entity_properties 句柄」下标：entity + 1336
 ENTITY_OFF_PROPS_HANDLE = 1336
 
@@ -1373,17 +1419,17 @@ ENTITY_VFN_SET_CLASSNAME = 2144
 #   sub_180879170(doc, node, 0)           ← ★ AddChild：这一步才真正挂进世界
 # ⚠ 第一参数是 **CMapDoc**（不是 CMapWorld）：函数内默认锚点 = `*(doc+0x88)` 正好就是
 #   CMapWorld 字段；传 world 会让它把 `*(world+0x88)` 当锚点 → 拿错对象。
-RVA_NODE_POST_CLASS = 0x866D70     # sub_180866D70(node, flag)
-RVA_NODE_ADD_CHILD = 0x879170      # sub_180879170(doc, child, siblingOr0)
-RVA_NODE_GET_PARENT = 0x864EA0     # sub_180864EA0(node) -> 父节点（实测：func_brush 的父就是 CMapWorld）
-RVA_NODE_GET_ROOT = 0x864EB0       # sub_180864EB0(node) -> 根/世界（实测全部实体都指向 CMapWorld）
+RVA_NODE_POST_CLASS = 0x8670B0     # sub_180866D70(node, flag)
+RVA_NODE_ADD_CHILD = 0x8794B0      # sub_180879170(doc, child, siblingOr0)
+RVA_NODE_GET_PARENT = 0x8651E0     # sub_180864EA0(node) -> 父节点（实测：func_brush 的父就是 CMapWorld）
+RVA_NODE_GET_ROOT = 0x8651F0       # sub_180864EB0(node) -> 根/世界（实测全部实体都指向 CMapWorld）
 # ★ AddChild 的对偶：父节点**虚表字节偏移 0x1D0** 的虚函数 = 移除子节点。
 #   CMapWorld  +0x1D0 -> sub_180925C60（第三参数透传给 sub_18084F400）
 #   CMapEntity +0x1D0 -> sub_18084F400（直接；notify 非 0 时多做 doc 侧簿记）
 #   CMapGroup  等 6 个类 -> sub_1809EB760，**强制 notify=1**，故删除默认也传 1
 NODE_VFN_REMOVE_CHILD = 0x1D0
 # CParticleHelper::SetDefinitionByName(this, const char* vpcfPath)
-RVA_PARTICLE_SET_DEFINITION = 0x7F5350
+RVA_PARTICLE_SET_DEFINITION = 0x7F5690
 # CParticleHelper 主 vtable RVA —— 用于在堆/实体内存里识别 helper 对象
 RVA_CPARTICLE_HELPER_VTABLE = 0x17500B8
 CMAPENTITY_SIZE = 6232              # CMapEntity 对象大小（工厂 sub_180898D10 分配）
@@ -1455,9 +1501,14 @@ IO_TARGET_TYPE_NAMES = {
     7: "ENTITY_IO_TARGET_ENTITYNAME_OR_CLASSNAME",
 }
 # 追加一条连接到实体的原生向量：sub_180986EA0(entity, int outHandle[4], const Conn* src)
-RVA_ENTITY_ADD_CONN = 0x986EA0
+RVA_ENTITY_ADD_CONN = 0x9871E0
+# 删除按下标的连接：sub_180987AF0(entity, index<<16) -> char（1=成功/0=下标非法）。
+# Outputs 面板「Delete Output」(sub_18020CD40) 用的就是它：析构 Conn（paramMap +
+# 5 个 CUtlString 全部正确释放）→ 尾块前移 80B → 计数减一。
+# ⚠ 索引是**打包在高 16 位**的 int16（低字必须为 0），故仅支持 index < 32768。
+RVA_ENTITY_REMOVE_CONN = 0x987E30
 # KV3 值初始化：sub_1813E79E0(this, 1, 8)（Hammer 的 Conn::Conn 内部同款调用）
-RVA_CONN_VALUE_INIT = 0x13E79E0
+RVA_CONN_VALUE_INIT = 0x13E7FF0
 
 # --- 实体 IO（DMX 侧，仅存档镜像参考；对照 VRF ValveMap.cs）---
 ENTITY_ATTR_CONNECTIONS = "connectionsData"   # 元素句柄数组 -> DmeConnectionData
@@ -1471,16 +1522,23 @@ IO_PLUG_FIELDS = ("names", "dataTypes", "plugTypes", "descriptions")
 # --- mesh（对照 VRF ValveMap.cs / HammerMeshBuilder.cs）---
 # CMapMesh（主虚表 RTTI ??_R4CMapMesh@@6B@）/ CDmePolygonMesh
 RVA_CMAPMESH_VTABLE = 0x176B8E0
-RVA_CDMEPOLYGONMESH_VTABLE = 0x1D70620
+RVA_CDMEPOLYGONMESH_VTABLE = 0x1D70700
 # mesh 顶点坐标写入：sub_1809B8880(element, CUtlVector<顶点handle>*, CUtlVector<Vector>*)
 #   内部 = 取元素变换(vfn+160 → 48B 矩阵) → sub_180BFA650 转成存储空间 → sub_180CDC6E0
 #   sub_180CDC6E0(poly, handles, transform, positions) 是 CPolygonMesh 的官方算子
 #   "SetVertexPositions"（开事务/写位置通道/更新缓存/发脏通知），见 REVERSE_NOTES §13.10
-RVA_MESH_SET_VERTEX_POSITIONS = 0x9B8880
+RVA_MESH_SET_VERTEX_POSITIONS = 0x9B8BC0
 # CPolygonMesh 本体的算子（元素级包装就是调它）：(poly, handles, 3x4矩阵, positions)
 # 传单位矩阵 = 直接把 positions 原样写进位置通道（不改参照系）
-RVA_POLY_SET_VERTEX_POSITIONS = 0xCDC6E0
-RVA_MESH_BUILD_FACE = 0x901F40       # sub_180901F40(el, 点数组, 默认贴图轴, 点数, 材质名)
+RVA_POLY_SET_VERTEX_POSITIONS = 0xCDCA20
+RVA_MESH_BUILD_FACE = 0x902280       # sub_180901F40(el, 点数组, 默认贴图轴, 点数, 材质名)
+# CPolygonMesh 算子（2026-09-29 逆向，见 REVERSE_NOTES §16.10）：
+#   sub_180CD21E0(poly, CUtlVector<16B 顶点条目>*, float 距离, char 维护半边, char 取中点, out*)
+#     "MergeVerticesWithinDistance"：把距离 <= 阈值的顶点两两合并；返回本轮合并数(>0 表示有变化)
+#     a4=1 焊接时同步重接半边（官方 UI 固定传 1）；a5=1 新位置取两端中点，0 保留其中一端
+#   sub_180CD83C0(poly) "RemoveIsolatedVertices"：删掉不再属于任何面的孤立顶点（焊接后必跑）
+RVA_POLY_MERGE_VERTICES = 0xCD2520
+RVA_POLY_REMOVE_ISOLATED = 0xCD8700
 # ⚠ 2026-09-26 实测：运行时的 mesh 几何**不在** CDmePolygonMesh 里。
 # CMapMesh 的 `meshData` 属性值是无效句柄 0xFFFFFFFF，元素表里也没有 CDmePolygonMesh 实例；
 # 真正存几何的是 **CHammerPolyMesh : CPolygonMesh**（半边缘 DCEL）：
@@ -1561,10 +1619,10 @@ MESH_ATTR_EDGE_VERTEX_DATA_INDICES = "edgeVertexDataIndices"
 #   内部：sub_1805BA670 取空闲句柄 -> sub_1805BB7F0 按类型名查元素工厂表
 #         -> factory->vfn0(handle, type, name, flags, uid) 即下面的 CMapEntity Create
 #         -> 登记 句柄->元素、按需登记 CUndoCreateElement -> factory->vfn4(factory, elem)
-RVA_DATAMODEL_CREATE_ELEMENT = 0x5BBB90
-RVA_ELEMENT_CREATE_CORE = 0x5BB7F0   # sub_1805BB7F0（内部，最终调工厂 Create）
+RVA_DATAMODEL_CREATE_ELEMENT = 0x5BBED0
+RVA_ELEMENT_CREATE_CORE = 0x5BBB30   # sub_1805BB7F0（内部，最终调工厂 Create）
 # CMapEntity 元素工厂对象 RVA / 其虚表 RVA（slot0 = Create = 0x898D10）
-RVA_CMAPENTITY_FACTORY = 0x21DB400
+RVA_CMAPENTITY_FACTORY = 0x21DB1F0
 RVA_CMAPENTITY_FACTORY_VTABLE = 0x1765170
 ENTITY_DMX_TYPE = "CMapEntity"       # 实体在 .vmap 里的元素类型名
 ENTITY_CREATE_FLAGS = 1              # 与实体工具一致；!= -1 时登记 CUndoCreateElement 撤销步
@@ -1573,8 +1631,8 @@ INVALID_DMX_HANDLE = 0xFFFFFFFF
 # --- Datamodel undo scope（新版反编译实测）---
 # BeginUndoScope: "[%d] Pushing undo '%s'" 在 0x1816C7ED0 -> 0x60F370
 # EndUndoScope(um, bool abort): 自减 scope 深度(+88) -> 0x60F1C0
-RVA_UNDO_SCOPE_BEGIN = 0x60F370     # CUndoManager::BeginUndoScope(um, name, desc, flags)
-RVA_UNDO_SCOPE_END = 0x60F1C0       # CUndoManager::EndUndoScope(um, bool abort=0)
+RVA_UNDO_SCOPE_BEGIN = 0x60F6B0     # CUndoManager::BeginUndoScope(um, name, desc, flags)
+RVA_UNDO_SCOPE_END = 0x60F500       # CUndoManager::EndUndoScope(um, bool abort=0)
 UNDO_MGR_OFF_SCOPE_DEPTH = 88       # +0x58（新版；旧版在 +84）
 UNDO_MGR_OFF_FLAGS = 132            # +0x84 bit3 = undo 总开关（不变）
 UNDO_MGR_FLAG_ENABLED = 0x08
@@ -1586,11 +1644,19 @@ def _parse_addr(value: str | int) -> int:
     return int(value, 0)
 
 
-def _map_doc() -> int:
-    """取当前活动 CMapDoc。
+def _map_doc(sel: str = "") -> int:
+    """取 CMapDoc。Hammer 可以**同时打开多个地图文档**（实测），必须能指定目标。
 
-    枚举在 DLL 侧完成（app->session 数组->+0x138 wrapper->内嵌 +0x10），
-    这里直接用 map_list_docs IPC 的第一个结果。
+    枚举在 DLL 侧完成（app->session 数组->+0x138 wrapper->内嵌 +0x10），这里经
+    `map_list_docs` 拿清单后按 `sel` 选：
+
+    - `sel` 留空 -> 清单第一个（`docs[0]`，**历史行为**，不确定时别依赖它）
+    - `sel` 是数字 -> 清单下标（`cs2_map_list_docs` 里那个 index）
+    - 其余 -> 按**路径子串**匹配（如 `"untitled_2"`、`"ze_surf_easy.vmap"`），
+      大小写不敏感、忽略 `/` 与 `\\` 差异；匹配到多个时报错要求更具体
+
+    ⚠ 多文档时 DLL 的枚举顺序 = `CHammerApp` 会话数组顺序，**不等于**当前聚焦的窗口。
+    不知道索引时先 `cs2_map_list_docs` 看清单。
     """
     resp = _get_pipe().call("map_list_docs", {})
     if "error" in resp:
@@ -1598,7 +1664,49 @@ def _map_doc() -> int:
     docs = resp["result"].get("docs", [])
     if not docs:
         raise RuntimeError("当前没有打开的地图文档")
-    return int(docs[0]["address"], 16)
+    sel = (sel or "").strip()
+    if not sel:
+        return int(docs[0]["address"], 16)
+    if sel.isdigit():
+        for d in docs:
+            if int(d["index"]) == int(sel):
+                return int(d["address"], 16)
+        raise RuntimeError(f"没有 index={sel} 的文档（共 {len(docs)} 个）")
+    needle = sel.lower().replace("\\", "/")
+    hits = [d for d in docs if needle in str(d["name"]).lower().replace("\\", "/")]
+    if len(hits) == 1:
+        return int(hits[0]["address"], 16)
+    names = "\n".join(f"  [{d['index']}] {d['name']}" for d in docs)
+    if not hits:
+        raise RuntimeError(f"没有路径含 {sel!r} 的文档（共 {len(docs)} 个）：\n{names}")
+    raise RuntimeError(f"{sel!r} 匹配到多个文档，请更具体：\n{names}")
+
+
+def _doc_of_element(el: int) -> int:
+    """反查元素所属的 CMapDoc —— **多文档时写东西进历史必须用它**。
+
+    沿 `RVA_NODE_GET_PARENT` 一路向上收集祖先地址（mesh 通常 1~2 跳就到顶），
+    再与各文档的 `CMapDoc+0x88`(world) 比对。找不到时退回 `_map_doc("")`（旧行为）。
+    """
+    chain = []
+    cur = el
+    for _ in range(64):
+        if not cur:
+            break
+        chain.append(cur)
+        p, err = _call_fn(RVA_NODE_GET_PARENT, [cur])
+        if err:
+            break
+        cur = int(p, 16) if p else 0
+    if chain:
+        worlds = {}
+        for d in _get_pipe().call("map_list_docs", {}).get("result", {}).get("docs", []):
+            addr = int(d["address"], 16)
+            worlds[_read_int(addr + CMAPDOC_WORLD_OFFSET, "u64")] = addr
+        for addr in chain:
+            if addr in worlds:
+                return worlds[addr]
+    return _map_doc("")
 
 
 def _resolve_handle(handle: int) -> int:
@@ -1632,14 +1740,18 @@ def _dm_table() -> tuple[list[int], int]:
     于是整棵树/整批实体解析**不需要**主线程调用 —— 原先每个子句柄一次
     `call_virtual`，单次 cs2_entity_list 就要 300+ 次主线程往返。
 
-    缓存以 (base, 数据指针, 容量) 作键，换图/进程重启会自动重读。
+    ⚠ 缓存键必须含 `+0x80` 的**存活元素数**：新建元素时数组指针与容量通常**都不变**
+    （只是填了一个旧空槽），只按 (base, arr, cap) 做键会让长驻进程（MCP server）
+    一直用过期快照 —— 实测「刚用工具建的笔刷，`cs2_mesh_list` / `cs2_area_query`
+    却查不到」（它在世界树里、父节点/子句柄数组都对）。计数变了就重读。
     """
     global _DM_TABLE, _DM_TABLE_KEY
     base = _hammer_base()
     dm = base + RVA_CDATAMODEL_GLOBAL
     arr = _read_int(dm + 0x90, "u64")
     cap = _read_int(dm + 0x88, "u32")
-    key = (base, arr, cap)
+    count = _read_int(dm + 0x80, "u32")      # 存活元素数：新建会 +1，删除的孤儿仍占位
+    key = (base, arr, cap, count)
     if _DM_TABLE is not None and key == _DM_TABLE_KEY:
         return _DM_TABLE, cap
     if not arr or cap <= 0 or cap > 1_000_000:
@@ -2042,10 +2154,10 @@ def _read_vec3(address: int) -> tuple[float, float, float]:
     return struct.unpack("<3f", _read_bytes(address, 12))
 
 
-def list_entities(limit: int = 200
+def list_entities(limit: int = 200, doc: str = ""
                   ) -> tuple[list[tuple[int, Any, Any, Any, Any]], int, int, int, int]:
     """返回 (rows[(entity, classname, targetname, origin, nodeID)], 场景元素总数, doc, world, 实体数)。"""
-    doc = _map_doc()
+    doc = _map_doc(doc)
     world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
     if not world:
         raise RuntimeError("CMapDoc 里没有 CMapWorld（地图可能还没加载完）")
@@ -2078,7 +2190,7 @@ def list_entities(limit: int = 200
 
 
 @mcp.tool()
-def cs2_entity_list(limit: int = 200) -> str:
+def cs2_entity_list(limit: int = 200, doc: str = "") -> str:
     """列出当前地图的所有实体（类名 + 目标名 + 世界坐标 + 地址）。
 
     纯内存读取（2026-09 新版，见 REVERSE_NOTES.md §3 / §11.9 / §15.6）：
@@ -2090,9 +2202,11 @@ def cs2_entity_list(limit: int = 200) -> str:
 
     Args:
         limit: 最多返回多少条。
+        doc: 目标地图文档（多文档**务必指定**）：留空 = 清单第一个；数字 = 索引；
+             其余 = 路径子串。见 `cs2_map_list_docs`。
     """
     try:
-        rows, total, doc, world, ent_total = list_entities(limit)
+        rows, total, doc, world, ent_total = list_entities(limit, doc)
     except ConnectionError as e:
         return f"ERROR 管道未连接: {e}"
     except Exception as e:  # noqa: BLE001
@@ -2440,7 +2554,7 @@ def _undo_scope_end() -> int:
 
 
 @mcp.tool()
-def cs2_entity_set_attr(entity: str, name: str, value: str) -> str:
+def cs2_entity_set_attr(entity: str, name: str, value: str, history: bool = True) -> str:
     """设置实体参数（keyvalue 或变换 origin/angles/scales）。
 
     走 Hammer 自己的两条高层写入链路（2026-09 新版已在活体上验证）：
@@ -2461,6 +2575,9 @@ def cs2_entity_set_attr(entity: str, name: str, value: str) -> str:
         entity: 实体地址（cs2_entity_list 给出）。
         name: 参数名，如 'targetname' / 'spawnflags' / 'rendercolor' / 'origin'。
         value: 字符串形式的值，如 '3' / '255 0 0' / '128 256 64'（空串表示清空）。
+        history: 默认 True —— 先压一个具名 Ctrl+Z 步并登记被改节点（改动前状态），
+            使这次修改能被 Hammer 的 Ctrl+Z 撤销/重做。批量改同一批属性时可传 False
+            只在自己的循环里压一次步，避免每改一个属性就多一个撤销步。
     """
     try:
         ent = _parse_addr(entity)
@@ -2481,6 +2598,22 @@ def cs2_entity_set_attr(entity: str, name: str, value: str) -> str:
             kind = "keyvalue"
 
         um = _undo_manager_addr()
+        hist_note = ""
+        if history:
+            # 让这次修改能被 Hammer 的 Ctrl+Z 撤销：开一个具名步，并**先**登记被改节点的
+            # 改动前状态（Hammer 自己改属性/变换也是这个顺序，见 REVERSE_NOTES §17.14）。
+            same = (before == value) if xform_off is None else _transform_matches(before, value)
+            if same:
+                hist_note = "  值未变化，未新增 Ctrl+Z 步"
+            else:
+                try:
+                    undo_h, _ = _find_map_histories(_doc_of_element(ent))
+                    _hist_push_step(undo_h, f"cs2: set {name}")
+                    _hist_record_node(undo_h, ent)
+                    _hist_notify(undo_h)
+                    hist_note = f"  Ctrl+Z 步: {_hist_state(undo_h)}"
+                except Exception as e:  # noqa: BLE001
+                    hist_note = f"  ⚠ 记 Ctrl+Z 历史失败（写入照常）: {type(e).__name__}: {e}"
         undo_before = _read_int(um + UNDO_MGR_OFF_UNDO_COUNT, "u32")
         undo_was_off = _ensure_undo_enabled()
         _undo_scope_begin(f"cs2 set {name}")
@@ -2525,6 +2658,7 @@ def cs2_entity_set_attr(entity: str, name: str, value: str) -> str:
         f"  attr   = {attr2:#x}\n"
         f"  读回   : {before!r} -> {after!r}\n"
         f"{undo_note}\n"
+        f"{hist_note}\n"
         f"  setter ret = {ret}"
     )
 
@@ -2830,12 +2964,20 @@ def cs2_entity_add_io(entity: str, output: str, input_name: str,
                       target: str = "!self", param: str = "",
                       delay: float = 0.0, times_to_fire: int = -1,
                       target_type: int = 7, relay: bool = False,
-                      global_relay: bool = False, source: str = "") -> str:
+                      global_relay: bool = False, source: str = "",
+                      history: bool = True) -> str:
     """给实体追加一条 IO 连接（等价 Hammer Outputs 页的 Add）。
 
     直接调用 Hammer 自己的追加函数 `sub_180986EA0(entity, outHandle, const Conn*)`
-    —— 与 Outputs 面板粘贴链路（sub_18020D240）完全同一条代码，扩容/字符串深拷贝/
-    唯一 id 都由 Hammer 处理，不绕过文档逻辑。
+    —— 与 Outputs 面板「Add New Output」(sub_18020C9E0) / 粘贴链路（sub_18020D240）
+    完全同一条代码，扩容/字符串深拷贝/唯一 id 都由 Hammer 处理，不绕过文档逻辑。
+
+    history=True（默认）时严格按面板的顺序：先压具名 Ctrl+Z 步 +
+    `sub_18086D9B0` 登记实体节点的改动前快照，**然后**才追加 —— 因此本次添加
+    可被 `cs2_map_undo` / `cs2_map_redo` 完整撤销重做（Hammer 用专门的
+    CMapEntityIONode 重放连接，见 REVERSE_NOTES §11.13.7）。
+    ⚠ Outputs 面板若正开着不会即时刷新表格（面板提交 sub_180206BC0 纯 UI），
+    重选实体或重开页面即可；`cs2_entity_get_io` 直接读原生向量，不受影响。
 
     ⚠ 数据写入的是原生向量，Hammer 的「文档已修改」标记不会因此置位；
     要落盘请随后调用 `cs2_map_save()`（底层强制保存，无需脏标记）。
@@ -2852,10 +2994,23 @@ def cs2_entity_add_io(entity: str, output: str, input_name: str,
         relay: relayConnection 标志。
         global_relay: fromGlobalRelay 标志。
         source: sourceEntity（触发者，一般留空）。
+        history: 是否记入 Hammer 的 Ctrl+Z 历史（默认 True）。
     """
     try:
         ent = _parse_addr(entity)
         before = _read_int(ent + ENTITY_OFF_CONN_COUNT, "u32")
+        hist_note = ""
+        if history:
+            # 与面板 sub_18020C9E0 同序：PushStep("Add New Output") →
+            # sub_18086D9B0(hist, entity+0xC8, 1) → 追加（§17.14 同一套 API）。
+            try:
+                undo_h, _ = _find_map_histories(_doc_of_element(ent))
+                _hist_push_step(undo_h, "cs2: Add New Output")
+                _hist_record_node(undo_h, ent)
+                _hist_notify(undo_h)
+                hist_note = f"  Ctrl+Z 步: {_hist_state(undo_h)}"
+            except Exception as e:  # noqa: BLE001
+                hist_note = f"  ⚠ 记 Ctrl+Z 历史失败（写入照常）: {type(e).__name__}: {e}"
         blk = _conn_scratch({"source": source, "output": output, "target": target,
                              "input": input_name, "param": param},
                             target_type, delay, times_to_fire, relay, global_relay)
@@ -2870,9 +3025,9 @@ def cs2_entity_add_io(entity: str, output: str, input_name: str,
         if after == before + 1 and conns:
             c = conns[-1]
             return (f"已添加 IO 连接 [{after - 1}] {c['output']} -> {c['target']}:{c['input']}"
-                    f"   (连接数 {before} -> {after})")
+                    f"   (连接数 {before} -> {after})\n{hist_note}")
         return (f"⚠ 追加调用已发出，但连接数未按预期变化：{before} -> {after}"
-                f"（outHandle 缓冲区 {outbuf:#x}）")
+                f"（outHandle 缓冲区 {outbuf:#x}）\n{hist_note}")
     except ConnectionError as e:
         return f"ERROR 管道未连接: {e}"
     except Exception as e:  # noqa: BLE001
@@ -2880,16 +3035,20 @@ def cs2_entity_add_io(entity: str, output: str, input_name: str,
 
 
 @mcp.tool()
-def cs2_entity_remove_io(entity: str, index: int) -> str:
+def cs2_entity_remove_io(entity: str, index: int, history: bool = True) -> str:
     """删除实体的一条 IO 连接（等价 Hammer Outputs 页的 Delete）。
 
-    做法：把 index 之后的记录整体前移 80 字节，再把计数减一。
-    ⚠ 被删记录自身的 CUtlString 内存不回收（Hammer 的 FreeMemoryBlock 是延迟导入，
-    没有稳定 RVA）—— 只泄漏几十字节，不会破坏 Hammer 状态。
+    直接调用 Hammer 自己的删除函数 `sub_180987AF0(entity, index<<16)` —— 面板
+    「Delete Output」(sub_18020CD40) 用的就是它：析构 Conn（paramMap + 5 个
+    CUtlString 全部正确释放，不再有旧实现的字符串泄漏）→ 尾块前移 → 计数减一。
+
+    history=True（默认）时与面板同序：先压具名 Ctrl+Z 步 + 登记改动前快照，
+    **然后**才删除，可被 `cs2_map_undo` / `cs2_map_redo` 完整撤销重做。
 
     Args:
         entity: 实体地址。
         index: 连接下标（cs2_entity_get_io 输出里的 [i]）。
+        history: 是否记入 Hammer 的 Ctrl+Z 历史（默认 True）。
     """
     try:
         ent = _parse_addr(entity)
@@ -2897,12 +3056,30 @@ def cs2_entity_remove_io(entity: str, index: int) -> str:
         data = _read_int(ent + ENTITY_OFF_CONN_DATA, "u64")
         if not (0 <= index < count) or not _plausible_ptr(data):
             return f"ERROR 下标越界：{index}（当前 {count} 条）"
-        if index < count - 1:
-            tail = _read_bytes(data + CONN_STRIDE * (index + 1),
-                               CONN_STRIDE * (count - index - 1))
-            _write_mem(data + CONN_STRIDE * index, tail)
-        _write_mem(ent + ENTITY_OFF_CONN_COUNT, struct.pack("<I", count - 1))
-        return f"已删除 IO 连接 [{index}]，连接数 {count} -> {count - 1}"
+        if index >= 0x8000:
+            return f"ERROR 下标过大：{index}（删除函数的索引是 int16，上限 32767）"
+        old = _native_conns(ent)[index]
+        hist_note = ""
+        if history:
+            # 与面板 sub_18020CD40 同序：PushStep("Delete Output") →
+            # sub_18086D9B0(hist, entity+0xC8, 1) → sub_180987AF0。
+            try:
+                undo_h, _ = _find_map_histories(_doc_of_element(ent))
+                _hist_push_step(undo_h, "cs2: Delete Output")
+                _hist_record_node(undo_h, ent)
+                _hist_notify(undo_h)
+                hist_note = f"  Ctrl+Z 步: {_hist_state(undo_h)}"
+            except Exception as e:  # noqa: BLE001
+                hist_note = f"  ⚠ 记 Ctrl+Z 历史失败（删除照常）: {type(e).__name__}: {e}"
+        ret, err = _call_fn(RVA_ENTITY_REMOVE_CONN, [ent, index << 16], timeout=15000)
+        if err:
+            return f"ERROR 调用 Hammer 删除函数 sub_180987AF0 失败: {err}"
+        after = _read_int(ent + ENTITY_OFF_CONN_COUNT, "u32")
+        if int(ret, 16) != 1 or after != count - 1:
+            return (f"⚠ 删除函数已调用但结果异常：ret={ret}，连接数 {count} -> {after}"
+                    f"（下标 {index}）\n{hist_note}")
+        return (f"已删除 IO 连接 [{index}] {old['output']} -> {old['target']}:{old['input']}"
+                f"   (连接数 {count} -> {after})\n{hist_note}")
     except ConnectionError as e:
         return f"ERROR 管道未连接: {e}"
     except Exception as e:  # noqa: BLE001
@@ -3370,38 +3547,347 @@ def cs2_mesh_scale(mesh: str, scale: str = "1 1 1", pivot: str = "") -> str:
         return f"ERROR {type(e).__name__}: {e}"
 
 
+def _poly_set_flat_normals(poly: int) -> int:
+    """把每角法线重写成**所属面的面法线**（Hammer 原生笔刷那种平直着色）。返回写入的半边数。
+
+    为什么需要：官方焊接算子 `MergeVerticesWithinDistance` 会把每角法线**重算成顶点平均
+    法线** —— 方块的角点变成 `(±1,±1,±1)/√3`，等于把方块渲染成"圆角/球面感"，实测
+    未焊接时 CreateFace 给的是正确面法线，一焊就坏；而 Hammer 自己的笔刷（同样共享顶点、
+    8 顶点 6 面）存的是**面法线**。所以焊接后必须按面重写一遍。
+
+    写的是 `poly+POLY_OFF_HE_NORMAL` 那张**逐半边密集序**数组（12B/条，索引走
+    `poly+POLY_OFF_HE_DENSE` 的「密集序 -> handle」映射），与 cs2_mesh_get_geometry 的读法同源。
+    """
+    try:
+        vpool_ptr = _read_int(poly + POLY_OFF_VPOOL_PTR, "u64")
+        vmap_cnt = _read_int(poly + POLY_OFF_VMAP_CNT, "u32")
+        vmap_ptr = _read_int(poly + POLY_OFF_VMAP_PTR, "u64")
+        hepool_ptr = _read_int(poly + POLY_OFF_HEPOOL_PTR, "u64")
+        hemap_cnt = _read_int(poly + POLY_OFF_HEMAP_CNT, "u32")
+        hemap_ptr = _read_int(poly + POLY_OFF_HEMAP_PTR, "u64")
+        fpool_cnt = _read_int(poly + POLY_OFF_FPOOL_CNT, "u32")
+        fpool_ptr = _read_int(poly + POLY_OFF_FPOOL_PTR, "u64")
+        dense_cnt = _read_int(poly + POLY_OFF_HE_DENSE, "u32")
+        dense_ptr = _read_int(poly + POLY_OFF_HE_DENSE + 8, "u64")
+        nrm_cnt = _read_int(poly + POLY_OFF_HE_NORMAL, "u32")
+        nrm_ptr = _read_int(poly + POLY_OFF_HE_NORMAL + 8, "u64")
+        pos_cnt, pos_ptr, _ = _poly_position_channel(poly)
+        if not (vpool_ptr and vmap_ptr and hepool_ptr and hemap_ptr and fpool_ptr
+                and dense_ptr and nrm_ptr and pos_ptr):
+            return 0
+        if not (0 < dense_cnt < 1_000_000 and 0 < nrm_cnt < 1_000_000):
+            return 0
+
+        handle_to_dense: dict[int, int] = {}
+        raw = _read_bytes(dense_ptr, 16 * dense_cnt)
+        for i in range(dense_cnt):
+            handle_to_dense[_poly_u32(raw, 16 * i) & POLY_HANDLE_MASK] = i
+
+        pos_of_slot: dict[int, tuple[float, float, float]] = {}
+
+        def slot_pos(vslot: int):
+            if vslot in pos_of_slot:
+                return pos_of_slot[vslot]
+            p = None
+            try:
+                vrec = _read_bytes(vpool_ptr + 32 * vslot, 32)
+                pidx = _poly_u32(vrec, VREC_OFF_POS_INDEX)
+                if pidx < pos_cnt:
+                    p = struct.unpack("<3f", _read_bytes(pos_ptr + 12 * pidx, 12))
+            except Exception:  # noqa: BLE001
+                p = None
+            pos_of_slot[vslot] = p
+            return p
+
+        normals = bytearray(_read_bytes(nrm_ptr, 12 * nrm_cnt))
+        written = 0
+        for fslot in range(fpool_cnt):
+            first = _poly_u32(_read_bytes(fpool_ptr + 32 * fslot, 32), FACE_OFF_FIRST_HE)
+            he = first
+            hes: list[int] = []
+            pts: list[tuple[float, float, float]] = []
+            for _ in range(4096):
+                hslot = _poly_handle_slot(hemap_ptr, hemap_cnt, he)
+                if hslot is None:
+                    break
+                hrec = _read_bytes(hepool_ptr + 80 * hslot, 80)
+                hes.append(he & POLY_HANDLE_MASK)
+                vs = _poly_handle_slot(vmap_ptr, vmap_cnt,
+                                       _poly_u32(hrec, HEC_OFF_ORIGIN_VERTEX))
+                p = slot_pos(vs) if vs is not None else None
+                if p:
+                    pts.append(p)
+                he = _poly_u32(hrec, HEC_OFF_NEXT)
+                if (he & POLY_HANDLE_MASK) == (first & POLY_HANDLE_MASK):
+                    break
+            if len(pts) < 3:
+                continue
+            nx, ny, nz = _face_normal_newell(pts)
+            ln = math.sqrt(nx * nx + ny * ny + nz * nz)
+            if ln < 1e-12:
+                continue
+            packed = struct.pack("<3f", nx / ln, ny / ln, nz / ln)
+            for h in hes:
+                d = handle_to_dense.get(h)
+                if d is None or d >= nrm_cnt:
+                    continue
+                normals[12 * d:12 * d + 12] = packed
+                written += 1
+        if written:
+            _write_mem_chunked(nrm_ptr, bytes(normals))
+        return written
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _mesh_weld_native(el: int, poly: int, distance: float = 0.01) -> tuple[int, int, int, str]:
+    """原生焊接两步（不含历史）：MergeVerticesWithinDistance + RemoveIsolatedVertices。
+
+    返回 (焊接前活跃顶点数, 焊接后活跃顶点数, 算子报告的合并数, 错误串)。
+    """
+    verts = _mesh_live_vertices(el, poly)
+    n_before = len(verts)
+    if n_before < 2:
+        return n_before, n_before, 0, ""
+    mem = _alloc_mem(20 + 16 * n_before)
+    data = mem + 20
+    try:
+        hbuf = bytearray(16 * n_before)
+        for i, (handle, _slot, _pidx, _w) in enumerate(verts):
+            struct.pack_into("<I", hbuf, 16 * i, handle)
+        _write_mem_chunked(mem, struct.pack("<IIQII", n_before, 0, data, n_before, 0))
+        _write_mem_chunked(data, bytes(hbuf))
+        # float 阈值走 "f:" 前缀 → xmm2（Win64 第 3 参数槽）
+        ret, err = _call_fn(RVA_POLY_MERGE_VERTICES,
+                            [poly, mem, f"f:{distance}", 1, 1, 0], timeout=30000)
+        if err:
+            return n_before, n_before, 0, f"MergeVerticesWithinDistance: {err}"
+        merged = int(ret, 16) if ret else 0
+        _r2, e2 = _call_fn(RVA_POLY_REMOVE_ISOLATED, [poly], timeout=30000)
+        if e2:
+            return n_before, n_before, merged, f"RemoveIsolatedVertices: {e2}"
+    finally:
+        _free_mem(mem)
+    # 焊接会把每角法线变成平均法线（方块角 → (±1,±1,±1)/√3）→ 按面重写回面法线
+    _poly_set_flat_normals(poly)
+    return n_before, len(_mesh_live_vertices(el, poly)), merged, ""
+
+
+@mcp.tool()
+def cs2_mesh_weld_vertices(mesh: str, distance: float = 0.01,
+                           history: bool = True) -> str:
+    """焊接 mesh 中距离很近的重复顶点（Hammer 官方 MergeVerticesWithinDistance 算子）。
+
+    用途：`cs2_mesh_create_box` 每个面各带 4 个顶点 → 24 顶点/6 面；本工具把同一位置的
+    顶点焊成一个 → 8 顶点，等价原生 Block 工具的产物。
+
+    链路（2026-09-29 逆向，见 REVERSE_NOTES §16.10）：
+
+        sub_180CD21E0(poly, 全部顶点 handle 向量, float 阈值, 1, 1, 0)
+          = CPolygonMesh 算子 "MergeVerticesWithinDistance"
+            第 4 参数=1：焊接时同步重接半边；第 5 参数=1：新顶点取两端中点
+            （与 Hammer 顶点工具的「Weld Vertices」命令完全同款参数）
+        sub_180CD83C0(poly)
+          = "RemoveIsolatedVertices"：合并后旧顶点变成孤立点，必须再调一次清掉
+
+    阈值是**距离**（单位：世界单位的网格本地尺度，算子内部平方比较）。官方 UI 固定 0.01。
+
+    Args:
+        mesh: CMapMesh 元素地址（cs2_mesh_list / cs2_area_query 给出）。
+        distance: 焊接距离阈值，<= 该距离的顶点合并（默认 0.01，官方 UI 同款）。
+        history: 是否记入 Hammer 的 Ctrl+Z 历史（默认 True）。
+    """
+    base = _hammer_base()
+    try:
+        if distance < 0:
+            return "ERROR distance 不能为负"
+        el = _parse_addr(mesh)
+        poly = _poly_ready(el)
+        if not poly:
+            return f"{el:#x} 不是可编辑的 CMapMesh（没找到运行时 CHammerPolyMesh）"
+
+        hist_note = ""
+        if history:
+            try:
+                doc = _doc_of_element(el)   # 多文档：按 mesh 反查所属文档，别写错历史栈
+                undo_h, _rd = _find_map_histories(doc)
+                hist_before = _hist_state(undo_h)
+                _hist_push_step(undo_h, "cs2: weld vertices")
+                # 记录的是**改动前**节点状态，必须在真正焊接之前登记
+                _hist_record_node(undo_h, el)
+                _hist_notify(undo_h)
+            except Exception as e:  # noqa: BLE001
+                hist_note = f"  ⚠ 未记入 Ctrl+Z 历史（{type(e).__name__}: {e}）"
+
+        n_before, n_after, merged, werr = _mesh_weld_native(el, poly, distance)
+        if n_before < 2:
+            return f"{el:#x} 活跃顶点不足 2 个（{n_before}），无需焊接"
+        if werr:
+            return f"ERROR {werr}"
+
+        if history and not hist_note:
+            try:
+                hist_note = f"  Ctrl+Z 历史: {hist_before} -> {_hist_state(undo_h)}"
+            except Exception:  # noqa: BLE001
+                pass
+
+        after = _mesh_live_vertices(el, poly)
+        if n_after:
+            mn = [min(v[3][k] for v in after) for k in range(3)]
+            mx = [max(v[3][k] for v in after) for k in range(3)]
+            box_s = (f"  顶点世界包围盒 = ({mn[0]:.3f}, {mn[1]:.3f}, {mn[2]:.3f})"
+                     f" ~ ({mx[0]:.3f}, {mx[1]:.3f}, {mx[2]:.3f})")
+        else:
+            box_s = "  ⚠ 焊接后读不回顶点（mesh 状态异常）"
+        return (
+            f"已焊接 mesh 顶点 元素={el:#x}  阈值={distance:g}\n"
+            f"  顶点 {n_before} -> {n_after}（算子报告合并 {merged} 个）\n"
+            f"{box_s}\n{hist_note}".rstrip()
+        )
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+
+
 # 盒子 8 角（±1 占位）与 6 个面（外法线方向逆时针）
 _BOX_CORNERS = ((-1, -1, -1), (1, -1, -1), (1, 1, -1), (-1, 1, -1),
                 (-1, -1, 1), (1, -1, 1), (1, 1, 1), (-1, 1, 1))
 _BOX_FACES = ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (2, 3, 7, 6), (0, 4, 7, 3), (1, 2, 6, 5))
-# 官方样板 sub_180901F40 传的「默认贴图轴」（hammer+0x1E4E300 / +0x1E4E180 两张常量）
-_BOX_FACE_AXES = struct.pack("<8f", 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# 面贴图坐标（UV）—— Hammer 默认的「世界对齐」投影（2026-09-29）
+# ---------------------------------------------------------------------------
+# ⚠ 建面算子 `sub_180901F40` 的第 3 参**不是** 32 字节的「默认贴图轴常量」，而是
+#   **每点 8 字节的 Vec2 UV 数组**（反编译 sub_1808CAE90 第 2 段循环：`v71 + 8*n` 读）。
+#   它把这些值**原样**写进 texcoord 流；Hammer 之后按这些 UV 反推面的贴图轴/scale/偏移
+#   （VertexFormat `ComputeFaceTextureParametersFromCoordinates`）。
+#   旧代码 6 个面共用一份 `(0,1)(1,1)(1,0)(0,0)` → 每面各铺满一张贴图、不随世界平铺，
+#   于是「贴图和 UV 不对」。
+#
+# Hammer 默认的世界对齐（实测地图自带笔刷的面参数 + VRF `PolygonMesh.TextureAlignToGrid`）：
+#     uv = dot(worldAxis, 世界坐标) / (scale * textureSize)
+#   * `scale` = 0.125（`PolygonMesh.DefaultTextureScale`）
+#   * 轴只由面法线的**主轴**决定（实测 ±X/±Y/±Z 用同一组轴，不看正负号）：
+#         主轴 X → U=(0,1,0) V=(0,0,-1)   主轴 Y → U=(1,0,0) V=(0,0,-1)
+#         主轴 Z → U=(1,0,0) V=(0,-1,0)
+#   * `textureSize` = 贴图像素尺寸（Hammer 从材质系统取；未知材质 VRF 用 1024）。
+#     它决定「一张贴图平铺多少世界单位」= scale * textureSize（512 贴图 → 64 单位）。
+TEX_DEFAULT_SCALE = 0.125
+TEX_DEFAULT_SIZE = 512.0
+_TEX_AXES_BY_MAJOR = {
+    0: ((0.0, 1.0, 0.0), (0.0, 0.0, -1.0)),   # 主轴 X
+    1: ((1.0, 0.0, 0.0), (0.0, 0.0, -1.0)),   # 主轴 Y
+    2: ((1.0, 0.0, 0.0), (0.0, -1.0, 0.0)),   # 主轴 Z
+}
+
+
+def _face_normal_newell(pts):
+    """多边形面法线（Newell 法，凹多边形也成立；大小为两倍面积）。"""
+    nx = ny = nz = 0.0
+    n = len(pts)
+    for i in range(n):
+        x0, y0, z0 = pts[i]
+        x1, y1, z1 = pts[(i + 1) % n]
+        nx += (y0 - y1) * (z0 + z1)
+        ny += (z0 - z1) * (x0 + x1)
+        nz += (x0 - x1) * (y0 + y1)
+    return nx, ny, nz
+
+
+def _tex_axes_for_face(pts):
+    """按面法线主轴选世界对齐贴图轴（主轴取绝对值最大者；并列时取靠后者，同 Hammer）。"""
+    nx, ny, nz = _face_normal_newell(pts)
+    absn = (abs(nx), abs(ny), abs(nz))
+    best, major = -1.0, 0
+    for i in range(3):
+        if absn[i] >= best:
+            best, major = absn[i], i
+    return _TEX_AXES_BY_MAJOR[major]
+
+
+def _dot_axis_range(ax, lo, hi):
+    """`dot(ax, ·)` 在 AABB [lo, hi] 上的 (最小值, 最大值)。
+
+    `ax` 只含 ±1 / 0（世界轴），所以逐分量取值即可，不需要枚举顶点。
+    """
+    d_lo = d_hi = 0.0
+    for k in range(3):
+        if ax[k] > 0.0:
+            d_lo += ax[k] * lo[k]
+            d_hi += ax[k] * hi[k]
+        elif ax[k] < 0.0:
+            d_lo += ax[k] * hi[k]
+            d_hi += ax[k] * lo[k]
+    return d_lo, d_hi
+
+
+def _face_uv_bytes(pts, lo, hi, tex_size=TEX_DEFAULT_SIZE, tex_scale=TEX_DEFAULT_SCALE):
+    """给一个面算 Hammer 风格的 UV（每点 8 字节 Vec2），返回字节串。
+
+    ⚠ 必须传**世界坐标**（元素 origin + 本地坐标）与整网格的 AABB `[lo, hi]`。
+
+    相位规则（实测 Hammer Block 工具产物）：轴是**世界轴**（按面法线主轴选），
+    但 UV **从网格自己的角点起算** ——
+
+        u = (dot(U轴, 世界坐标) − u_min) / (scale × textureSize)      # 锚在网格 U 向最小端
+        v = (dot(V轴, 世界坐标) − v_max) / (scale × textureSize)      # 锚在网格 V 向最大端
+
+    以 `materials/dev/reflectivity_30.vmat`（512 → 64 单位/贴图）为例，Hammer 新建的
+    64×96×64 块：顶面 `u=(x−xmin)/64 → 0…1`、`v=−(y−ymin)/64 → 0…−1.5`；
+    若改成世界相位（`u=x/64`）就会得到 `−13…−12`，和 Hammer 建出来的块对不上（差半个
+    非整数相位，视觉上"效果不太一样"）。
+    """
+    (ux, uy, uz), (vx, vy, vz) = _tex_axes_for_face(pts)
+    u_ax, v_ax = (ux, uy, uz), (vx, vy, vz)
+    u_org, _ = _dot_axis_range(u_ax, lo, hi)
+    _, v_org = _dot_axis_range(v_ax, lo, hi)
+    k = (tex_scale or TEX_DEFAULT_SCALE) * (tex_size or TEX_DEFAULT_SIZE)
+    out = bytearray()
+    for x, y, z in pts:
+        out += struct.pack("<2f",
+                           (u_ax[0] * x + u_ax[1] * y + u_ax[2] * z - u_org) / k,
+                           (v_ax[0] * x + v_ax[1] * y + v_ax[2] * z - v_org) / k)
+    return bytes(out)
 
 
 @mcp.tool()
 def cs2_mesh_create_box(center: str = "", size: str = "32 32 32",
                         material: str = "materials/tools/toolsnodraw.vmat",
-                        name: str = "cs2_box") -> str:
+                        name: str = "cs2_box", weld: bool = True,
+                        tex_size: float = TEX_DEFAULT_SIZE,
+                        doc: str = "") -> str:
     """从零建一个**盒形笔刷**（CMapMesh + 6 个面），挂进世界并记进 Hammer 的 Ctrl+Z 历史。
 
     链路（2026-09-27 逆向，见 REVERSE_NOTES §16）：
 
         CreateElement("CMapMesh")       → 元素自带一个**空的** CHammerPolyMesh（el+0x498）
-        每个面: sub_180901F40(el, 4 个点(12B/点), 默认贴图轴(32B), 4, 材质名)
+        每个面: sub_180901F40(el, 4 个点(12B/点), 4 个 UV(8B/点), 4, 材质名)
         PostClass sub_180866D70(el, 0)  → AddChild sub_180879170(doc, el, 0)
+        weld=True: MergeVerticesWithinDistance + RemoveIsolatedVertices（见 §16.10）
 
     ⚠ 用 `sub_180901F40` 而**不是**官方的 `sub_180901DF0(el, 宽, 高, 材质)`：后者第 2/3 个
-    参数是 float（走 xmm 寄存器），而注入 DLL 的调用桥只设整数寄存器（`InvokeStub`），
-    浮点传不进去 —— 实测那样建出来是空的。
+    参数是 float（走 xmm 寄存器），现在 DLL 调用桥已支持浮点（"f:" 前缀）。
 
-    ⚠ 每个面各带自己的 4 个顶点，所以结果是 **24 个顶点 / 6 个面（未焊接）**。
-    几何、AABB、材质都正确，作为笔刷可用；但不等价于 Hammer Block 工具的 8 顶点焊接结果。
+    每面各带 4 个顶点（共 24 个）；`weld=True`（默认）会用官方算子把同一位置的顶点焊成
+    一个 → **8 顶点 / 6 面**，与 Hammer Block 工具产物一致。焊接归入同一个 Ctrl+Z 步，
+    一次 Undo 即删除整个盒子。
+
+    贴图：每面按 Hammer Block 工具的规则写 UV —— 轴取**世界轴**（按面法线主轴选），
+    但相位**锚在本网格自己的角点**（`u=(U向坐标−最小值)/k`、`v=(V向坐标−最大值)/k`，
+    `k = 0.125×tex_size`，见 `_face_uv_bytes`）—— 建出来的块与 Hammer 手建的块外观一致。
 
     Args:
         center: 盒心世界坐标 "x y z"（留空 = 世界原点）。
         size: 三个方向的边长 "sx sy sz"（单个数字 = 正方体）。
         material: 材质路径（写进网格的材质表）。
         name: 元素名（显示在 Hammer 里）。
+        weld: 是否把 24 个面顶点焊接为 8 个共享顶点（默认 True）。
+        tex_size: 贴图像素尺寸（默认 512）。一张贴图平铺 `tex_size×0.125` 世界单位，
+             512 → 64 单位；材质贴图不是 512 时改这里（纯色/nodraw 材质无所谓）。
+        doc: 目标地图文档：留空 = 清单第一个；数字 = 索引；其余 = 路径子串
+             （多文档时**务必指定**，见 `cs2_map_list_docs`）。
     """
     base = _hammer_base()
     try:
@@ -3414,7 +3900,7 @@ def cs2_mesh_create_box(center: str = "", size: str = "32 32 32",
             sz = (s, s, s)
         if min(sz) <= 0:
             return "ERROR size 必须为正数"
-        doc = _map_doc()
+        doc = _map_doc(doc)   # 参数是文档选择器，这里换成 CMapDoc 地址
         world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
 
         ret, err = _call_fn(RVA_DATAMODEL_CREATE_ELEMENT, [
@@ -3430,20 +3916,32 @@ def cs2_mesh_create_box(center: str = "", size: str = "32 32 32",
 
         hx, hy, hz = sz[0] * 0.5, sz[1] * 0.5, sz[2] * 0.5
         corners = [(hx * c[0], hy * c[1], hz * c[2]) for c in _BOX_CORNERS]
+        # 世界坐标（本地角点 + 元素 origin）—— UV 要按世界坐标算（相位再锚到网格 AABB）
+        world_faces = [[(ctr[0] + corners[i][0], ctr[1] + corners[i][1], ctr[2] + corners[i][2])
+                        for i in face] for face in _BOX_FACES]
+        # UV 相位的锚点 = 整网格 AABB（世界坐标）
+        lo = (ctr[0] - hx, ctr[1] - hy, ctr[2] - hz)
+        hi = (ctr[0] + hx, ctr[1] + hy, ctr[2] + hz)
         mb = str(material).encode() + b"\x00"
-        mem = _alloc_mem(48 * len(_BOX_FACES) + 32 + len(mb) + 8)
-        pts, defs, matp = mem, mem + 48 * len(_BOX_FACES), mem + 48 * len(_BOX_FACES) + 32
+        n_pts = sum(len(f) for f in world_faces)
+        uv_sz = sum(8 * len(f) for f in world_faces)
+        mem = _alloc_mem(12 * n_pts + uv_sz + len(mb) + 8)
+        pts, uvs, matp = mem, mem + 12 * n_pts, mem + 12 * n_pts + uv_sz
         try:
             buf = bytearray()
             for face in _BOX_FACES:
                 for i in face:
                     buf += struct.pack("<3f", *corners[i])
             _write_mem_chunked(pts, bytes(buf))
-            _write_mem_chunked(defs, _BOX_FACE_AXES)
+            _write_mem_chunked(uvs, b"".join(_face_uv_bytes(f, lo, hi, tex_size)
+                                             for f in world_faces))
             _write_mem_chunked(matp, mb)
-            for k in range(len(_BOX_FACES)):
+            off = uv_off = 0
+            for f in world_faces:
                 _qt_call(base + RVA_MESH_BUILD_FACE,
-                         [el, pts + 48 * k, defs, 4, matp], timeout=20000)
+                         [el, pts + off, uvs + uv_off, len(f), matp], timeout=20000)
+                off += 12 * len(f)
+                uv_off += 8 * len(f)
         finally:
             _free_mem(mem)
 
@@ -3451,6 +3949,13 @@ def cs2_mesh_create_box(center: str = "", size: str = "32 32 32",
         before = _read_int(world + NODE_OFF_CHILD_COUNT, "u32")
         add_ret, add_err = _call_fn(RVA_NODE_ADD_CHILD, [doc, el, 0], timeout=30000)
         after = _read_int(world + NODE_OFF_CHILD_COUNT, "u32")
+
+        weld_note = ""
+        if weld:
+            # 归入下面同一个 create box 撤销步：记录的是「新增元素」最终态，一次 Undo 整盒删除
+            n_b, n_a, merged, werr = _mesh_weld_native(el, poly, 0.01)
+            weld_note = (f"  焊接 {n_b} -> {n_a} 顶点（合并 {merged}）\n"
+                         if not werr else f"  ⚠ 焊接失败: {werr}\n")
 
         hist_note = ""
         try:
@@ -3471,12 +3976,13 @@ def cs2_mesh_create_box(center: str = "", size: str = "32 32 32",
             box = (0.0,) * 6
         parent_hex, _pe = _call_fn(RVA_NODE_GET_PARENT, [el])
         return (
-            f"已建盒形笔刷 元素={el:#x}  顶点={len(verts)}（每面 4 个，未焊接）\n"
+            f"已建盒形笔刷 元素={el:#x}  顶点={len(verts)}（{'8 共享顶点' if weld else '每面 4 个，未焊接'}）\n"
             f"  center=({ctr[0]:g}, {ctr[1]:g}, {ctr[2]:g})  size=({sz[0]:g}, {sz[1]:g}, {sz[2]:g})"
             f"  材质={material!r}\n"
             f"  元素缓存 AABB = ({box[0]:.3f}, {box[1]:.3f}, {box[2]:.3f})"
             f" ~ ({box[3]:.3f}, {box[4]:.3f}, {box[5]:.3f})\n"
             f"  材质表 = {_poly_materials(poly)}\n"
+            f"{weld_note}"
             f"  AddChild ret={add_ret} err={add_err!r}  world 子节点 {before} -> {after}\n"
             f"  GetParent = {parent_hex}\n"
             + hist_note
@@ -3487,9 +3993,784 @@ def cs2_mesh_create_box(center: str = "", size: str = "32 32 32",
         return f"ERROR {type(e).__name__}: {e}"
 
 
+def _arch_outline(width: float, height: float, opening: float,
+                  opening_height: float, segments: int) -> list[tuple[float, float]]:
+    """拱门在 XZ 截面（x=宽向, z=竖直）上的**简单凹多边形**轮廓（CCW），门洞从地面切入。
+
+    外轮廓 = width×height 矩形；门洞宽 opening（半圆半径 r=opening/2），直墙高
+    opening_height-r，拱顶半圆由 segments 段折线近似。
+
+    ⚠ `opening_height` 必须**严格小于** height：否则拱顶顶点与该矩形顶边相切，多边形退化成
+    非简单多边形（三角化会出现零面积片、Hammer 拒收）。
+    """
+    half_out, r = width * 0.5, opening * 0.5
+    side_h = opening_height - r
+    pts: list[tuple[float, float]] = [
+        (-half_out, 0.0),       # 外墙左下角
+        (-r, 0.0),              # 门洞左内边（地面）
+        (-r, side_h),           # 左墙顶 = 半圆起点(θ=π)
+    ]
+    for k in range(1, segments + 1):        # 半圆 θ: π → 0，末点 = (r, side_h)
+        t = math.pi * (1.0 - k / segments)
+        pts.append((r * math.cos(t), side_h + r * math.sin(t)))
+    pts += [
+        (r, 0.0),               # 门洞右内边落地
+        (half_out, 0.0),        # 外墙右下角
+        (half_out, height),     # 右上
+        (-half_out, height),    # 左上（闭合回外墙左下）
+    ]
+    return pts
+
+
+@mcp.tool()
+def cs2_mesh_create_arch(center: str = "", width: float = 160.0, height: float = 160.0,
+                         thickness: float = 16.0, opening: float = 96.0,
+                         opening_height: float = 0.0, segments: int = 12,
+                         material: str = "materials/tools/toolsnodraw.vmat",
+                         name: str = "cs2_arch", weld: bool = True,
+                         tex_size: float = TEX_DEFAULT_SIZE,
+                         doc: str = "") -> str:
+    """建一个**拱门笔刷**（凹多边形截面沿厚度拉伸：矩形墙 + 半圆拱顶门洞），挂进世界并记历史。
+
+    构造方式：XZ 截面上画一个 U 形凹多边形（`_arch_outline`），沿 y 向拉伸 thickness ——
+    前/后端面各一个 n 点**凹多边形面**（建面算子 `CreateFaceLocalFromPoints` 点数直接透传、
+    凹面同样接受），每条截面边（含拱顶半圆的 segments 段折线）生成一个连接前后的四边形
+    条带 → 共 n+2 个面、2n 个顶点；最后走官方焊接算子合并共享顶点 → 收敛到 n 个顶点。
+
+    ⚠ `opening_height` 必须**严格小于** height：否则拱顶顶点与矩形顶边相切，截面退化成
+    非简单多边形（建面会静默失败 / 焊接无法收敛）。
+
+    几何参数（全部世界单位）：
+
+        外墙：宽 width、总高 height、进深 thickness（y 向）
+        门洞：宽 opening（半圆直径 = opening），地面到拱顶高 opening_height
+              （默认 0 = 自动取 height×0.9，顶部留出拱冠厚度）
+
+    Args:
+        center: 拱门底平面中心 "x y z"（截面 z=0 落在此高度；留空 = 世界原点）。
+        width: 外墙总宽（默认 160）。
+        height: 外墙总高（默认 160）。
+        thickness: 墙厚/进深（默认 16）。
+        opening: 门洞宽（半圆直径，默认 96；须 < width）。
+        opening_height: 门洞地面到拱顶高（默认 0 = height×0.9；须 ≥ opening/2 且 < height）。
+        segments: 拱顶半圆分段数（默认 12，越大越圆滑、面越多）。
+        material: 材质路径。
+        name: 元素名。
+        weld: 是否焊接共享顶点（默认 True）。
+        tex_size: 贴图像素尺寸（默认 512）；每面按世界对齐投影写 UV，见 `cs2_mesh_create_box`。
+        doc: 目标地图文档：留空 = 清单第一个；数字 = 索引；其余 = 路径子串
+             （多文档时**务必指定**，见 `cs2_map_list_docs`）。
+    """
+    base = _hammer_base()
+    try:
+        if opening >= width:
+            return "ERROR opening 必须 < width（门洞要比外墙窄）"
+        r = opening * 0.5
+        oh = float(opening_height) if opening_height else height * 0.9
+        if r > oh:
+            return f"ERROR opening/2 ({r:g}) 不能大于 opening_height ({oh:g})（半圆放不下）"
+        if oh >= height:
+            return (f"ERROR opening_height ({oh:g}) 必须 < height ({height:g})"
+                    f"（否则拱顶与墙顶相切，截面退化为非简单多边形）")
+        if segments < 3:
+            return "ERROR segments 至少 3"
+        ctr = _parse_vec3_arg(center, "center") if str(center).strip() else (0.0, 0.0, 0.0)
+        cx, cy, cz = ctr
+        # ⚠ 顶点写**本地坐标**，元素 origin 设成 ctr（渲染时相加）—— 和 cs2_mesh_create_box 一致。
+        #   早期版本把 ctr 加进了顶点、又设了 origin，导致位置被叠加两次（拱门跑偏一倍）。
+        yf, yb = -thickness * 0.5, thickness * 0.5
+        outline = _arch_outline(width, height, opening, oh, segments)
+        n = len(outline)
+
+        # 面表：前/后端面各一个 n 点凹多边形（建面算子点数直接透传，**凹面同样接受**，
+        # 实测 19 点 U 形面可正常建立），每条轮廓边一个四边形条带 → 共 n+2 个面。
+        # 绕序：outline 为 (x,z) 平面 CCW → 外法线 -y（前端面 yf 朝外）；后端面反向 → +y。
+        faces: list[list[tuple[float, float, float]]] = [
+            [(x, yf, z) for x, z in outline],
+            [(x, yb, z) for x, z in reversed(outline)],
+        ]
+        for i in range(n):
+            xi, zi = outline[i]
+            xj, zj = outline[(i + 1) % n]
+            fi = (xi, yf, zi)
+            bi = (xi, yb, zi)
+            bj = (xj, yb, zj)
+            fj = (xj, yf, zj)
+            faces.append([fi, bi, bj, fj])    # 条带绕序 → 法线统一朝截面外侧
+
+        doc = _map_doc(doc)   # 参数是文档选择器，这里换成 CMapDoc 地址
+        world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
+        ret, err = _call_fn(RVA_DATAMODEL_CREATE_ELEMENT, [
+            base + RVA_CDATAMODEL_GLOBAL, "str:CMapMesh", f"str:{name}",
+            ENTITY_CREATE_FLAGS, 0], timeout=20000)
+        if err:
+            return f"ERROR 建 CMapMesh 元素失败: {err}"
+        el = _resolve_handle(int(ret, 16) & 0xFFFFFFFF)
+        poly = _poly_ready(el)
+        if not poly:
+            return f"ERROR 新建的 {el:#x} 没有运行时 CHammerPolyMesh"
+        _write_mem_chunked(el + ENTITY_OFF_ORIGIN, struct.pack("<3f", *ctr))
+
+        total_pts = sum(len(f) for f in faces)
+        uv_sz = sum(8 * len(f) for f in faces)
+        # UV 相位的锚点 = 整网格 AABB（世界坐标）
+        alo = tuple(min(p[k] for f in faces for p in f) for k in range(3))
+        ahi = tuple(max(p[k] for f in faces for p in f) for k in range(3))
+        mb = str(material).encode() + b"\x00"
+        mem = _alloc_mem(12 * total_pts + uv_sz + len(mb) + 8)
+        pts_base, uvs, matp = mem, mem + 12 * total_pts, mem + 12 * total_pts + uv_sz
+        try:
+            buf = bytearray()
+            for f in faces:
+                for p in f:
+                    buf += struct.pack("<3f", *p)
+            _write_mem_chunked(pts_base, bytes(buf))
+            # faces 里已是世界坐标 → 直接算 UV（相位锚在网格角点，见 _face_uv_bytes）
+            _write_mem_chunked(uvs, b"".join(_face_uv_bytes(f, alo, ahi, tex_size)
+                                             for f in faces))
+            _write_mem_chunked(matp, mb)
+            off = uv_off = 0
+            for f in faces:
+                _qt_call(base + RVA_MESH_BUILD_FACE,
+                         [el, pts_base + off, uvs + uv_off, len(f), matp], timeout=20000)
+                off += 12 * len(f)
+                uv_off += 8 * len(f)
+        finally:
+            _free_mem(mem)
+
+        _qt_call(base + RVA_NODE_POST_CLASS, [el, 0], timeout=20000)
+        before = _read_int(world + NODE_OFF_CHILD_COUNT, "u32")
+        add_ret, add_err = _call_fn(RVA_NODE_ADD_CHILD, [doc, el, 0], timeout=30000)
+        after = _read_int(world + NODE_OFF_CHILD_COUNT, "u32")
+
+        weld_note = ""
+        if weld:
+            n_b, n_a, merged, werr = _mesh_weld_native(el, poly, 0.01)
+            weld_note = (f"  焊接 {n_b} -> {n_a} 顶点（合并 {merged}）\n"
+                         if not werr else f"  ⚠ 焊接失败: {werr}\n")
+
+        hist_note = ""
+        try:
+            undo_hist, _rd = _find_map_histories(doc)
+            hist_before = _hist_state(undo_hist)
+            _hist_push_step(undo_hist, f"cs2: create arch {width:g}x{height:g}")
+            _hist_record_object(undo_hist, el, added=True)
+            _hist_notify(undo_hist)
+            hist_note = f"  Ctrl+Z 历史: {hist_before} -> {_hist_state(undo_hist)}"
+        except Exception as e:  # noqa: BLE001
+            hist_note = f"  ⚠ 未记入 Ctrl+Z 历史（{type(e).__name__}: {e}）"
+
+        verts = _mesh_live_vertices(el, poly) or []
+        return (
+            f"已建拱门笔刷 元素={el:#x}  面={len(faces)}（{segments} 段拱顶）  顶点={len(verts)}\n"
+            f"  外墙 {width:g} 宽 × {height:g} 高 × {thickness:g} 厚；门洞宽 {opening:g}"
+            f" 高 {oh:g}（直墙高 {oh - r:g}）\n"
+            f"  center=({cx:g}, {cy:g}, {cz:g})\n"
+            f"  材质表 = {_poly_materials(poly)}\n"
+            f"{weld_note}"
+            f"  AddChild ret={add_ret} err={add_err!r}  world 子节点 {before} -> {after}\n"
+            + hist_note
+        )
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+
+
+def _read_cptr(addr: int, off: int = 0, maxlen: int = 256) -> str:
+    """读 `*(char**)(addr+off)` 指向的字符串；指针不像样就返回空串。"""
+    if not addr:
+        return ""
+    try:
+        p = _read_int(addr + off, "u64")
+        return _read_string(p, maxlen) if 0x10000 < p < 0x7FFFFFFFFFFF else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _vfn_ptr(this_ptr: int, vtable_offset: int, args: list | None = None,
+             timeout: int = 10000) -> int:
+    """调虚函数并把返回值当**指针/整数**取回（失败返回 0）。
+
+    `_call_vfn` 返回的是 `(ret_hex, err)` 元组，**必须自己解包**——直接把元组喂给
+    `_read_string`/`int` 会被 JSON 序列化成数组，DLL 的 `GetAddressParam` 拒收，
+    报 `invalid 'address'`。
+    """
+    if not this_ptr:
+        return 0
+    try:
+        ret_hex, _err = _call_vfn(this_ptr, vtable_offset, list(args or []), timeout)
+        return int(ret_hex, 16) if ret_hex else 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+@mcp.tool()
+def cs2_bind_list(filter: str = "", limit: int = 0) -> str:
+    """列出 Hammer 的「可绑定工具命令」全表 —— 就是 Options → Key Bindings 里那张表。
+
+    数据源（2026-09-27 逆向，见 REVERSE_NOTES.md §17）：Hammer 里**每个工具类**在静态初始化时，
+    把自己的 `CBaseBindTargetDescriptor` 头插进一条**全局链表**（表头 `hammer+0x272D898`）。
+    每个描述符给出「工具名 + 实现类名 + 注册处源文件/行号」，并通过虚函数给出它的一批命令。
+
+    读取方式**全只读**（纯 getter 虚调用），不改地图、不产生历史：
+
+        vtable[0]  → 工具名 (char*)        vtable[24] → 命令数 (int)
+        vtable[32] → 第 i 个命令 (对象*)   命令对象 +0x08 = 命令名 · +0x18 = 描述
+
+    用途：摸清 Hammer 自己有哪些原子操作（选择 / 对齐 / 吸附 / 各种工具的开关），
+    后续可以按名字去调它们，而不是逐个逆向底层实现。
+
+    Args:
+        filter: 大小写不敏感的子串过滤（匹配工具名 / 类名 / 命令名）。
+        limit: 最多列多少条命令（0 = 不限）。
+    """
+    base = _hammer_base()
+    cap = max(0, int(limit))
+    kw = str(filter).strip().lower()
+    try:
+        head = _read_int(base + RVA_BIND_TARGET_LIST, "u64")
+        if not head:
+            return "绑定目标链表为空（Hammer 可能还没初始化完，或版本不符）"
+        nodes, seen, n_cmds = [], set(), 0
+        node = head
+        while node and node not in seen and len(nodes) < 1024:
+            seen.add(node)
+            name = _read_string(_vfn_ptr(node, BIND_VFN_NAME), 128)
+            cls = _read_cptr(node, BIND_OFF_CLASS, 128)
+            fname = _read_cptr(node, BIND_OFF_FILE, 200)
+            try:
+                line = _read_int(node + BIND_OFF_LINE, "u32")
+            except Exception:  # noqa: BLE001
+                line = 0
+            n = _vfn_ptr(node, BIND_VFN_CMD_COUNT)
+            cmds = []
+            for i in range(max(0, min(int(n), 512))):
+                cptr = _vfn_ptr(node, BIND_VFN_CMD_AT, [i])
+                cname = _read_cptr(cptr, BIND_CMD_OFF_NAME, 160)
+                if not cname:
+                    continue
+                cmds.append((cname, _read_cptr(cptr, BIND_CMD_OFF_DESC, 200)))
+            nodes.append((node, name, cls, fname, line, cmds))
+            n_cmds += len(cmds)
+            node = _read_int(node + BIND_OFF_NEXT, "u64")
+
+        lines = [f"Hammer 可绑定工具命令  工具 {len(nodes)} 个 / 命令 {n_cmds} 条"
+                 f"  链表头={head:#x}"]
+        shown = 0
+        for node, name, cls, fname, line, cmds in nodes:
+            if cap and shown >= cap:
+                break
+            hit_tool = (not kw) or kw in (name or "").lower() or kw in (cls or "").lower()
+            hit_cmds = [(c, d) for c, d in cmds if not kw or kw in c.lower()]
+            if not hit_tool and not hit_cmds:
+                continue
+            lines.append(f"\n【{name or '(无名)'}】  类={cls or '?'}")
+            if fname:
+                lines.append(f"   注册处: {fname}:{line}")
+            use = cmds if hit_tool else hit_cmds
+            for c, d in use:
+                if cap and shown >= cap:
+                    break
+                lines.append(f"   · {c}" + (f"  — {d}" if d else ""))
+                shown += 1
+        lines.append(f"\n（已列出 {shown} 条命令；用 filter 过滤工具名/类名/命令名）")
+        return "\n".join(lines)
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+
+
+# ---------------------------------------------------------------------------
+# 工具系统：命令对象的执行（REVERSE_NOTES.md §17.6）
+#
+# 一个 `CBindTargetDescriptor<T>::CBindableCommand` 分配 0x240 字节：
+#   头 0x40：+0x00 vtable · +0x08 命令名 char* · +0x10 名字 hash(u32) · +0x18 描述 char*
+#   之后 8 个 0x40 的块 = **8 个 stage** 的 `std::function`（stage k 在 +0x40*(k+1)）
+#
+# 每个 std::function（MSVC，functor 够小 → 内联在块里）：
+#   +0x00 functor vtable   +0x08 成员函数指针   +0x10 this 调整(int)   +0x18 绑定实参(u32)
+#   functor vtable 的槽 2（+0x10）= `_Do_call`，其实现为：
+#       (*(fn+8))( *(arg0) + *(int*)(fn+16), *(u32*)(fn+24) )
+#   —— 也就是 `(上下文对象->*pmf)(绑定实参)`。
+#
+# ⚠ 执行需要**上下文对象**（如 CToolSelection 实例 / CHammerApp 单例）。
+#   我们直接调 pmf（等价于 `_Do_call`，当 adj==0 时），因此只要 ctx 的**值**，
+#   不需要「指向 ctx 的指针」，全部参数都是整数 —— DLL 的调用桥不必支持 xmm。
+# ---------------------------------------------------------------------------
+CMD_OFF_NAME = 0x08
+CMD_OFF_HASH = 0x10
+CMD_OFF_DESC = 0x18
+CMD_BLOCK_BASE = 0x40        # stage 0 的 std::function 块
+CMD_BLOCK_STRIDE = 0x40
+CMD_STAGE_COUNT = 8
+# stage 语义（**实测归纳**，见 REVERSE_NOTES §17.13）：
+#   5 = 一次性执行   —— 88/89 条 ToolSelection 命令、全部 76 条 HammerApp 菜单命令都只绑这一档
+#   0 = 按下         —— 持续型交互命令的第一档（BoxSelect / MoveSelected / Nudge* / ToggleSnapping）
+#   2 = 拖动         —— BoxSelect / LassoSelect / MoveSelected
+#   3 = 长按连发     —— Nudge*（NudgeUp/Down/Left/Right、NudgeRotate*）
+#   6 = 松开         —— 所有多段命令的收尾档（Nudge* 三层是 0/3/6，BoxSelect 是 0/2/6）
+#   1/4/7 用途未定（1 从未出现；4/7 只在 `Select` 上出现）
+CMD_STAGE_LABELS = {0: "press", 2: "drag", 3: "repeat", 5: "execute", 6: "release"}
+# 自动选档的优先顺序：先「一次性执行」，再「按下」，再退到第一个
+CMD_STAGE_AUTO_ORDER = (5, 0, 2, 3, 6, 4, 7, 1)
+FN_VT_OFF_DOCALL = 0x10      # functor vtable 槽 2 = _Do_call
+FN_OFF_PMF = 0x08
+FN_OFF_ADJ = 0x10
+FN_OFF_ARG = 0x18
+# CHammerApp（ToolSystem2）**单例对象本体**：全局变量地址，首字段就是它的 vtable
+RVA_CHAMMERAPP = 0x677AC80
+APP_OFF_SESSION_COUNT = 0x58         # CHammerApp+0x58 = 编辑器会话 CUtlVector 计数
+APP_OFF_SESSION_ARRAY = 0x60         # CHammerApp+0x60 = 会话数组
+SESSION_OFF_TOOLMGR = 0x120          # 会话+0x120 = 工具管理器（CToolManager）
+TOOLMGR_OFF_COUNT = 0x30             # 工具管理器+0x30 = 工具实例数
+TOOLMGR_OFF_ARRAY = 0x38             # 工具管理器+0x38 = 工具实例数组
+RTTI_COL_TO_TYPEDESC = 0xC           # MSVC COL+0xC = TypeDescriptor 的 RVA
+
+
+def _rtti_class(obj: int) -> str:
+    """用 MSVC RTTI 取对象的类名（返回如 `CToolSelection`；失败/非 RTTI 返回空串）。
+
+    obj → vtable → `vtable[-8]` = CompleteObjectLocator → `COL+0xC`(u32) = TypeDescriptor 的 RVA
+    → `td+0x10` = 修饰名（形如 `.?AVCToolSelection@@`）。
+    """
+    base = _hammer_base()
+    try:
+        vt = _read_int(obj, "u64")
+        if not (base <= vt < base + 0x8000000):
+            return ""
+        col = _read_int(vt - 8, "u64")
+        if not (base <= col < base + 0x8000000):
+            return ""
+        name = _read_string(base + _read_int(col + RTTI_COL_TO_TYPEDESC, "u32") + 0x10, 160)
+    except Exception:  # noqa: BLE001
+        return ""
+    if name.startswith(".?AV"):
+        name = name[4:].split("@@")[0]
+    return name
+
+
+def _tool_instances() -> list[tuple[str, int]]:
+    """枚举当前会话的工具实例 -> [(类名, 实例地址)]（只读）。
+
+    链路（2026-09-28 实测，见 REVERSE_NOTES §17.12）：
+        CHammerApp+0x58/+0x60 = 编辑器会话数组
+        会话+0x120            = CToolManager
+        toolMgr+0x30/+0x38    = 工具实例数 / 数组
+    每个工具实例的第一项是 vtable，可经 RTTI 读出类名（与描述符 `+0x18` 的类名对应）。
+    """
+    base = _hammer_base()
+    app = base + RVA_CHAMMERAPP
+    out: list[tuple[str, int]] = []
+    try:
+        cnt = _read_int(app + APP_OFF_SESSION_COUNT, "u32")
+        arr = _read_int(app + APP_OFF_SESSION_ARRAY, "u64")
+        if not arr or cnt <= 0 or cnt > 64:
+            return out
+        for i in range(cnt):
+            sess = _read_int(arr + 8 * i, "u64")
+            if not sess:
+                continue
+            mgr = _read_int(sess + SESSION_OFF_TOOLMGR, "u64")
+            if not mgr:
+                continue
+            n = _read_int(mgr + TOOLMGR_OFF_COUNT, "u32")
+            tools = _read_int(mgr + TOOLMGR_OFF_ARRAY, "u64")
+            if not tools or n <= 0 or n > 256:
+                continue
+            for k in range(n):
+                t = _read_int(tools + 8 * k, "u64")
+                if t:
+                    out.append((_rtti_class(t), t))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _bind_ctx(target: str, cls: str, ctx: str) -> tuple[int, str]:
+    """解析执行用的「上下文对象」-> (`地址`, 说明)。
+
+    优先 `ctx` 参数；否则按类名自动解析：
+      · `CHammerApp`（全局菜单那批命令）→ CHammerApp 单例本体；
+      · 其它工具类（`CToolSelection` 等）→ 会话里对应的**工具实例**（RTTI 类名匹配）。
+    """
+    raw = (ctx or "").strip()
+    if raw:
+        return int(raw, 0), "由 ctx 参数指定"
+    base = _hammer_base()
+    want = (cls or "").strip()
+    if want == "CHammerApp" or (target or "").strip().lower() == "hammerapp":
+        return base + RVA_CHAMMERAPP, "CHammerApp 全局单例"
+    if want:
+        for name, addr in _tool_instances():
+            if name == want:
+                return addr, f"{want} 工具实例（RTTI 匹配）"
+    return 0, ""
+
+
+def _bind_targets() -> list[tuple[int, str, str]]:
+    """遍历描述符全局链表 -> [(desc 指针, 目标名, 实现类名)]（只读）。"""
+    base = _hammer_base()
+    out: list[tuple[int, str, str]] = []
+    node = _read_int(base + RVA_BIND_TARGET_LIST, "u64")
+    seen = set()
+    while node and node not in seen and len(out) < 1024:
+        seen.add(node)
+        out.append((node, _read_string(_vfn_ptr(node, BIND_VFN_NAME), 128),
+                    _read_cptr(node, BIND_OFF_CLASS, 128)))
+        node = _read_int(node + BIND_OFF_NEXT, "u64")
+    return out
+
+
+def _bind_find_target(name: str):
+    """按目标名 / 实现类名（大小写不敏感）找描述符 -> (desc, 名, 类名) 或 None。"""
+    want = (name or "").strip().lower()
+    if not want:
+        return None
+    for desc, tname, cls in _bind_targets():
+        if tname.lower() == want or (cls or "").lower() == want:
+            return desc, tname, cls
+    return None
+
+
+def _bind_commands(desc: int) -> list[tuple[int, str, str]]:
+    """列出一个描述符的命令 -> [(命令对象指针, 命令名, 描述)]。"""
+    out = []
+    n = _vfn_ptr(desc, BIND_VFN_CMD_COUNT)
+    for i in range(max(0, min(int(n), 512))):
+        cmd = _vfn_ptr(desc, BIND_VFN_CMD_AT, [i])
+        cname = _read_cptr(cmd, CMD_OFF_NAME, 160)
+        if cname:
+            out.append((cmd, cname, _read_cptr(cmd, CMD_OFF_DESC, 200)))
+    return out
+
+
+def _bind_find_command(desc: int, name: str):
+    """按命令名（大小写不敏感）找命令对象 -> (cmd, 名, 描述) 或 None。"""
+    want = (name or "").strip().lower()
+    for cmd, cname, cdesc in _bind_commands(desc):
+        if cname.lower() == want:
+            return cmd, cname, cdesc
+    return None
+
+
+def _bind_stage(cmd: int, stage: int) -> dict | None:
+    """取某个 stage 上绑定的函数信息；该 stage 没绑返回 None（只读）。"""
+    if not (0 <= stage < CMD_STAGE_COUNT):
+        return None
+    blk = cmd + CMD_BLOCK_BASE + CMD_BLOCK_STRIDE * stage
+    try:
+        vt = _read_int(blk, "u64")
+        if not vt:
+            return None
+        do_call = _read_int(vt + FN_VT_OFF_DOCALL, "u64")
+        base = _hammer_base()
+        # 只有「vtable 槽 2 落在本模块代码区」才算真的绑了函数：
+        # 空块的 +0x00 是堆里的残留指针，读出来的槽 2 不会落在代码区。
+        if not (base <= do_call < base + 0x8000000):
+            return None
+        return {
+            "stage": stage, "block": blk, "functor_vt": vt, "do_call": do_call,
+            "pmf": _read_int(blk + FN_OFF_PMF, "u64"),
+            "adj": _read_int(blk + FN_OFF_ADJ, "u32"),
+            "arg": _read_int(blk + FN_OFF_ARG, "u32"),
+        }
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _bind_stages(cmd: int) -> list[dict]:
+    """列出该命令**已绑函数**的全部 stage。"""
+    return [s for s in (_bind_stage(cmd, k) for k in range(CMD_STAGE_COUNT)) if s]
+
+
+def _fmt_stage(s: dict, base: int) -> str:
+    return (f"stage{s['stage']}[{CMD_STAGE_LABELS.get(s['stage'], '?')}] "
+            f"(+{CMD_BLOCK_BASE + CMD_BLOCK_STRIDE * s['stage']:#x}) "
+            f"pmf=hammer+{s['pmf'] - base:#x} adj={s['adj']} 绑定实参={s['arg']}")
+
+
+def _stage_index(stage) -> int:
+    """把 `stage` 参数（整数 / `"press"` 之类名字 / 空）解析成 stage 下标；空 = -1（自动）。"""
+    if stage is None or (isinstance(stage, str) and not stage.strip()):
+        return -1
+    if isinstance(stage, int):
+        return stage
+    t = str(stage).strip().lower()
+    if t.lstrip("-").isdigit():
+        return int(t)
+    for idx, name in CMD_STAGE_LABELS.items():
+        if name == t:
+            return idx
+    raise ValueError(f"未知 stage {stage!r}；可用名字: {sorted(set(CMD_STAGE_LABELS.values()))} 或 0-7")
+
+
+def _pick_stage(allst: list[dict], stage: int) -> dict | None:
+    """选要执行的 stage。stage < 0 = 自动：优先「一次性执行」，其次「按下」，再退到第一个。"""
+    if stage >= 0:
+        return next((x for x in allst if x["stage"] == stage), None)
+    for want in CMD_STAGE_AUTO_ORDER:
+        hit = next((x for x in allst if x["stage"] == want), None)
+        if hit:
+            return hit
+    return allst[0]
+
+
+@mcp.tool()
+def cs2_bind_inspect(target: str = "", command: str = "") -> str:
+    """（只读）看可绑定命令**实际绑了什么函数**、执行它需要哪个上下文对象。
+
+    背景见 REVERSE_NOTES.md §17：Hammer 每个工具类在静态初始化时把
+    `CBindTargetDescriptor<T>::CBindableCommand` 登记进全局链表（表头 `hammer+0x272D898`），
+    每个命令对象里按 **stage** 存了最多 8 个 `std::function`。
+
+    Args:
+        target:  目标名（如 `HammerApp` / `ToolSelection`）；也可传实现类名。留空 = 列出全部目标。
+        command: 命令名。留空 = 列出该目标下**所有已绑函数**的命令及其 stage。
+    """
+    base = _hammer_base()
+    try:
+        if not (target or "").strip():
+            rows = []
+            for desc, tname, cls in _bind_targets():
+                cmds = _bind_commands(desc)
+                bound = [c for c, _, _ in cmds if _bind_stages(c)]
+                rows.append(f"  {tname or '(无名)':<28} 类={cls or '?':<28} "
+                            f"命令 {len(cmds)} 条 / 其中 {len(bound)} 条绑了函数")
+            tools = _tool_instances()
+            trows = [f"  {name or '(未知)':<28} {addr:#x}" for name, addr in tools]
+            return ("目标（共 %d 个）：\n%s\n\n"
+                    "上下文对象（工具实例，共 %d 个）：\n%s\n\n"
+                    "用 cs2_bind_inspect(target=...) 看某个目标；"
+                    "用 cs2_bind_run(target=..., command=...) 执行。"
+                    % (len(rows), "\n".join(rows), len(trows), "\n".join(trows)))
+
+        found = _bind_find_target(target)
+        if not found:
+            return f"找不到目标 {target!r}。用 cs2_bind_list 看有哪些目标。"
+        desc, tname, cls = found
+
+        if not (command or "").strip():
+            lines = [f"目标 {tname!r}  类={cls}  desc={desc:#x}"]
+            for cmd, cname, cdesc in _bind_commands(desc):
+                st = _bind_stages(cmd)
+                if not st:
+                    continue
+                lines.append(f"\n· {cname}" + (f"  — {cdesc}" if cdesc else ""))
+                lines.append(f"    cmd={cmd:#x} hash={_read_int(cmd + CMD_OFF_HASH, 'u32'):#x}")
+                for s in st:
+                    lines.append("    " + _fmt_stage(s, base))
+            if len(lines) == 1:
+                return f"目标 {tname!r} 下没有任何命令绑定函数。"
+            return "\n".join(lines)
+
+        fcmd = _bind_find_command(desc, command)
+        if not fcmd:
+            return f"目标 {tname!r} 下找不到命令 {command!r}。"
+        cmd, cname, cdesc = fcmd
+        st = _bind_stages(cmd)
+        lines = [f"{tname}.{cname}   desc={desc:#x} cmd={cmd:#x}",
+                 f"  名字 hash = {_read_int(cmd + CMD_OFF_HASH, 'u32'):#x}"
+                 + (f"   描述: {cdesc}" if cdesc else "")]
+        if not st:
+            return "\n".join(lines + ["  该命令没绑任何 stage 函数（可能只是文档占位）。"])
+        for s in st:
+            lines.append("  " + _fmt_stage(s, base))
+        ctx_addr, why = _bind_ctx(tname, cls, "")
+        lines.append(f"  上下文对象: {ctx_addr:#x}（{why}）" if ctx_addr
+                     else "  上下文对象: 未知（执行时要用 ctx= 显式给）")
+        return "\n".join(lines)
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+
+
+@mcp.tool()
+def cs2_bind_run(target: str, command: str, stage: str = "", ctx: str = "",
+                 arg: int = -1, confirm: bool = False) -> str:
+    """执行一个 Hammer 可绑定命令（直接调它绑定的成员函数，等价 Ctrl+Z 之外的原生动作）。
+
+    ⚠ 这是**真执行**：会走 Hammer 自己的工具方法（可能改选择集 / 视图 / 甚至开新地图）。
+    先跑 `cs2_bind_inspect` 看清要调什么；真正执行必须显式 `confirm=True`。
+
+    原理（REVERSE_NOTES §17.6）：命令对象的每个 stage 存一个 `std::function`，
+    `_Do_call` 的语义是 `(上下文对象->*pmf)(绑定实参)`。我们直接调 pmf：
+        pmf(ctx + adj, arg)
+    全部参数是整数，所以 DLL 的调用桥无需支持 xmm。
+
+    Args:
+        target:  目标名（`HammerApp` / `ToolSelection` ...）。
+        command: 命令名（`ToggleSnapping` / `ShrinkGizmo` ...）。
+        stage:   要执行的 stage。可传数字 0-7，或名字 `press`/`drag`/`repeat`/`release`/`execute`。
+                 **留空 = 自动**：优先 `execute`(5)，没有就 `press`(0)，再退到第一个已绑档。
+                 持续型命令（`Nudge*` / `BoxSelect` 等）是分档的，需要「按住再松开」时手动传两次。
+        ctx:     上下文对象地址（`0x...`）。留空 = 自动解析（`HammerApp` 走单例，其余按类名 RTTI 找工具实例）。
+        arg:     覆盖绑定实参（整数）；默认 -1 = 用命令自带的。
+        confirm: 必须为 True 才真的执行；否则只回显将要调用的内容。
+    """
+    base = _hammer_base()
+    try:
+        stage_idx = _stage_index(stage)
+    except ValueError as e:
+        return f"ERROR {e}"
+    try:
+        found = _bind_find_target(target)
+        if not found:
+            return f"找不到目标 {target!r}。"
+        desc, tname, cls = found
+        fcmd = _bind_find_command(desc, command)
+        if not fcmd:
+            return f"目标 {tname!r} 下找不到命令 {command!r}。"
+        cmd, cname, _ = fcmd
+
+        allst = _bind_stages(cmd)
+        if not allst:
+            return f"{tname}.{cname} 没绑任何 stage 函数，无法执行。"
+        s = _pick_stage(allst, stage_idx)
+        if not s:
+            return (f"{tname}.{cname} 在 stage={stage_idx} 没绑函数；"
+                    f"可用 stage: {[x['stage'] for x in allst]}")
+
+        ctx_addr, why = _bind_ctx(tname, cls, ctx)
+        if not ctx_addr:
+            return (f"{tname}.{cname} 需要「上下文对象」地址，但没有可自动解析的来源。\n"
+                    f"请用 ctx='0x...' 指定（例如该工具类的实例地址）。\n"
+                    f"可用 stage: {[x['stage'] for x in allst]}")
+        obj = ctx_addr + s["adj"]
+        real_arg = s["arg"] if arg < 0 else int(arg)
+
+        plan = (f"{tname}.{cname}  stage={s['stage']}"
+                f"[{CMD_STAGE_LABELS.get(s['stage'], '?')}]  pmf=hammer+{s['pmf'] - base:#x}\n"
+                f"  将调用 pmf(this={obj:#x}, arg={real_arg})   "
+                f"[_Do_call=hammer+{s['do_call'] - base:#x}  ctx={ctx_addr:#x} ({why}) adj={s['adj']}]")
+        if not confirm:
+            return plan + "\n（confirm=False：只回显，未执行。确认无误后传 confirm=True。）"
+
+        ret_hex, err = _call_addr(s["pmf"], [obj, real_arg], timeout=30000)
+        if err:
+            return plan + f"\n❌ 调用失败: {err}"
+        return plan + f"\n✅ 已执行  返回值={ret_hex or '0x0'}"
+    except ConnectionError as e:
+        return f"ERROR 管道未连接: {e}"
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
+
+
+# 语义名 -> (目标, 命令名)。全部落在 ToolSelection 上，就是 Key Bindings 里
+# `Context = ToolSelection` 那批原生命令（名字取自 cs2_bind_list 的实测输出）。
+_SEL_FEATURES = {
+    # 选择
+    "select": ("ToolSelection", "Select"),
+    "box_select": ("ToolSelection", "BoxSelect"),
+    "lasso_select": ("ToolSelection", "LassoSelect"),
+    "select_next": ("ToolSelection", "SelectNext"),
+    "select_prev": ("ToolSelection", "SelectPrev"),
+    "add_to_selection": ("ToolSelection", "AddObjectToSelection"),
+    "remove_from_selection": ("ToolSelection", "RemoveObjectFromSelection"),
+    "grow": ("ToolSelection", "GrowSelection"),
+    "shrink": ("ToolSelection", "ShrinkSelection"),
+    "activate": ("ToolSelection", "ActivateObject"),
+    "show_properties": ("ToolSelection", "ShowObjectProperties"),
+    "cancel": ("ToolSelection", "CancelSelectOperation"),
+    # 吸附开关
+    "toggle_snapping": ("ToolSelection", "ToggleSnapping"),
+    "toggle_align_to_surface": ("ToolSelection", "ToggleAlignToSurface"),
+    # 原点 / 朝向
+    "origin_to_pivot": ("ToolSelection", "SetOriginToPivot"),
+    "origin_to_center": ("ToolSelection", "SetOriginToCenter"),
+    "orientation_to_world": ("ToolSelection", "SetOrientationToWorld"),
+    "clear_rotation_scale": ("ToolSelection", "ClearRotationAndScale"),
+    "bake_transform": ("ToolSelection", "BakeTransform"),
+    # 对齐 / 吸附到对象
+    "align_to_object": ("ToolSelection", "AlignOriginToObject"),
+    "align": ("ToolSelection", "AlignObjects"),
+    "align_rotation": ("ToolSelection", "AlignObjectsRotation"),
+    "align_to_workplane": ("ToolSelection", "AlignObjectsToWorkplane"),
+    "align_workplane_to_object": ("ToolSelection", "AlignWorkplaneToObject"),
+    "snap_to_object": ("ToolSelection", "SnapToObject"),
+    "snap_position_to_object": ("ToolSelection", "SnapToObjectPosition"),
+    # 钉住
+    "pin": ("ToolSelection", "PinToObject"),
+    "pin_selected": ("ToolSelection", "PinSelectedObjects"),
+    "unpin": ("ToolSelection", "UnpinSelectedObjects"),
+    "clear_pin_offset": ("ToolSelection", "ClearPinOffset"),
+    "move_down_by_trace": ("ToolSelection", "MoveObjectDownByTrace"),
+    # 枢轴
+    "pivot_clear": ("ToolSelection", "ClearPivot"),
+    "pivot_to_selection_center": ("ToolSelection", "SetPivotToSelectionCenter"),
+    "pivot_to_world_origin": ("ToolSelection", "SetPivotToWorldOrigin"),
+    "pivot_next": ("ToolSelection", "NextPivotCycle"),
+    "pivot_prev": ("ToolSelection", "PrevPivotCycle"),
+    "pivot_center_in_view": ("ToolSelection", "CenterPivotInView"),
+    "pivot_end_manipulation": ("ToolSelection", "EndPivotManipulation"),
+    # Gizmo
+    "gizmo_enlarge": ("ToolSelection", "EnlargeGizmo"),
+    "gizmo_shrink": ("ToolSelection", "ShrinkGizmo"),
+    "gizmo_apply": ("ToolSelection", "GizmoApplyValue"),
+    "gizmo_clear": ("ToolSelection", "GizmoClearValue"),
+    "local_offset_update": ("ToolSelection", "UpdateLocalOffset"),
+    "local_offset_reposition": ("ToolSelection", "RepositionToMatchLocalOffset"),
+    # Nudge（也可用 cs2_sel("nudge", direction=...)）
+    "nudge_left": ("ToolSelection", "NudgeLeft"),
+    "nudge_right": ("ToolSelection", "NudgeRight"),
+    "nudge_up": ("ToolSelection", "NudgeUp"),
+    "nudge_down": ("ToolSelection", "NudgeDown"),
+    "nudge_rotate_left": ("ToolSelection", "NudgeRotateLeft"),
+    "nudge_rotate_right": ("ToolSelection", "NudgeRotateRight"),
+    "nudge_rotate_up": ("ToolSelection", "NudgeRotateUp"),
+    "nudge_rotate_down": ("ToolSelection", "NudgeRotateDown"),
+    # 网格编辑
+    "flip_normals": ("ToolSelection", "FlipNormals"),
+    "merge": ("ToolSelection", "MergeSelectedMeshes"),
+    "merge_by_edge": ("ToolSelection", "MergeMeshesByEdge"),
+    "separate": ("ToolSelection", "SeparateMeshComponents"),
+    "bake_deformers": ("ToolSelection", "BakeMeshDeformers"),
+    "toggle_deformation": ("ToolSelection", "ToggleDeformation"),
+    "hide": ("ToolSelection", "HideElement"),
+    "replace_with_instance": ("ToolSelection", "ReplaceSelectionWithInstance"),
+    "replace_with_smartprop": ("ToolSelection", "ReplaceSelectedWithSmartProp"),
+}
+_SEL_NUDGE_DIRS = {"left": "Left", "right": "Right", "up": "Up", "down": "Down"}
+
+
+@mcp.tool()
+def cs2_sel(feature: str, direction: str = "", stage: str = "", confirm: bool = False) -> str:
+    """按**语义名**执行选择工具的常用动作（= `cs2_bind_run("ToolSelection", 对应命令)`）。
+
+    这些就是 Key Bindings 里 `Context = ToolSelection` 那批原生命令（截图里那些
+    「对齐 / 吸附 / 钉住 / 枢轴 / Nudge」），执行时自动解析到当前 `CToolSelection` 实例。
+
+    ⚠ 真执行。默认 `confirm=False` 只回显；改选择集/几何的命令会进 Ctrl+Z，
+    纯视图/枢轴命令不进（见 REVERSE_NOTES §17.12）。多数「对齐/钉住/Nudge」需要**先选中对象**，
+    否则是空操作。
+
+    Args:
+        feature:  语义名，见下（不传对的值会回显全部可用名）。
+        direction: 仅 `nudge` / `nudge_rotate` 用，取 `left`/`right`/`up`/`down`。
+        stage:    透传给 `cs2_bind_run`；留空 = 自动（`execute` → `press`）。
+        confirm:  必须 True 才真执行。
+    """
+    key = (feature or "").strip().lower()
+    if key in ("nudge", "nudge_rotate"):
+        d = (direction or "").strip().lower()
+        if d not in _SEL_NUDGE_DIRS:
+            return f"{key} 需要 direction ∈ {sorted(_SEL_NUDGE_DIRS)}（收到 {direction!r}）。"
+        key = f"{key}_{d}"
+    hit = _SEL_FEATURES.get(key)
+    if not hit:
+        lines = "\n".join(f"    {k:<32} -> {t}.{c}" for k, (t, c) in sorted(_SEL_FEATURES.items()))
+        return (f"未知 feature {feature!r}。可用：\n{lines}\n"
+                f"    nudge / nudge_rotate{' ' * 13}-> 需再给 direction ∈ {sorted(_SEL_NUDGE_DIRS)}")
+    target, command = hit
+    return (f"[cs2_sel {key} -> {target}.{command}]\n"
+            + cs2_bind_run(target=target, command=command, stage=stage, confirm=confirm))
+
+
 @mcp.tool()
 def cs2_area_query(min: str = "", max: str = "", kinds: str = "mesh,trigger,point",
-                   limit: int = 200) -> str:
+                   limit: int = 200, doc: str = "") -> str:
     """按世界坐标范围(AABB)取地图内容 —— 大图别全量拉，只取盒子里的对象。
 
     `kinds` 逗号分隔，可取：
@@ -3509,6 +4790,8 @@ def cs2_area_query(min: str = "", max: str = "", kinds: str = "mesh,trigger,poin
         max: 对角 "x y z"；留空 = 该侧不设限
         kinds: 逗号分隔，mesh / trigger / point / brush
         limit: 每类最多列多少条（命中总数仍完整统计）
+        doc: 目标地图文档（多文档**务必指定**）：留空 = 清单第一个；数字 = 索引；
+             其余 = 路径子串。见 `cs2_map_list_docs`。
     """
     try:
         qmin = _parse_vec3_arg(min, "min") if str(min).strip() else (-float("inf"),) * 3
@@ -3541,7 +4824,7 @@ def cs2_area_query(min: str = "", max: str = "", kinds: str = "mesh,trigger,poin
     # ---- 一趟走完世界树，同时收 mesh 与实体 ----
     # （旧版先扫一遍元素表找 mesh、再走一遍树找实体：既重复劳动，又因 `_enum_elements`
     #   的 8192 截断而漏掉 handle≥8192 的对象。走树时 vtable 顺带就有，不用额外读。）
-    world = _read_int(_map_doc() + CMAPDOC_WORLD_OFFSET, "u64")
+    world = _read_int(_map_doc(doc) + CMAPDOC_WORLD_OFFSET, "u64")
     if not world:
         return "ERROR CMapDoc 里没有 CMapWorld（地图可能还没加载完）"
     table, cap = _dm_table()
@@ -3633,7 +4916,7 @@ def cs2_area_query(min: str = "", max: str = "", kinds: str = "mesh,trigger,poin
 
 
 @mcp.tool()
-def cs2_mesh_list(limit: int = 100) -> str:
+def cs2_mesh_list(limit: int = 100, doc: str = "") -> str:
     """列出地图里的 CMapMesh（Hammer 手绘网格 / 贴花 overlay）。
 
     走**世界树**（`_walk_elements`）按主虚表筛 `CMapMesh`（RVA 0x176B8E0）。
@@ -3643,11 +4926,13 @@ def cs2_mesh_list(limit: int = 100) -> str:
 
     Args:
         limit: 最多返回多少条。
+        doc: 目标地图文档（多文档**务必指定**）：留空 = 清单第一个；数字 = 索引；
+             其余 = 路径子串。见 `cs2_map_list_docs`。
     """
     try:
         base = _hammer_base()
         vt_mesh = base + RVA_CMAPMESH_VTABLE
-        doc = _map_doc()
+        doc = _map_doc(doc)
         world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
         if not world:
             return "ERROR CMapDoc 里没有 CMapWorld（地图可能还没加载完）"
@@ -3801,7 +5086,7 @@ def cs2_mesh_get_geometry(mesh: str, max_faces: int = 16) -> str:
 
 
 @mcp.tool()
-def cs2_entity_create(classname: str = "", name: str = "") -> str:
+def cs2_entity_create(classname: str = "", name: str = "", doc: str = "") -> str:
     """新建一个地图实体（纯 hammer.dll 底层链路，不用 UI/快捷键）。
 
     调用链与 Hammer **拖放放置对象**完全同路（`sub_180180190` = mapviewdroptarget.cpp），
@@ -3826,11 +5111,13 @@ def cs2_entity_create(classname: str = "", name: str = "") -> str:
     Args:
         classname: FGD 类名（如 'info_player_start'）。留空则只建一个空 CMapEntity。
         name: 元素 name。留空由 Hammer 自行命名。
+        doc: 目标地图文档（多文档**务必指定**）：留空 = 清单第一个；数字 = 索引；
+             其余 = 路径子串。见 `cs2_map_list_docs`。
     """
     steps: list[str] = []
     add_err = ""
     try:
-        doc = _map_doc()
+        doc = _map_doc(doc)   # 参数是文档选择器，这里换成 CMapDoc 地址
         world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
         children_before = _read_int(world + NODE_OFF_CHILD_COUNT, "u32")
 
@@ -3978,7 +5265,7 @@ def cs2_entity_delete(entity: str, notify: bool = True) -> str:
             label = f"vtable=RVA {vtable - base:#x}（非 CMapEntity）"
             step_name = f"cs2: delete node RVA {vtable - base:#x}"
 
-        doc = _map_doc()
+        doc = _doc_of_element(ent)   # 多文档：按元素反查所属文档，别写错历史栈
         world = _read_int(doc + CMAPDOC_WORLD_OFFSET, "u64")
         parent_hex, perr = _call_fn(RVA_NODE_GET_PARENT, [ent])
         if perr:
