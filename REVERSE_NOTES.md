@@ -386,7 +386,7 @@ um->Redo();                                  // hammer.dll + 0x50B290
 
 ## 2.9 地图撤销 / 重做（2026-09-21 CE 硬件断点实测 ✅）
 
-> 用 Cheat Engine 在 VM（`192.168.3.137`）里对 **`CMapDocHistory+8`（历史计数）** 下硬件**写**断点，
+> 用 Cheat Engine 在 VM 里对 **`CMapDocHistory+8`（历史计数）** 下硬件**写**断点，
 > 然后按 Ctrl+Z，捕获到真正的撤销指令。VM 与实体机的 hammer.dll 为同一构建，RVA 通用。
 
 ### 实测捕获
@@ -1391,6 +1391,9 @@ CounterStrikeSharp 官方文档亦印证其定位（ModSharp 同类）：
 
 ## 11. 2026-09-24 新版 hammer.dll：RVA 全量重定位 + 底层调用链路 ✅
 
+> ⚠️ **本节已被 2026-10-01 的新版 dll 取代 —— 最新的 RVA 表见文末 §20。**
+> 下面这些地址对应的是 `DED2B1071B76EB3F71389EEBB865B023` 那一版，只能当历史参考。
+>
 > 触发原因：Steam 于 2026-09-24 更新 `hammer.dll`，**旧版 §8 速查表里的 RVA 全部失效**。
 > 本节是**当前唯一有效**的 RVA 表。新版 `hammer.dll` MD5 `DED2B1071B76EB3F71389EEBB865B023`，
 > imagebase 仍为 `0x180000000`。
@@ -2034,22 +2037,25 @@ Conn[0]: src=0  out="OnStartTouch"  tgt="!self"  in="Kill"  param=0
 | 工具 | 说明 | 验证结果 |
 |---|---|---|
 | `cs2_entity_get_io(entity)` | 读 `entity+0x4A0` 原生向量（并附 DMX 镜像条数作对照） | ✅ 读出 `[0] OnStartTouch -> !self:Kill param='' type=7(ENTITY_IO_TARGET_ENTITYNAME_OR_CLASSNAME) delay=0.0 timesToFire=-1 relay=0 globalRelay=0` |
-| `cs2_entity_add_io(entity, output, input_name, target, param, delay, times_to_fire, target_type, relay, global_relay, source)` | 调 **Hammer 自己的** `sub_180986EA0` 追加 | ✅ `连接数 1 -> 2`，新记录 `OnTrigger -> !self:Kill param='p1' delay=0.25 timesToFire=3`，Hammer 自动分配了唯一 id |
-| `cs2_entity_remove_io(entity, index)` | 后移 80 字节 + 计数减一 | ✅ `连接数 2 -> 1` |
+| `cs2_entity_add_io(..., history=True)` | 调 **Hammer 自己的** `sub_180986EA0` 追加；默认先压 Ctrl+Z 步 + 登记节点（§11.13.7） | ✅ `连接数 1 -> 2`，新记录 `OnTrigger -> !self:Kill param='p1' delay=0.25 timesToFire=3`，Hammer 自动分配了唯一 id；undo/redo 往返 7/7 通过 |
+| `cs2_entity_remove_io(entity, index, history=True)` | 调面板同款 `sub_180987AF0(entity, index<<16)`（析构+前移+计数），见 §11.13.7 | ✅ `连接数 1 -> 0`，Ctrl+Z 往返通过（旧实现是手动前移，有字符串泄漏） |
 
 实现要点：
 * `_conn_scratch()` 在目标进程里拼一条「源 Conn」（80 字节 + 字符串池），
   并**按 Hammer 的做法**调用 `sub_1813E79E0(src+0x30, 1, 8)` 初始化 `m_paramMap`；
 * ⚠ **必须"先写 payload 再初始化 paramMap"** —— 反了会把 paramMap 覆盖成 0（踩过一次）；
 * 追加调用走主线程（`_qt_call` → DLL `call_function on_main_thread=true`）；
-* 删除时**不回收**被删记录的 CUtlString 内存（`FreeMemoryBlock` 是延迟导入 IAT，
-  拿不到稳定 RVA），只泄漏几十字节，不会破坏 Hammer 状态。
+* ~~删除时不回收 CUtlString~~ → 2026-09-28 起改用面板同款 `sub_180987AF0`，
+  paramMap/5 个字符串全部正确释放（见 §11.13.7）；
+* 增/删默认开 `history=True`：压具名步 + `_hist_record_node` 在修改**之前**，
+  与面板 `sub_18020C9E0` / `sub_18020CD40` 同序，Ctrl+Z 完整可撤销。
 
 ### 11.13.5 新增 RVA 速查
 
 | 名称 | RVA | 说明 |
 |---|---|---|
 | `RVA_ENTITY_ADD_CONN` | `0x986EA0` | `AppendConnection(entityElement, int out[4], const Conn*)` |
+| `RVA_ENTITY_REMOVE_CONN` | `0x987AF0` | `RemoveConnection(entity, index<<16)`（见 §11.13.7，索引打包在高 16 位） |
 | `RVA_CONN_VALUE_INIT` | `0x13E79E0` | `sub_1813E79E0(this, 1, 8)` 初始化 KV3 值（paramMap） |
 | `RVA_ENTITY_OFF_CONN_COUNT` | `0x4A0` | `CMapEntity` 原生连接向量（size/data@+8/alloc@+0x10） |
 | `RVA_CDME_CONN_DATA_VTABLE` | `0x1779D30` | `CDmeConnectionData`（仅存档镜像用） |
@@ -2061,11 +2067,89 @@ Conn[0]: src=0  out="OnStartTouch"  tgt="!self"  in="Kill"  param=0
    `trigger()` 直接 no-op（实测：强制 `QAction::setEnabled(action,1)`（Qt5Widgets RVA `0x9D10`）
    后再 trigger，文件 mtime/大小仍不变），因为我们的内存写入不会置位「文档已修改」标记。
    → 现已改为**直接调用 `sub_1801639B0`（per-document 保存，a4=1 强制）**，见 §12。
-2. **编辑 IO 后未做 UI 侧确认**：`sub_180986EA0` 只追加原生向量，没有走
-   Outputs 面板的表格提交（`sub_180206BC0`）与 undo scope；面板刷新时机未验证。
+2. ~~**编辑 IO 后未做 UI 侧确认**~~：✅ **已解决，见 [§11.13.7](#11137--io-增删接入-ctrlz-历史--面板链路逆向2026-09-28)**。
+   面板提交 `sub_180206BC0` 经逆向确认是**纯 Qt 表格重建**（QTableWidget 行数据），
+   与数据/undo/保存无关；undo 用 §17.14 同一套 PushStep + `sub_18086D9B0` 即可。
 3. `Conn::Conn` 里 paramMap 的 flags 高 32 位与 Hammer KV3 载入路径产出的不完全一致
    （`0x2405` vs `0x5F00002405`），对 .vmap 存档无影响（DMX 镜像里没有 paramMap），
    但走 KV3 序列化路径时值得复核。
+
+### 11.13.7 ⭐ IO 增/删接入 Ctrl+Z 历史 + 面板链路逆向（2026-09-28）✅
+
+**结论先行**：Outputs 面板对连接的所有编辑（Add/Delete/Paste/各单元格提交）走的
+**就是 §17.14 那套通用撤销 API**，没有任何 IO 专用 scope —— 我们的
+`cs2_entity_add_io` / `cs2_entity_remove_io` 照抄面板顺序即可进 Ctrl+Z。
+
+#### 面板官方链路（CQHammerEntityOutputWidget，hammer+0x18020xxxx）
+
+**Add New Output = `sub_18020C9E0`**：
+
+```c
+v26 = entity->vfn1272(0);                    // 取会话/文档侧对象
+sub_18086E1A0(sub_180885870(v26), *(v26+288), "Add New Output", 0);  // PushStep+Notify
+for (每个目标实体 v11):
+    sub_18086D9B0(hist, v11 + 0xC8, 1);      // ★ 追加前登记节点（改动前快照）
+    sub_180986EA0(v11, &outHandle, &conn);   // 追加
+// 之后：sub_18020C840 / sub_180206BC0(panel, &rows) —— 纯 Qt 表格重建 + setFocus
+```
+
+**Delete Output = `sub_18020CD40`**：`"Delete Output"` 开步 → 对每行选中连接
+`sub_18086D9B0(hist, entity+0xC8, 1)` → **`sub_180987AF0(entity, packedIndex)`**
+→ 最后 `QTableWidget::setRowCount(0)` + 重新枚举刷新表格。
+
+**`sub_180206BC0` 经逆向确认是纯 UI**：入参是面板对象 + 行数据向量，内部只重建
+QTableWidget 行；不触碰原生 Conn 向量、不开 undo、与保存无关。所以 MCP 直接改
+原生向量后，**数据/get_io/落盘/undo 全部正常**；唯一表现：Outputs 面板正开着时
+表格不会即时刷新，重选实体或重开页面即可（不调用它也避免了 UI 状态依赖）。
+
+其余面板编辑函数（`sub_18020D240` Paste / `sub_18020D6E0` /
+`sub_1802102F0`…`sub_180211750` 七个单元格提交）全部是同一个
+`sub_18086E1A0` + `sub_18086D9B0` 模式。
+
+#### 新函数：按索引删除连接 `sub_180987AF0(entity, packedIndex) -> char`
+
+```c
+if ( (u16)packedIndex != 0 ) return 0;       // 低字必须为 0
+idx = (i16)(packedIndex >> 16);              // 真实索引在高 16 位（int16，故 < 32768）
+if ( idx >= entity[0x4A0] ) return 0;
+rec = entity[0x4A8] + 80*idx;
+sub_1813E7A90(rec + 0x30);                   // 析构 m_paramMap
+FreeMemoryBlock(rec+0x20/+0x18/+0x10/+0x08/+0x00);  // 5 个 CUtlString 全释放
+memmove(rec, rec+80, 80*(count-idx-1));      // 尾块前移
+--entity[0x4A0];
+return 1;
+```
+
+比旧实现（手动前移 + 计数减一、字符串泄漏）更干净；MCP 侧调用参数为
+`[entity, index << 16]`，ret=1 成功。
+
+#### IO 快照是怎么进历史的：CMapEntityIONode
+
+历史重放代码（`sub_181531530` / `sub_18152F030`）里用
+`vfn1904(node, "CMapEntityIONode")` 特判了一种节点：重放时枚举该实体的连接
+（`vfn2088` 取数量与数组、`vfn2016` 取实体名），逐条重建（缺名时还会
+`sub_180986220` 补登记），再调 `sub_180986EA0` 写回原生向量。也就是说
+`sub_18086D9B0(hist, entity+0xC8, 1)` 登记 CMapEntity 主节点时会把 IO 状态
+一并快照（该函数本身只做「登记当前节点（`sub_181528D70`）+ 递归子节点 +
+回溯父链」，IO 数据由节点记录在 Pop 时经 CMapEntityIONode 序列化/重放）。
+
+#### 落地与往返验收（2026-09-28，活体 info_target）
+
+`cs2_entity_add_io(..., history=True)` / `cs2_entity_remove_io(..., history=True)`
+（均默认开）严格按面板顺序：压具名步（`cs2: Add New Output` /
+`cs2: Delete Output`）→ `_hist_record_node(hist, entity)` → 真正增/删。
+
+```
+add OnUser1 -> !self:Kill param='hello' delay=0.5 timesToFire=3
+                              → 77 步 'cs2: Add New Output'(1 条命令)  conns 0→1 ✅
+cs2_map_undo                  → 76 步 / redo 0→1                     conns 1→0 ✅
+cs2_map_redo                  → 77 步 / redo 1→0    字段逐字节还原   conns 0→1 ✅
+remove_io(0)  (sub_180987AF0) → 78 步 'cs2: Delete Output'(1 条命令) conns 1→0 ✅
+cs2_map_undo                  → 77 步 / redo 0→1    连接完整还原     conns 0→1 ✅
+cs2_map_redo                  → 78 步 / redo 1→0                     conns 1→0 ✅
+```
+
+7/7 检查通过。旧实现「删除泄漏 5 个 CUtlString + paramMap」随之消除。
 
 ---
 
@@ -3340,18 +3424,25 @@ sub_180901F40(CMapMesh* el, Vector* 点数组, void* 贴图轴默认值, int 点
   `hammer+0x1E4E180` = `(1,0,0,0)`（拼起来 `0,1,1,1,1,0,0,0`）。
 - 材质名是裸 `char*`（写进 poly 的材质表 `poly+0x3448`）。
 - 返回值恒为 `0xffff`（没意义，别当失败）。
+- **点数无上限、且接受凹多边形**（2026-09-29 实测 23 点 U 形面一次建成，见 §16.11.2）；
+  绕序决定面法线（右手定则），不要求凸。⚠ 但若传入**退化/自相切**的几何（例如顶点正好
+  落在另一条边上），该面会被**静默丢弃**、函数仍返回 `0xffff`。
 
 **`sub_180901F40` = `RVA_MESH_BUILD_FACE` = `0x901F40`。**
 
 ### 16.5 ⚠ 为什么不能用官方的 `sub_180901DF0`
 
 `sub_180901DF0(el, float 宽, float 高, const char* 材质)` 是更短的官方封装（建一个
-`宽×高`、位于 z=0 的 XY 面），但它的**第 2/3 参数是 float → 走 xmm 寄存器**，而注入 DLL 的
-调用桥 `InvokeStub` **只设整数寄存器 rcx/rdx/r8/r9 + 栈**（`hammer_bridge.cpp:608`），
-浮点传不进去 → 实测调它建出来是**空的**（宽度收到 0，直接退化返回）。
+`宽×高`、位于 z=0 的 XY 面），但它的**第 2/3 参数是 float → 走 xmm 寄存器**。2026-09-27
+当时注入 DLL 的调用桥 `InvokeStub` 只设整数寄存器，浮点传不进去 → 实测调它建出来是**空的**
+（宽度收到 0，直接退化返回）。
 
-`sub_180901F40` 的参数全是整数/指针，所以能用。**以后再遇到「调了没反应」，先查目标函数
-有没有 float/double 形参。**
+> **2026-09-29 更新：xmm 已支持**（见 §16.10）。`InvokeStub` 现在按参数类型设置
+> xmm0..3，IPC 参数加 `"f:0.01"` / `"d:1.5"` 前缀即可传 float32/double。本封装尚未回头
+> 改测，但链路已无障碍；建盒仍用 `sub_180901F40`（6 面定制更灵活）。
+
+**以后再遇到「调了没反应」，先查目标函数有没有 float/double 形参、参数槽对应的 xmm
+有没有被正确设置。**
 
 ### 16.6 官方完整流程（样板）
 
@@ -3401,11 +3492,259 @@ cs2_area_query(min="-13010 11854 126", max="-12974 11890 162", kinds="mesh")
 
 | 项 | 现状 |
 |---|---|
-| **顶点未焊接** | 每个面各带自己的 4 个顶点 → **24 顶点 / 6 面**（原生 Box 工具是 **8 顶点**）。几何/AABB/渲染/存档都正确，作为笔刷可用；但顶点工具编辑不如原生顺手。焊接可试 `MergeVerticesWithinDistance` 算子（未逆向）。 |
+| ~~顶点未焊接~~ | ✅ **2026-09-29 已解决，见 §16.10**：官方算子 MergeVerticesWithinDistance + RemoveIsolatedVertices，新工具 `cs2_mesh_weld_vertices`；`cs2_mesh_create_box(weld=True)` 默认产出 8 顶点，一次 Undo 整盒删除。 |
 | 贴图轴 | 用的是官方样板那套默认值，没有按面朝向拟合 UV 轴（原点处的面朝 XY，其它面贴图可能拉伸）。 |
 | 其它形状 | 目前只做盒。棱柱/圆柱可复用同一条链（多给几个点 / 多几个面）。 |
-| DLL 浮点参数 | `InvokeStub` 不支持 xmm → 带 float 形参的函数都调不了（本轮踩坑）。要支持得改 DLL 并重新注入。 |
+| ~~DLL 浮点参数~~ | ✅ **2026-09-29 已解决，见 §16.10.4**：`InvokeStub` 支持 xmm0..3，IPC 用 `"f:"` / `"d:"` 前缀传 float32/double。 |
 | 元素 origin 写法 | 直接写 `el + 0xA0`（Vec3D）。官方走 `vfn136/vfn144`（设位置/矩阵）；我们这条对无旋转的笔刷够用，**带旋转的笔刷需要改走虚函数**。 |
+
+### 16.10 ⭐⭐ 顶点焊接 24→8（MergeVerticesWithinDistance）—— 2026-09-29 ✅
+
+目标：让建出来的盒形笔刷与原生 Block 工具一致 —— 每个角只有 1 个共享顶点（8 个），
+而不是每面各带 4 个（24 个）。
+
+#### 16.10.1 两个算子（均在 CPolygonMesh 上，首参 = poly 指针）
+
+| RVA | 函数 | 说明 |
+|---|---|---|
+| `0xCD21E0` | `sub_180CD21E0(poly, CUtlVector* handles, float dist, char keepEdges, char takeMidpoint, void* outMap)` | `"MergeVerticesWithinDistance"` 算子。把距离 ≤ dist 的顶点两两合并；返回本轮合并的顶点数（>0 表示有变化）。内部先算 `dist*dist` 做平方比较，负值退化为 FLT_MAX。 |
+| `0xCD83C0` | `sub_180CD83C0(poly)` | `"RemoveIsolatedVertices"`。合并后旧顶点不再属于任何面，必须再调一次清掉，否则池里留一堆孤立点。 |
+
+两个函数开头都走算子事务入口 `sub_1801574B0(..., "<名字>", 0, 1)`；**不自动压
+CMapDocHistory 撤销步**（实测步数只随我们自己的 PushStep 变化），历史由调用方负责。
+
+标志位（反编译实证，hammer.dll.c:3004398/3004411/3004505）：
+
+- `keepEdges (a4) = 1`：焊接时同步重接半边（调 `sub_180CB4E90` / `sub_180C8D0D0` 维护
+  半边缘连接）。官方 UI 包装 `sub_180D12DE0` 固定传 1。
+- `takeMidpoint (a5) = 1`：新顶点位置取两端中点（内部权重 0.5）；= 0 保留其中一端位置
+  （权重 1.0）。官方 UI 固定传 1。
+- `outMap (a6)`：可选的旧 handle→新 handle 映射向量，直接传 0。
+
+官方 UI 固定阈值 **0.01**（hammer.dll.c:3053543/3055362），最多迭代 8 轮，每轮后清孤立
+顶点。盒形笔刷重合点距离为 0，一轮即可全部合并，不必循环。
+
+#### 16.10.2 handles 向量布局（与 SetVertexPositions 同款，别按 4B/条分配）
+
+```
+头 20B: {u32 count @0; u32 ? @4; u64 dataPtr @8; u32 capacity @0x10; u32 flags @0x14}
+数据    : 16B/条（一个 OWORD），首 u32 = vertex handle，其余 12B 清零
+```
+
+算子内部：`v16 = dataPtr; v17 = v16 + 4*count`（`_DWORD*` 步进 4 = 16B/条），
+循环里 `*(_OWORD*)v16` 整条读入。条目来自 `_mesh_live_vertices()` 返回的活跃顶点 handle。
+
+#### 16.10.3 调用与验收（2026-09-29，活体 cs2.exe PID 9360）
+
+```
+sub_180CD21E0(poly, vec, 0.01f, 1, 1, 0)   ; 返回 24（参与合并的顶点数）
+sub_180CD83C0(poly)
+  → 活跃顶点 24 -> 8；6 个面不变；AABB 逐分量不变；
+    8 个顶点坐标正好是盒子 8 个角（世界坐标，含元素 origin 偏移）
+```
+
+undo/redo 往返实测：
+
+| 操作 | 顶点数 | undo/redo 栈 |
+|---|---|---|
+| create_box(weld=False) | 24 | undo 0→1（create box 步） |
+| cs2_mesh_weld_vertices | 8 | undo 1→2（weld 步） |
+| Undo | 24 | weld 步回滚干净 |
+| Redo | 8 | |
+| 再 Undo 到 create box 步 | 元素删除，world 子节点 638→637 | |
+| create_box(weld=True) | **建出来就是 8** | 只压 1 个步；一次 Undo 整盒消失（无 24 中间态） |
+
+实现：`_mesh_weld_native(el, poly, dist)`（两步原生调用，无历史）被 `cs2_mesh_weld_vertices`
+（PushStep + `_hist_record_node` 改动前快照）和 `cs2_mesh_create_box(weld=True)`
+（归入 create box 的 added 步）共用。
+
+#### 16.10.4 DLL 调用桥浮点 ABI（本次配套改动）
+
+Win64 ABI：前 4 个参数槽里的浮点走 `xmm0..xmm3`（不是把 IEEE 位模式塞进 rcx/rdx/r8/r9）；
+第 5/6 槽仍在栈上按 8B 位模式传递。`hammer_bridge.{h,cpp}`：
+
+- 新增 `FnArg { uint64 bits; uint8 kind }`（kind 0=整数/指针, 1=float32, 2=float64），
+  `FnArg::Float/Double` 用 memcpy 存位模式（避免严格别名问题）；
+  `CallFunction/CallVirtual/CallFunctionOnMainThread` 参数类型改为 `std::vector<FnArg>`。
+- `InvokeStub` 先照旧写整数寄存器与栈参数，再对前 4 槽 kind=1/2 的参数覆盖 xmm：
+  - float32：`B8 id`（mov eax, imm32）+ `66 0F 6E (C0+N*8)`（movd xmmN, eax）
+  - float64：`48 B8 id`（mov rax, imm64）+ `66 48 0F 6E (C0+N*8)`（movq xmmN, rax）
+  - 浮点槽的整数寄存器保留脏值无影响（被调方只读 xmmN 低位）。
+- IPC（`ipc_pipe.cpp` ParseCallArgs）：JSON 数字仍按整数；字符串新增前缀
+  `"f:0.01"` → strtof/float32，`"d:1.5"` → strtod/float64（`"str:"` 语义不变）。
+- Python 侧无需特殊处理：`_call_fn(rva, [poly, vec, "f:0.01", 1, 1, 0])` 字符串原样透传。
+
+#### 16.10.5 ⚠⚠ 焊接会**重算法线为平滑平均**（方块变"圆角感"）—— 2026-09-29 修 ✅
+
+**症状**：`weld=True` 建出来的盒子贴图/明暗看着"反了 / 圆嘟嘟"，而 `weld=False` 的正常。
+两个盒的 UV、轴、scale、面绕序**逐项一致**，唯一差异是**每角法线**：
+
+| | 每角法线 |
+|---|---|
+| 未焊接（CreateFace 后原样） | 面法线（顶面 `(0,0,1)`、底面 `(0,0,-1)`…） |
+| 焊接后 | **顶点平均法线**：方块角 = `(±1,±1,±1)/√3`（3 个相邻面平均） |
+
+即官方焊接算子把半边法线流重算成了"平滑着色"，而 Hammer 自己的笔刷（同样 8 顶点 / 6 面）
+存的是**面法线**。UV 数据没问题（`u=x/64` 等逐角都对），纯粹是法线坏了 → 视觉上像被球化。
+
+**顺带验证**：`el+15424` 的「平滑角」两个盒都是 `0.0`（不是它决定的）；`sub_18090A1E0(el, 0.0)`
+那次"收尾刷新"**不会**改回法线（调了无变化）；`el+15544`/`+15552`（面对象计数/数组）在我们
+建的元素里是**未初始化垃圾**（Hammer 建的是 0），所以那条刷新路径对我们也是空转。
+
+**修复**：新增 `_poly_set_flat_normals(poly)`，按面把每角法线写回**面法线**：
+
+* 逐面走 `poly+0x80`(面池 32B/条，`+0`=首半边 handle) 的半边环；
+* 取每个半边起点顶点（`poly+0x50` 半边池 80B/条：`+0`=起点顶点 handle、`+0x20`=next）
+  的位置，Newell 法求面法线并归一化；
+* 半边 → **密集序**索引走 `poly+0x1110`（16B/条，首 u32 低 22 位 = handle），
+  写进 `poly+0x1328`（12B/条）那张逐半边法线流。
+
+`_mesh_weld_native()` 在两步算子之后自动调用它（`cs2_mesh_weld_vertices` /
+`create_box(weld=True)` / `create_arch(weld=True)` 全部受益）。
+验收：MCP 通道新建焊接盒 → 6 个面 24 条半边法线全为对应面法线（`n=(0,0,±1)` / `(0,±1,0)` / `(±1,0,0)`），
+与地图自带笔刷一致。
+
+### 16.11 拱门笔刷（凹截面拉伸）—— 2026-09-29 ✅
+
+工具：`cs2_mesh_create_arch(center, width, height, thickness, opening, opening_height,
+segments, material, name, weld=True)`。
+
+构造（无需任何新算子，复用 §16.4 建面 + §16.10 焊接）：
+
+1. `_arch_outline(width, height, opening, opening_height, segments)` 生成 XZ 截面上的
+   **U 形凹多边形**（CCW）：外矩形 `width×height`，门洞从地面 `z=0` 切入，两侧直墙高
+   `opening_height - r`（`r = opening/2`），拱顶半圆用 `segments` 段折线近似
+   → 顶点数 `n = 7 + segments`。
+2. 前端面 = 该 n 点多边形**原样**（法线 -y）；后端面 = 逆序（法线 +y）；
+   每条截面边一个四边形条带 → `n + 2` 个面。
+3. 焊接 → 收敛到 `2n` 个顶点（前后端面各 n，棱柱应有的最小值）。
+
+实测（width=160, height=192, thickness=24, opening=96, segments=16）：
+`n=23` → 25 面、138 顶点 → 焊接 **138 → 46**（= 2n，完全收敛），AABB 与参数逐项吻合，
+一次 Undo 整拱删除。
+
+#### 16.11.1 ⚠ 踩坑：退化截面会让建面静默失败 / 焊接不收敛
+
+最初的参数化把「门洞地面到拱顶高」写死为 `height`，于是拱顶顶点 z 恰好等于矩形顶边 z
+（`height = r + side_h`）→ 截面上拱顶与墙顶**相切**，成为非简单多边形。后果很隐蔽：
+
+- 两个 n 点凹面被建面算子**静默丢弃**（面数比预期少 2），其余条带照常建成；
+- 焊接算子此时只收敛到 `唯一位置数 + ~0.6×唯一位置数`，反复调用第 2 轮就报 0（内部
+  还有一层「有进展才继续」的迭代，见 `sub_180CD21E0` 的 `v113/v114` 判断）。
+
+**故 `opening_height` 必须严格小于 `height`**（工具已做校验，默认 `0` → `height×0.9`）。
+
+#### 16.11.2 ✅ 纠正：建面算子**接受凹多边形**
+
+早期（§16.4 附近）曾据「19 点凹面没建成」推断「Hammer 面必须是凸多边形」。**该结论是错的**
+——真正原因是上面那个退化截面。修正参数后，同一个 19/23 点 U 形凹面一次建成，且焊接完全
+收敛。原生 Hammer 的棱柱/拱形体也是如此：**端面直接用多边形，不必三角化**。
+
+（我为此写过一版耳切三角化 + 逐簇/多轮焊接的绕路方案，全部作废并已删除代码。教训：
+建面数量对不上时，先怀疑**输入几何是否退化**，再怀疑算子能力。）
+
+#### 16.11.3 ⚠ 踩坑：center 被叠加两次（顶点里加了 ctr，又设了 origin）—— 2026-09-29 修 ✅
+
+首版 `cs2_mesh_create_arch` 把 `ctr` 加进了**顶点坐标**（`(x+cx, yf, z+cz)`），同时又
+`_write_mem_chunked(el + ENTITY_OFF_ORIGIN, ctr)` → 元素 origin 再加一次 ⇒ **位移翻倍**。
+实测 `center=(-800,-832,30)` 的拱门实际落在 `(-1600,-1664,60)`。
+**约定与 `cs2_mesh_create_box` 一致**：顶点一律写**本地坐标**，位置只由 `el+0xA0` 承担。
+（附带好处：UV 相位锚在自身 AABB，所以本地/世界坐标对相位无影响。）
+
+#### 16.12 ⭐⭐ 面 UV：建面算子第 3 参是**每点 Vec2 数组**，不是 32 字节常量 —— 2026-09-29 ✅
+
+**纠正一个长期误解**：`sub_180901F40(el, 点数组, X, 点数, 材质)` 的第 3 参 `X`
+曾被当成「32 字节的默认贴图轴」（因为官方样板恰好传了 `hammer+0x1E4E300`/`+0x1E4E180`
+两张常量拼成的 32 字节）。反编译 `sub_1808CAE90`（真正的 CreateFace 实现）后确认：
+
+```
+第 2 段循环：  v41 = *(DWORD*)(a4 + 8*n);   v42 = *(DWORD*)(a4 + 8*n + 4);
+              *(DWORD*)(stream + 8*idx) = v41;  *(DWORD*)(stream + 8*idx + 4) = v42;
+```
+
+即 `a4` 按 **8 字节/点** 读取，逐点写进 texcoord 流 —— 它是**每点一个 Vec2 UV**。
+官方样板传的那 32 字节其实是 4 个点的 UV：`(0,1) (1,1) (1,0) (0,0)`（一个 1×1 正方形）。
+
+**实锤（活体）**：传 `(0,1)(1,1)(1,0)(0,0)` 建盒后读回，
+`cs2_mesh_get_geometry` 逐角 UV 正是这 4 个值 ⇒ **UV 原样写入**；Hammer 之后按这些 UV
+反推面的贴图轴/scale/offset（VRF `ComputeFaceTextureParametersFromCoordinates`）。
+
+旧代码 6 个面共用一份常量 → 每面各铺满一张贴图、不随世界平铺、非正方形面还会拉伸，
+这就是「贴图和 UV 不对」的根因。
+
+**Hammer 默认的世界对齐**（`ToolFaceSelection.AlignWorld` → `sub_1809B47F0` →
+`sub_1808DDC70`(policy=`CInitializeUsingComputeTextureAxes`) → 最终 `uv` 由
+轴/scale/偏移算出；公式与 VRF `PolygonMesh.TextureAlignToGrid` 一致）：
+
+```
+uv = dot(worldAxis, 世界坐标) / (scale * textureSize)
+```
+
+* `scale = 0.125`（`PolygonMesh.DefaultTextureScale`）
+* **轴只由面法线的「主轴」决定**（实测地图自带笔刷：±X/±Y/±Z **同轴，不看正负号**）：
+
+  | 主轴 | U | V |
+  |---|---|---|
+  | X | (0,1,0) | (0,0,-1) |
+  | Y | (1,0,0) | (0,0,-1) |
+  | Z | (1,0,0) | (0,-1,0) |
+
+  ⚠ 与 VRF 的 `FaceRightVectors/FaceDownVectors` 表**不完全一致**：VRF 对
+  `(0,1,0)` / `(-1,0,0)` 两个朝向给了带符号的轴，而实测 Hammer 笔刷是无符号的。
+  以实测为准（6 个面逐项核对过）。
+
+  **权威来源（2026-09-29 补，反编译）**：`ToolFaceSelection.AlignWorld` → `sub_1809B47F0`
+  → `sub_1808DDC70`（policy vtable `??_7CInitializeUsingComputeTextureAxes@@6B@` @
+  `hammer+0x1767148`，vfn0 = `sub_1808C8210`）→ 对 mode=1（世界对齐）走
+  **`sub_180AE38A0` 的 `if (n2_1 == 1)` 分支**：`axisU = qword_1821DDB10[12*n]`、
+  `axisV = qword_1821DDB60[12*n]`，`n` 由 `sub_180AE3E60(plane)` 按主轴选出
+  （6 个候选法线表 @ `qword_1821DDAC0`，`>=` 比较、并列取靠后）。活体读出的两张表：
+
+  | idx | 法线 | axisU | axisV |
+  |---|---|---|---|
+  | 0 | (0,0,1)  | (1,0,0) | (0,-1,0) |
+  | 1 | (0,0,-1) | (1,0,0) | (0,-1,0) |
+  | 2 | (0,-1,0) | (1,0,0) | (0,0,-1) |
+  | 3 | (0,1,0)  | (1,0,0) | (0,0,-1) |
+  | 4 | (-1,0,0) | (0,1,0) | (0,0,-1) |
+  | 5 | (1,0,0)  | (0,1,0) | (0,0,-1) |
+
+  即「按主轴、**不看正负号**」，与上表及本工具实现完全一致（§16.12 的结论就此从
+  「实测拟合」升级为「与 Hammer 代码一致」）。
+* `textureSize` = 贴图像素尺寸（Hammer 从材质系统取）。**它决定一张贴图平铺多少世界单位**
+  = `scale × textureSize`。实测 `materials/dev/reflectivity_30.vmat` → 512 ⇒ **64 单位/贴图**。
+* 坐标必须用**世界坐标**（元素 origin + 本地坐标），本地坐标会随 origin 漂移。
+
+#### 16.12.1 ⭐⭐ 相位（offset）：**从网格自己的角点起算**，不是世界原点 —— 2026-09-29 补
+
+上面那条公式只定了「轴 + 密度」，**相位**还有一步（用户反馈"方向正确、但效果不太一样"
+后拿 Hammer 手建的块逐面比对才定案）。实测同材质同尺寸的两个块：
+
+| | 轴 / scale / 密度 | UV 相位 |
+|---|---|---|
+| 地图自带的老块 `0x5c02e760000`（1216×1152×32） | 世界轴，0.125，64 单位/贴图 | **世界相位**：`u = x/64` |
+| **Hammer Block 工具新建块** `0x5c053294000`（64×96×64） | 同上 | **锚在块自己的角点**：顶面 `u=(x−xmin)/64 → 0…1`、`v=−(y−ymin)/64 → 0…−1.5` |
+
+⇒ 「世界相位」与「建块默认」差的是**半个非整数贴图**（老块 xmin=−864 ⇒ −13.5 张），
+所以外观确实不同。**建块类工具要复现的是后一种**：
+
+```
+u = (dot(U轴, 世界坐标) − u_min) / (scale × textureSize)     # u 锚在网格 U 向最小端
+v = (dot(V轴, 世界坐标) − v_max) / (scale × textureSize)     # v 锚在网格 V 向最大端
+```
+
+（`u_min`/`v_max` = `dot(轴, ·)` 在整个网格 AABB 上的最小/最大值。v 取 **max** 是因为
+Hammer 的 V 轴指向"下"，这样贴图 (0,0) 落在块的上-左角，与手建块一致。）
+
+⚠ 写入的 UV 与"存回值"会差**整数张贴图**：Hammer 按这些 UV 拟合出轴/偏移后，偏移会对
+贴图尺寸（512）**取模**，所以 `0…1` 可能读回 `−14…−13`（Δ=−14，整数张）—— 外观完全相同。
+判据是「差值是整数」，不是「值相等」。
+
+**实现**：`_face_uv_bytes(pts, lo, hi, tex_size)` + `_dot_axis_range()`；
+`cs2_mesh_create_box` / `cs2_mesh_create_arch` 都按整网格 AABB 定锚。
+
+**遗留**：`tex_size` 目前靠参数（默认 512），Hammer 自己是从材质系统查真实尺寸。
+非 512² 的贴图平铺密度会差倍数（朝向/相位规则是对的）。
 
 ---
 
@@ -3485,6 +3824,381 @@ Key Bindings 表格填充 = **`sub_1813255B0(dlg)`**：
 
 ⚠ 注意：`IToolSystem2` 的公共方法没有符号，若要走「先拿 `CHammerApp` → 调虚表槽」这条路，
 只能靠逐个 slot 反查用途；**优先用 17.2 的链表 + 17.3 的 KV 这条有名字的路。**
+
+---
+
+### 17.6 描述符节点的真实布局（2026-09-28 运行时实测）
+
+链表节点（`CBindableTargetDescriptorInstance<T>` 静态实例，节点步长 `0x70`）：
+
+| 偏移 | 含义 |
+|---|---|
+| `+0x00` | vtable（`...CBindableTargetDescriptorInstance<T>::vftable`） |
+| `+0x08` | **目标名 hash**(u32) —— `Murmur(name.lower(), seed = len ^ 0x31415926)`；`vfn2` 返回它 |
+| `+0x10` | 目标名 `char*`（`vfn0`） |
+| `+0x18` | **实现类名** `char*`（`vfn1`；`sub_1813040A0` 用它写 KV 的 `"ClassName"`） |
+| `+0x20` | 注册源文件 `char*` · `+0x28` 行号(u32) · `+0x30` `OverideHelpContextName` |
+| `+0x38` | `next`（链表） |
+| `+0x40` | **命令数**(int) · `+0x48` 命令数组 · `+0x50` 容量 |
+| `+0x58` `+0x60` `+0x68` | 另有字段（`0x8000010d` / 一组 `{ptr,hash}`），用途未查 |
+
+虚表槽：`[0]` 取目标名（`desc+0x10`）· `[1]` 取类名（`desc+0x18`）· `[2]` 取 hash（`desc+0x08`）
+· **`[3]`(offset 0x18) 命令数** · **`[4]`(offset 0x20) 取第 i 个命令**（`sub_1813040A0` 就是走这两个）。
+
+### 17.7 ⭐ 命令对象 `CBindableCommand` 与 stage
+
+命令对象由 `CBindTargetDescriptor<T>::CBindableCommand` 构造，**一次分配 `0x240` 字节**
+（`sub_180397820` 里的 `mov edx,240h` + `g_pMemAlloc`；实测相邻两条命令指针相差 `0x280`，
+是分配器向上取整，逻辑尺寸仍是 `0x240`）：
+
+| 偏移 | 含义 |
+|---|---|
+| `+0x00` | vtable `CBindTargetDescriptor<T>::CBindableCommand::vftable`（只有 2~3 个槽） |
+| `+0x08` | **命令名** `char*` |
+| `+0x10` | **命令名 hash**(u32)（`sub_180098180`） |
+| `+0x18` | 描述 `char*`（多数为空） |
+| `+0x40 + 0x40*k` | **stage k 的 `std::function`**（k = 0..7，共 8 块 `0x40`） |
+
+- 构造时**只把每块最后 8 字节清零**，其余是堆复用留下的残留 —— 所以「空块」看起来像一条
+  **自指链**（`+0x40` → `+0x50` → `+0x60` …，每格指向下一格）。**判断某 stage 有没有绑函数，
+  不能看指针非空**，必须用「functor vtable 的槽 2 是否落在模块代码区」这一招（见 17.8）。
+- `SetFunction` 的符号名给出了全部信息，例：
+  `...SetFunction<void (CBaseSelectionTool::*)(void)>(BindableCommandStage_t, ...)` →
+  `std::_Func_impl_no_alloc<lambda_1_, void, CToolSelection*>`。
+
+### 17.8 ⭐ 执行：`std::function` 的 `_Do_call` 与「上下文对象」
+
+内联存放的 functor（0x20 字节）布局：
+
+| 偏移 | 含义 |
+|---|---|
+| `+0x00` | functor vtable（`std::_Func_impl_no_alloc<lambda_1_, void, Ctx*>::vftable`） |
+| `+0x08` | **成员函数指针**（代码地址） |
+| `+0x10` | `this` 调整(int)（虚成员函数指针时是 vtable 偏移） |
+| `+0x18` | **绑定的实参**(u32) |
+
+functor vtable 的**槽 2（offset `+0x10`）= `_Do_call`**，实现（例 `sub_18012C5C0`）：
+
+```c
+return (*(fn + 8))( *(ctxPtr) + *(int *)(fn + 16), *(u32 *)(fn + 24) );
+//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^
+//                    ctx + adj                    arg
+```
+
+即 `std::function<void(Ctx*)>`：`_Types... = Ctx*` → 以 `Ctx*&` 传参 → **参数是「指向指针的指针」**。
+
+**我们采用的执行策略：跳过 `_Do_call`，直接调 `pmf(ctx + adj, arg)`**：
+
+- `adj == 0`（实测绝大多数）时 `_Do_call` 就是 `pmf(*ctxPtr, arg)`，等价；
+- 参数**全是整数** → 注入 DLL 的调用桥（只设 rcx/rdx/r8/r9，无 xmm）**够用**，不必为了它支持浮点；
+- pmf 形参表为空时多传的 `rdx` 被忽略 → 安全（functor 有实参时 `+0x18` 已被编译器写对）。
+
+### 17.9 上下文对象（ctx）—— 已打通 ✅
+
+| 目标 | ctx | 取法 |
+|---|---|---|
+| `HammerApp` | `CHammerApp` 单例**对象本体** | `hammer + 0x677AE50`（首字段 = `??_7CHammerApp@@6B@`，RVA `0x1DF0130`） |
+| `ToolSelection` 等 | 对应的**工具实例**（heap） | 见 §17.10 的链路 + RTTI 类名匹配 |
+
+- 工具实例由 `sub_180337920`（注册全部工具）用 `g_pMemAlloc` 分配后，
+  经 **`sub_18033A5D0(toolMgr, tool, index)`** 存进 `*(toolMgr + 0x38)[index]`，
+  并把 `*(toolMgr+0x48)`（= 会话对象）与 index 写进工具对象（`tool+0x20 = index`）。
+- `CToolSelection::vftable` = RVA **`0x1E3B578`**。
+
+### 17.10 ⭐ 工具管理器（CToolManager）与工具实例表 —— 2026-09-28 实测
+
+```
+CHammerApp（hammer+0x677AE50）
+  +0x58 (u32) = 编辑器会话数 · +0x60 = 会话数组
+      └─ CHammerEditorSession*（就是 sub_180135500 里的 rsi）
+           +0x120 = CToolManager*            ← sub_180135500 里 `mov [rsi+120h], rbx`
+           +0x138 = 当前 CMapDocSession 包装（CMapDoc = 包装+0x10，与 DLL 的 map_list_docs 一致）
+CToolManager（尺寸 0x178，sub_18033A110/A230 用它，sub_18033A5D0/A620 是它的方法）
+  +0x00 = CToolEventMapRegistrationHelper<CToolManager>::vftable
+  +0x30 (u32) = 工具实例数 · +0x38 = 工具实例数组
+  +0x48 = 所属会话对象 · +0x50 = CToolManagerUndoableState::vftable
+  +0x58 = 自指针 · +0x60/+0x68 = -1 · +0x78 起 32 个 QCursor
+```
+
+**认工具实例的类名**：工具实例首字段是 vtable，用 MSVC RTTI 反查即可：
+`vtable[-8]` = CompleteObjectLocator → `COL+0xC`(u32) = TypeDescriptor 的 **RVA** →
+`td+0x10` = 修饰名（`.?AVCToolSelection@@`）→ 去头尾即 `CToolSelection`。
+
+实测工具表共 **36 个**实例（槽位有空洞），例如
+`[0]=CToolSelection`、`[1]=CToolPolyFaceSelection`、`[5]=CToolBlock`、`[6]=CToolEntity`、
+`[12]=CToolWorkPlane`、`[10]=CToolPickEntity` ……
+
+**ctx 自动解析算法**（`cs2_bind_run` 已实现）：描述符 `+0x18` 的类名 == 工具实例的 RTTI 类名 → 用该实例；
+`CHammerApp` 特判走全局单例。
+
+**实测验收**：
+
+```
+ToolSelection.EnlargeGizmo  stage5 pmf=hammer+0x3a1f50
+  上下文对象: 0x549ac2aa800（CToolSelection 工具实例（RTTI 匹配））
+  ✅ 已执行  返回值=0x10a8efd9d0
+```
+（同一批的 `ShrinkGizmo` / `SetOrientationToWorld` / `ClearPivot` 都正确解析到同一实例。）
+
+### 17.11 绑定（Key Bindings）的加载链路
+
+`sub_18130C810()` 取 **`CQInputBindManager` 单例（RVA `0x272E520`）** →
+`sub_18130E5D0(reg, "tools/keybindings/hammer_key_bindings.txt", 0, 0)` 读文件 →
+`sub_18130E120(reg, buf)` 用 `LoadKV3` 解析，每条记录 = `{按键序列, 命令名, 上下文名}`：
+`sub_1813419C0` 把按键串解析成序列，`sub_18130C130` 查重，`sub_1813038F0` 建 **80 字节**绑定条目
+（**`+56` = 命令名 hash · `+72` = 上下文名 hash**），塞进 `reg+56` 的 `CUtlVector`。
+`sub_18130E120` 结束时会跑 `sub_181310EE0` / `sub_181310B30` 收尾。
+
+### 17.12 已实现（2026-09-28）
+
+| 工具 | 状态 |
+|---|---|
+| `cs2_bind_list` | ✅ 走 `hammer+0x272D898` 链表枚举 → **69 目标 / 1194 命令** |
+| `cs2_bind_inspect` | ✅ 只读：每个目标/命令绑了哪些 stage、pmf RVA、绑定实参、需要哪种 ctx |
+| `cs2_bind_run` | ✅ **任意目标都自动解析 ctx 并执行**（见 §17.10）。实测 `HammerApp.ToggleShowHelpers/ToggleTextureLock/ToggleTransformSpace`、`ToolSelection.EnlargeGizmo/ShrinkGizmo/SetOrientationToWorld/ClearPivot/NextPivotCycle/PrevPivotCycle/CenterPivotInView/SetPivotToSelectionCenter/GrowSelection/ShrinkSelection` 均成功（无崩溃） |
+| `cs2_sel` | ✅ 语义封装：**61 个 feature 名**（对齐/吸附/钉住/枢轴/Gizmo/Nudge/网格编辑）→ `ToolSelection` 的原生命令，内部就是 `cs2_bind_run`。例：`cs2_sel("align")`、`cs2_sel("nudge", direction="left")`、`cs2_sel("show_properties")`。已校验 61 个名字**全部**在实测命令表里存在 |
+
+**踩坑**：`_call_vfn` 返回的是 `(ret_hex, err)` **元组**，早期把它直接喂给 `_read_string`/`int`
+会被 JSON 序列化成数组 → DLL 的 `GetAddressParam` 拒收 → 报 `invalid 'address'`。
+已加 `_vfn_ptr()` 统一解包。
+
+**执行语义实测（2026-09-28，`ToolSelection` 目标，全部自动解析 ctx 成功）**：
+
+| 命令 | 是否进 Ctrl+Z 历史 |
+|---|---|
+| `EnlargeGizmo` / `ShrinkGizmo`（Gizmo 尺寸） | 否（纯视图） |
+| `ClearPivot` / `NextPivotCycle` / `PrevPivotCycle` / `SetPivotToSelectionCenter` / `CenterPivotInView` | 否（纯枢轴/视图） |
+| `SetOrientationToWorld` | 否（重复验证两次，栈尾不变） |
+| `GrowSelection` / `ShrinkSelection` | **是** —— 新增一步 `'Grow/shrink Selection'`(1 条命令) |
+
+→ 结论：**改选择集/几何的命令会走 `CMapDocHistory`，纯视图命令不会**。
+返回值是 `rax` 残留（`void` 函数），不能当结果用；`EnlargeGizmo`/`ShrinkGizmo` 返回的是
+Gizmo 比例的位模式，两次调用值不同（说明确实改了状态）。
+
+### 17.13 ⭐ stage 语义（0–7）—— 按 164 条命令的绑定分布归纳
+
+统计口径：88 条 `ToolSelection`（89 条里 1 条没绑）+ 76 条 `HammerApp`，看每条命令**实际绑了哪几档**。
+
+| stage | 含义 | 证据 |
+|---|---|---|
+| **5** | **一次性执行** | 88 条 ToolSelection 里绝大多数 + **全部 76 条** HammerApp 菜单命令都只绑这一档（`FileSave` / `ToggleSnapping` / `AlignObjects` / `ClearPivot` …） |
+| **0** | **按下** | 持续型命令的第一档：`BoxSelect` / `LassoSelect` / `MoveSelected` / `SelectAndMove2D` / `Nudge*` / `ToggleSnapping` / `AddObjectToSelection` |
+| **2** | **拖动** | `BoxSelect` / `LassoSelect` / `MoveSelected` / `SelectAndMove2D` |
+| **3** | **长按连发** | 只有 8 条 `Nudge*` |
+| **6** | **松开** | 所有多段命令的收尾档（`Nudge*`=0/3/6、`BoxSelect`=0/2/6、`Select`=4/6/7） |
+| 4 / 7 | 未定 | 只出现在 `Select` 上 |
+| 1 | 从未出现 | — |
+
+- **绑定实参随档变化**：`NudgeLeft` = stage0(press, arg=**2**) / stage3(repeat, arg=**2**) / stage6(release, arg=0)
+  —— arg 2 是方向/轴枚举。
+- **不同档是不同 lambda 类型**，`_Do_call` 地址不同：`Nudge*` = `hammer+0x3773f0`、
+  `Select`/`AlignObjects` = `hammer+0x12c5c0`、`ClearPivot` 那批 = `hammer+0x12c660`。
+- ⚠ **同一 pmf 被多条命令共用时，靠「命令对象自带的绑定实参」区分**：
+  `SnapToObject`/`SnapToObjectPosition` 都是 `0x3a3050`；
+  `AlignOriginToObject`/`AlignObjects`/`AlignObjectsRotation` 都是 `0x3a3d80`；
+  `MoveObjectDownByTrace`/`MoveObjectDownByTraceLocal` 都是 `0x3a4410`。
+  → **必须用命令自带的 arg，不要自己传**（`cs2_bind_run` 默认就是这么做的）。
+
+因此 `cs2_bind_run` 的 `stage` 支持名字 `press`/`drag`/`repeat`/`release`/`execute`；
+留空自动按 `execute → press → 第一个已绑档` 选。
+
+### 17.14 ⭐ 从命令实现里挖出的「撤销作用域」API —— 改属性也能进 Ctrl+Z 了
+
+`ToolSelection.AlignObjects` 的实现（`hammer+0x3a3d80`）把 **Hammer 自己改对象的标准流程**完整暴露了：
+
+```c
+v23 = sub_18086D950();                                   // 取 undo 上下文（全局，RVA 0x24C8380）
+sub_18086E1A0(v23, doc, "Align Objects", 0);             // ★ 开一个具名作用域
+for (每个选中节点 n)
+    sub_18086D9B0(sub_18086D950(), n + 200 /*=+0xC8*/, 1);   // ★ 登记「被改节点（含子/父链）」
+// ... 然后**才**逐个 node->vfn144/vfn848/vfn1120(...) 改原点/旋转 ...
+```
+
+- `sub_18086E1A0(ctx, doc, name, 0)` 反编译后是：`sub_181528D10(ctx)` 守卫 →
+  **`sub_181529240(ctx, name, 0)`**（= 防重入 + **`sub_181529290` 即我们已有的 PushStep**
+  + **`sub_181529700` 即我们已有的 Notify**）→ 结尾 `sub_18089BF80(name, 0)` 只是状态栏提示。
+- `sub_18086D9B0(hist, node, 1)`：递归把 node **及其子节点、父链**登记进当前步。
+  它记录的是**改动前的快照** → 所以**必须放在 `PushStep` 之后、真正修改之前**。
+- 结论：**不用引入新 API** —— `_hist_push_step()` + `_hist_record_node()` + `_hist_notify()`
+  就是 Hammer 的做法（新增常量 `RVA_HIST_RECORD_NODE = 0x86D9B0`）。
+
+**已落地**：`cs2_entity_set_attr(..., history=True)`（默认）会先压具名步 + 登记被改节点，再写入；
+`history=False` 留给批量改（调用方自己压一次步）。另外加了「值未变化就不开空步」的守卫。
+
+**自包含往返验收（2026-09-28）** —— 用 `cs2_map_undo` / `cs2_map_redo`：
+
+```
+create          → 69 步  'cs2: create info_target'
+set targetname  → 70 步  'cs2: set targetname'(1 条命令)   targetname='probe2_v2'
+cs2_map_undo    → 70→69 步（redo 0→1）                     targetname=''           ✅
+cs2_map_redo    → 69→70 步（redo 1→0）                     targetname='probe2_v2'  ✅
+delete          → 71 步  'cs2: delete info_target'
+```
+
+⚠ **两套撤销别混**：`cs2_undo` / `cs2_redo` = **DMX/Datamodel 撤销栈（栈 B）**；
+`cs2_map_undo` / `cs2_map_redo` = **地图编辑历史（栈 A，Hammer 的 Ctrl+Z，RVA `0x1529E80`）**。
+本节记录下来的是给**栈 A** 用的。
+
+
+## 18 ⭐ 多文档（同一 addon 同时开多个 .vmap）下的定位与归属 —— 2026-09-29 ✅
+
+### 18.1 症状与根因
+
+Hammer 可同时打开同一 addon 的多个地图（本例 `ze_surf_easy.vmap` + `untitled_2.vmap`）。
+旧代码所有写入类工具都默认走 `_map_doc()` = **文档清单的第一个**（`docs[0]`），于是：
+
+- 往「用户正在看的文档」建/改对象，实际写进了**另一个文档** → 界面表现为
+  **outliner / 3D 视图看不到新对象**（本会话「outliner 没看到 mesh」的真因，不是
+  VisGroup 未注册）；
+- 写 Ctrl+Z 历史写进了**另一个文档的历史栈**（表现为 undo 步数对不上、撤销影响错图）。
+
+枚举链路（已有 `cs2_map_list_docs`）：
+`CHammerApp` 会话数组（`app+0x58`/`+0x60`）→ session → `+0x138` wrapper →
+内嵌 `+0x10` = `CMapDoc`。
+
+### 18.2 两个解析器
+
+**`_map_doc(sel)`** —— selector 语义（所有「以文档为入口」的工具都加了 `doc` 参数）：
+
+| sel | 行为 |
+|---|---|
+| `""` | `docs[0]`（旧行为，向后兼容） |
+| 全数字 | 按 `index` 匹配 |
+| 其余 | 路径**子串**（不区分大小写，`\` 与 `/` 等价）；0 命中 / 多命中都报错并列出清单 |
+
+已加 `doc` 的工具：`cs2_map_info` / `cs2_map_groups` / `cs2_map_save` / `cs2_map_undo` /
+`cs2_map_redo` / `cs2_area_query` / `cs2_mesh_list` / `cs2_entity_list` /
+`list_entities` / `cs2_entity_create` / `cs2_mesh_create_box` / `cs2_mesh_create_arch`。
+
+**`_doc_of_element(el)`** —— 由**元素反查所属文档**（写历史的工具用它，避免调用方还要传 doc）：
+
+```
+沿 RVA_NODE_GET_PARENT(0x864EA0) 向上收集祖先（≤64 跳）
+  → 与每个文档的 CMapDoc+0x88(CMapWorld) 比对 → 命中即为所属文档
+  → 找不到时退回 _map_doc("")
+```
+
+用于：`cs2_mesh_weld_vertices` / `cs2_entity_delete` / `cs2_entity_set_attr`(keyvalue) /
+`cs2_entity_add_io` / `cs2_entity_remove_io`。
+
+### 18.3 ⚠ 踩坑
+
+- `cs2_map_info` 一度「算了 `doc` 却仍调用**无参** `_find_map_histories()`」→ 两个文档
+  显示**同一份栈**（都是 `docs[0]` 的 8 步）。已改传 `doc`。
+- `cs2_entity_set_attr`(keyvalue) / `cs2_entity_add_io` / `cs2_entity_remove_io` 三条写入
+  路径也漏了，均已改 `_doc_of_element(ent)`。
+- **教训**：`_find_map_histories()` 的无参默认 = `docs[0]`。任何「已经拿到元素 / 文档」
+  的写入路径都必须**显式**传，否则静默写错图。
+
+### 18.4 验收（2026-09-29，`ze_surf_easy` = doc 0 / `untitled_2` = doc 1）
+
+| 步骤 | 结果 |
+|---|---|
+| `cs2_map_info(doc="0"/"1")` | 8 步 / 55 步；undo 历史对象 `0x5c03e51c800` / `0x5c07a6d1b00`（各自独立） |
+| `cs2_mesh_create_box(center=(-800,-832,30), doc="1", weld=True)` | 父节点 = untitled_2 的 world `0x5c06a288000`；历史 **55 → 56**（落在 untitled_2 的栈） |
+| `cs2_area_query(doc="1")` | 命中新盒 `h=122`，AABB `(-832,-864,-2)~(-768,-800,62)` |
+| `cs2_area_query(doc="0")` | **0 命中**（未串到 ze_surf_easy） |
+| `cs2_map_undo(doc="1")` → `redo(doc="1")` | 56↔55 往返（redo 0↔1）；doc 0 **始终 8 步**不受影响 |
+| 用户界面确认 | untitled_2 的 **outliner / 3D 视图能看到该盒** ✅ |
+
+→ **「outliner 看不到 mesh」的真正根因 = 建错了文档**；`CVisibilityMgr.nodes`（6069 项）
+与地图自带世界直属笔刷的差异**不再是问题**，无需补 VisGroup 注册。
+
+
+## 19 ⚠ 元素表快照缓存会过期（长驻进程读不到「刚建的对象」）—— 2026-09-29 ✅
+
+**症状**：用工具在 untitled_2 建了一个盒形笔刷，`AddChild` 成功、world 子节点数 +1，
+但 `cs2_mesh_list` / `cs2_area_query` 在**长驻的 MCP server 进程里**查不到它
+（同一个进程里 Hammer 自己的角色/拱门都能查到）。换一个**新起的进程**查同一个地图，
+它就在（表下标 138/139，`_dm_handle_element` 能正常解析）。
+
+**根因**：`_dm_table()` 的元素表快照缓存键只有 `(hammer base, 数据指针 dm+0x90, 容量 dm+0x88)`。
+新建元素时 DMX **通常既不扩容也不换指针**（只是填了一个之前的空槽），
+所以键不变 → 缓存命中 → 一直用「新建之前」的快照，新句柄解析为 0 → 遍历时被当成无效子节点跳过。
+（删除元素反而没事：被删元素仍留在表里当孤儿，快照依旧有效。）
+
+**修复**：把 `g_CDataModel+0x80` 的**存活元素数**加进缓存键。实测
+`13047 --建盒--> 13048`（删除后仍为 13048 ⇒ 孤儿占位，符合预期），计数一变就重读快照。
+
+**顺带确认的两个布局事实**（活体实测）：
+
+* `g_CDataModel+0x80` = 存活元素数（u32），`+0x88` = 容量（u32），`+0x90` = 数据指针（u64）；
+  16 字节一项、元素指针在 `+8`。
+* 「元素在世界树里」的判据（与 UI 一致）：`RVA_NODE_GET_PARENT` 指回 `CMapWorld`，
+  且该元素句柄出现在 world 的 `+0x200` 子句柄数组里（`+0x1F8` = 子节点数）。
+  仅看 `AddChild` 返回值（恒为 `0x0`）**不可靠**。
+
+---
+
+## 20. ⭐⭐⭐ 2026-10-01 新版 hammer.dll：**离线差分**批量重定位（RVA 表已全部更新 ✅）
+
+> Steam 于 2026-10-01 16:49 更新 `hammer.dll`：
+> **MD5 `F417605FAA3A992C89717F7CA64C938E`，39,598,744 字节**（上一版 `DED2B107…`，39,597,208）。
+> imagebase 仍 `0x180000000`；`.text / .rdata / .data` 的 **VA 全都没变**（只有节内部布局变了），
+> 所以**不能**用一个「全局 Δ」整体搬迁。
+
+### 20.1 为什么这次不用重开 IDA
+
+`c:\cs2_tool_mcp\ida_db\hammer_new.dll` 里留着**上一版 dll 的副本**（2026-09-24 版）。
+拿它和新版做离线差分就能把 60 多条 RVA 全部重新定位，工具链：
+`injector/_rva_diff.py`（体检 + 重定位）、`injector/_rva_apply.py`（批量落盘，
+每条都要求「唯一命中 1 处」才改）、`injector/_rva_verify.py`（活体全量校验）。
+
+### 20.2 三条互补的定位手法
+
+| 手法 | 适用 | 做法 |
+| --- | --- | --- |
+| 字节片段搜索 | **函数没被改过**，只是挪了位置 | 取旧版该 RVA 处 48B，去新版里找；唯一命中即新址 |
+| 内部滑窗 | 函数头部被微调 | 从 `+16/+32/…/+192` 取 32B 窗口再搜，**新址 = 命中地址 − 窗口偏移** |
+| xref 反查 | **数据全局**（文件里没有可比字节） | 在旧版 `.text` 里找 RIP 相对引用它的指令，把该指令周围的字节**挖掉那 4 字节 disp** 后去新版定位，再解出新 disp |
+
+⚠️ 两个坑：
+* 窗口法算出的地址**必须减掉窗口偏移**才是函数入口，否则每条都差一个 +16/+32/…；
+* 数据全局的引用指令里**嵌着 disp**，目标一挪 disp 就变，不挖掉就永远搜不到；
+* 找引用时 **REX 前缀必须可选**，还要覆盖两字节 opcode（`0F B6/B7` 的 movzx 读字节
+  是读「开关」最常见的写法），只认 `48/4C` 会整片漏掉。
+
+### 20.3 结果：位移是**分区段**的，不是统一平移
+
+| 区段 / 类别 | Δ | 例 |
+| --- | --- | --- |
+| `0x5b0000 ~ 0xf00000` | **+0x340**（27 条） | `ENTITY_SET_KEYVALUE`、`NODE_ADD_CHILD`、`MESH_BUILD_FACE`、`POLY_*`、`UNDO_SCOPE_*`、`DATAMODEL_CREATE_ELEMENT` |
+| `0x13e0000 ~ 0x1529000` | **+0x610**（6 条） | `MAP_HISTORY_POP / PUSH_STEP / REC_ADDED / REC_REMOVED / NOTIFY`、`CONN_VALUE_INIT` |
+| 低地址 Qt 段 + `HAMMER_SAVE_DOC` | 0（9 条） | `QT_*` 全都没动 |
+| 8 个虚表（CMapEntity / CMapWorld / CMapRoot / CMapMesh / MapHistory / CParticleHelper / CMapGroup / CDataModel） | 0 | **位置没变**，但表里的函数指针变了（正常） |
+| `CMAPENTITY_FACTORY` / `CDMEPOLYGONMESH_VTABLE` | -0x210 / +0xe0 | 单独算出来的 |
+
+数据全局（逐条确认，最终值）：
+
+| 常量 | 旧 | 新 | 依据 |
+| --- | --- | --- | --- |
+| `RVA_CDATAMODEL_PTR_GLOBAL` | `0x21B2B68` | `0x21B2958` | xref 唯一命中（Δ-0x210） |
+| `RVA_CDATAMODEL_GLOBAL` | `0x24B7C80` | **`0x24B7AC0`** | 上面那个指针的**值** = `base+0x24B7AC0` |
+| `RVA_BIND_TARGET_LIST` | `0x272D898` | `0x272D6D8` | xref 唯一命中（Δ-0x1C0） |
+| `RVA_CHAMMERAPP` | `0x677AE50` | **`0x677AC80`** | 活体：`CreateInterface("ToolSystem2_001")` 直接给出本体地址；`+0x58` 会话数=2 与当时开的两个文档吻合，`_tool_instances()` 正确列出 60 个工具。注意它是**对象本体**的地址，不是「存指针的槽」 |
+| `RVA_MAP_HISTORY_GATE` | `0x221A418` | **未定位，暂留旧值** | 新版 `.text` 里**没有任何** RIP 引用它（sites=0）→ 说明这个地址本来就另有所本；运行时读到 `32`（非 0），`cs2_map_undo/redo` 实测可用，属「能用但来源存疑」 |
+
+DLL 侧（`injected_dll/hammer_bridge.cpp` 的 `HammerAddr::kXxxRva`）：
+
+| 常量 | 旧 | 新 | 说明 |
+| --- | --- | --- | --- |
+| `kCreateInterfaceRva` | `0x12E1B50` | `0x13FFCB0` | 旧值其实早就不对；这次直接读**导出表**拿真值（该 dll 只有 6 个导出）。代码里 `GetProcAddress("CreateInterface")` 才是主路径，这个只是兜底 |
+| `kInterfaceListHeadRva` | `0x26310E8` | `0x2733FB0` | 旧值早过期；从 `CreateInterface` 函数体的 `mov r9,[rip+disp]` 解出 `s_pInterfaceRegs` 真地址，活体 `cs2_list_interfaces` 验证 ✅ |
+| `kToolSystemNameRva` | `0x1CB1B58` | `0x1CB1C48` | 死代码，顺手更新 |
+
+### 20.4 活体校验
+
+`python injector/_rva_verify.py --doc 0` → **21/21 通过**：元素表读取、建实体
+（`DATAMODEL_CREATE_ELEMENT` / `ELEMENT_CREATE_CORE` / `CMAPENTITY_FACTORY` / `NODE_ADD_CHILD`）、
+写 keyvalue 与变换、IO 增删、mesh 建盒 + 读几何 + 顶点缩放、地图 undo/redo、
+粒子换定义、删实体；另 `_tool_instances()` 返回 60 项。
+
+⚠️ **MCP 服务进程是长驻的**，而 RVA 是模块级常量 —— 改完 `cs2_mcp_server.py` 必须让
+MCP 服务**重启**（或另起新进程）才生效，老的常驻进程会一直用旧值。
+
+
+
+
 
 
 

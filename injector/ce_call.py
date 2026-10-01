@@ -12,9 +12,9 @@
     python ce_call.py get_process_list
     python ce_call.py open_process '{"pid":1234}'
     python ce_call.py read_memory '{"address":"0x7ff...","size":8}'
-    python ce_call.py --host 192.168.3.137 --port 17171 ping
+    python ce_call.py --host <CE 所在机器 IP> --port 17171 ping
 
-环境变量: CE_HOST / CE_PORT（默认 192.168.3.137:17171）
+环境变量: CE_HOST（必填）/ CE_PORT（默认 17171）
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import struct
 import sys
 import time
 
-DEFAULT_HOST = os.environ.get("CE_HOST", "192.168.3.137")
+DEFAULT_HOST = os.environ.get("CE_HOST", "")
 DEFAULT_PORT = int(os.environ.get("CE_PORT", "17171"))
 MAX_RESPONSE = 32 * 1024 * 1024
 
@@ -36,6 +36,8 @@ def ce_call(method: str, params: dict | None = None,
             host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
             timeout: float = 90.0) -> dict:
     """发送一个 JSON-RPC 请求到 CE bridge，返回 result（或 error dict）。"""
+    if not host:
+        return {"error": "未指定 CE 所在机器：请设置环境变量 CE_HOST 或加 --host 参数"}
     request = {
         "jsonrpc": "2.0",
         "method": method,

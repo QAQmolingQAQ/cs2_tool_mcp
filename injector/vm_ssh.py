@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""在 VM（192.168.3.137）上执行命令的 SSH 助手。
+"""在 VM 上执行命令的 SSH 助手。
 
 Windows 的 ssh 客户端不支持非交互传密码，这里用 paramiko，便于脚本化。
 
@@ -21,14 +21,17 @@ import sys
 
 import paramiko
 
-HOST = os.environ.get("VM_HOST", "192.168.3.137")
-USER = os.environ.get("VM_USER", "ssss")
-PASS = os.environ.get("VM_PASS", "ssss")
+# 连接信息一律走环境变量，仓库里不留内网地址与凭据
+HOST = os.environ.get("VM_HOST", "")
+USER = os.environ.get("VM_USER", "")
+PASS = os.environ.get("VM_PASS", "")
 PORT = int(os.environ.get("VM_PORT", "22"))
 
 
 def connect(host: str = HOST, port: int = PORT,
             user: str = USER, password: str = PASS) -> paramiko.SSHClient:
+    if not host or not user or not password:
+        raise SystemExit("缺少连接信息，请设置环境变量 VM_HOST / VM_USER / VM_PASS（可选 VM_PORT）")
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.connect(host, port=port, username=user, password=password, timeout=20)

@@ -28,3 +28,11 @@ screen.png
 screen.txt
 sync.zip
 _sync.zip
+
+# ---- 调试残留 / 临时产物 ----
+_vmap_out/
+_ws_out/
+injector/scr*.png
+injector/stk*.txt
+injector/stacks.txt
+injector/err.txt
