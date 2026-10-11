@@ -3893,6 +3893,13 @@ return (*(fn + 8))( *(ctxPtr) + *(int *)(fn + 16), *(u32 *)(fn + 24) );
 - 参数**全是整数** → 注入 DLL 的调用桥（只设 rcx/rdx/r8/r9，无 xmm）**够用**，不必为了它支持浮点；
 - pmf 形参表为空时多传的 `rdx` 被忽略 → 安全（functor 有实参时 `+0x18` 已被编译器写对）。
 
+> ⚠ **2026-10-10 订正（跨模块时踩到）**：上面的 `+0x08 pmf / +0x10 adj / +0x18 arg` 布局
+> **只在 lambda 捕获 `[pmf, adj, arg]` 时成立**。实测同一 DLL 里还有「只捕 pmf」的
+> （`_Do_call` = `mov rcx,[rdx]; jmp [rax+8]`，`+0x10/+0x18` 是堆残留），
+> 以及 `arg` 是 **bool 1 字节** 的（`movzx edx, byte [rax+18h]`）。
+> → 安全做法是**调 `_Do_call` 本身**（`_Do_call(fn, &ctx)`，等价 `std::function::operator()`），
+> 偏移全写死在 `_Do_call` 自己的代码里，布局无关。见 §23.6。
+
 ### 17.9 上下文对象（ctx）—— 已打通 ✅
 
 | 目标 | ctx | 取法 |
@@ -4195,6 +4202,372 @@ DLL 侧（`injected_dll/hammer_bridge.cpp` 的 `HammerAddr::kXxxRva`）：
 
 ⚠️ **MCP 服务进程是长驻的**，而 RVA 是模块级常量 —— 改完 `cs2_mcp_server.py` 必须让
 MCP 服务**重启**（或另起新进程）才生效，老的常驻进程会一直用旧值。
+
+## 21. ⭐⭐⭐ 2026-10-10 新版 hammer.dll：差分只补得上函数，**数据/vtable 全靠 CE 免注入复核**
+
+> Steam 更新 `hammer.dll`：**MD5 `832119E360A593C57EF452095D77189A`，39,611,032 字节**
+> （上一版 `DED2B107…`，39,597,208；文件时间 `2026-10-10 03:23:40`）。
+> 路径：`…\Counter-Strike Global Offensive\game\bin\win64\tools\hammer.dll`。
+> imagebase 仍 `0x180000000`，**VA 全都没变**，只有节内部布局变（同 §20）。
+
+### 21.1 离线差分的老毛病：函数能补，**数据/vtable 补不了**
+
+§20.2 的三条手法都建立在「目标处有一段**跨版本不变**的字节」上：
+* **函数体大多没改** → 字节片段/滑窗能命中，所以这一轮 **34 个函数 RVA 全部正确**；
+* 但 **vtable 的内容就是一串代码指针**，换版必变；**数据全局**（单例、链表头）里也没有可比字节。
+  差分对这两类要么搜不到、要么「靠巧合」命中别处 —— §20 就只补了其中 4 条 vtable（PolyMesh 系列），
+  其余全留在 09-24 的旧值上。
+
+⚠️ **结论：hammer 换版后，函数 RVA 可以信差分；数据全局与 vtable 必须逐条活体验证。**
+
+### 21.2 新手法：CE 免注入活体复核（本轮主力）
+
+不再注入 `cs2_tool.dll`（旧路线一注入就崩），改用 **Cheat Engine MCP** 附着正在运行的 `cs2.exe`，
+**全程只读**：
+
+| 手段 | 用途 |
+| --- | --- |
+| `evaluate_lua` + `enumModules` | 拿 `hammer.dll` / `Qt5*.dll` 真实基址（如 `0x7FFE2F060000`） |
+| `AOBScan(候选 vtable 值的 8 字节)` | 「谁把候选地址当 vptr」→ 命中 **0 = 旧值**，`>0 = 真值`（最可靠） |
+| MSVC RTTI 逐层解析 | 对象 → `vtable[-1]`=COL → `COL+0xC`=TypeDescriptor RVA → `td+0x10`=类名 |
+| `AOBScan(".?AV<类>@@")` 反查 | 类名 → TD → COL → vtable，**完全不依赖旧值**，用来独立找真 vtable |
+| `disassemble` / 读前置字节 | 判「是不是函数入口」：前一字节 `CC` 填充，或 `48 89 5C 24 …` 之类序言 |
+
+⚠️ `AOBScan` 返回的地址字符串用 `tonumber(s,16)` 转数会**丢精度**（56 位 > 2^53）→ 换算 RVA 时要
+按高/低 32 位分开减；`readQword` 返回的是 64 位整数，做减法才安全。
+
+### 21.3 本轮实测：11 条常量是错的，已修正
+
+| 常量 | 表里（旧） | CE 实测（新） | 判据 |
+| --- | --- | --- | --- |
+| `RVA_CDATAMODEL_GLOBAL` | `0x24B7AC0` | **`0x24BBE00`** | 该处 RTTI == `CDataModel`；**旧地址整片 0**（根本没构造） |
+| `RVA_CDATAMODEL_VTABLE` | `0x16C25C8` | **`0x16C45D8`** | 上者首字段；旧值其实是 `_Func_impl_no_alloc` 的 vtable |
+| `RVA_CHAMMERAPP` | `0x677AC80` | **`0x677F440`** | RTTI == `CHammerApp`，`+0x58` 会话数 == 1，会话链能列出 36 个工具 |
+| `RVA_CMAPROOT_VTABLE` | `0x1763FA8` | **`0x1765FA8`** | 旧值 0 个对象持有、新值 1 个 |
+| `RVA_MAP_HISTORY_VTABLE` | `0x1763E00` | **`0x1765E00`** | RTTI == `CMapDocHistory`（coloff=0，primary） |
+| `RVA_CMAPENTITY_VTABLE` | `0x1758D00` | **`0x175AD00`** | RTTI + **67** 个对象持有 |
+| `RVA_CMAPWORLD_VTABLE` | `0x1772920` | **`0x1774920`** | RTTI + 1 个 |
+| `RVA_CMAPGROUP_VTABLE` | `0x178B4A8` | **`0x178D4A8`** | RTTI |
+| `RVA_CPARTICLE_HELPER_VTABLE` | `0x17500B8` | **`0x17520B8`** | RTTI（coloff=0） |
+| `RVA_CMAPMESH_VTABLE` | `0x176B8E0` | **`0x176D8E0`** | RTTI + **21** 个对象持有 |
+| `RVA_CMAPENTITY_FACTORY` | `0x21DB1F0` | **`0x21DF1F0`** | 该处首字段 == 工厂 vtable（`+0x1767170`） |
+
+规律：这一轮 **`.rdata` 的 vtable 区整体位移 `+0x2000`**（PolyMesh 那 4 条上一轮已补，所以这次看着是
+对的）。但 **Δ 不统一**（`CDataModel` 的 vtable 是 `+0x1E10`）→ **不能按固定 Δ 平移，只能逐条验**。
+
+复核通过、**没改**的：34 个函数 RVA、`RVA_BIND_TARGET_LIST`（链表节点 RTTI ==
+`CBindableTargetDescriptorInstance@CToolWorkPlane/…`）、`RVA_CHAMMERPOLYMESH_VTABLE` /
+`RVA_CPOLYGONMESH_VTABLE` / `RVA_CDMEPOLYGONMESH_VTABLE` / `RVA_CMAPENTITY_FACTORY_VTABLE`（RTTI 全对）。
+DLL 侧只真正用到 `kCreateInterfaceRva` / `kInterfaceListHeadRva` / `kCMapDocVtableRva`
+（另两条 `kToolSystem*` 是死代码，`GetInterface("ToolSystem2_001")` 用的是硬编码字面量），
+三条本轮均核对无误（`kCMapDocVtableRva` 处 RTTI == `CMapDoc`）→ **DLL 无需重编**。
+
+### 21.4 ⚠️ 跨模块陷阱：`RVA_QT_*` 是 **Qt5Widgets / Qt5Core** 的偏移，不是 hammer.dll 的
+
+`RVA_QT_*` 存的是 Qt DLL 里的偏移。旧版差分把它当 hammer.dll 的偏移去「重定位」，
+`RVA_QT_MENUBAR` 从 `0x135220` 被改成 `0x135260` → **cs2 一注入就闪退**
+（Qt5Widgets.dll 访问冲突 `0xc0000005`，偏移 `0x135262`，正落在那 +0x40 的错误位置里）。
+
+* 护栏：`_rva_diff.py` 的 `parse_rvas()` 与 `_rva_apply.py` 的 `table_from_json()` **双向跳过 `RVA_QT_`**。
+* 复核法：`RVA_QT_INHERITS = 0x290560` 直接读 **Qt5Core 导出表**核对 ——
+  `?inherits@QObject@@QEBA_NPEBD@Z` 正是此 RVA。导出目录在 `OptionalHeader+0x70`，
+  `AddressOfFunctions` `+0x1C`、`AddressOfNames` `+0x20`、`AddressOfNameOrdinals` `+0x24`
+  （**16 位**数组！按 32 位读会得到垃圾序号）。导出表本身可用 `?staticMetaObject@QObject@@…`
+  校验：其 `superdata` 字段应为 0。
+* 全部 `RVA_QT_*` 反汇编确认是合法函数入口（`ACTION_TRIGGER` 是标准 `xor edx,edx; jmp activate`）。
+
+### 21.5 结果：注入不再崩，四个工具实测全绿
+
+修正后重新注入 `cs2_tool.dll`（DLL 未重编）→ **进程存活**，实测：
+
+| 工具 | 结果 | 印证 |
+| --- | --- | --- |
+| `cs2_get_hammer_app` | `0x7FFE2F6D7440` = `base+0x677F440` | `RVA_CHAMMERAPP` |
+| `cs2_map_groups` | `CMapRootElement=0x5606bfe4900`、`CMapWorld=0x56062b06000`；84 个可见性节点都解析出类名 | root / world / mesh / entity 四条 vtable |
+| `cs2_entity_list` | 实体数 **67** | 与 CE 侧「67 个对象持有 entity vtable」精确吻合 |
+| `cs2_map_list_docs` | 1 个文档 | 管道 + CDataModel 链路 |
+
+### 21.6 仍未解决 / 下次注意
+
+* `UNDO_MANAGER_OFFSET = 240`：`CDataModel+0xF0` 本轮读出**全 0**，且 `CDataModel` 前 0x2000
+  字节内找不到内嵌的 `CUndoManager` 对象 → 该偏移**可能已变**，尚未定位。
+* `RVA_MAP_HISTORY_GATE = 0x221A418`：沿用「来源存疑」结论（新版 `.text` 无 RIP 引用它）；
+  运行时读到非 0 即可用，本轮读到 `0x6B`。
+* ⚠️ **每换一版都要把该版 `hammer.dll` 存档**（对齐 `ida_db\hammer_new.dll`）。库里现在只有
+  09-24 版、缺 10-01 版，所以两轮差分都拿 09-24 当基线 —— 字节搜索尚可；一旦某函数被改过，
+  「跨版本不变」的前提就没了，会整片漏。
+* MCP 服务常驻（同 §20）；改完 RVA 常量记得**重启服务**。
+
+## 22. ⭐⭐ 桥接层支持四个编辑器模块（hammer / met / modeldoc_editor / pet）+ pet 活体验证
+
+> CS2 的工具侧不是只有 hammer 一个模块。Asset Browser 可拉起多个独立编辑器，
+> **每个编辑器 DLL 各自导出一份 `CreateInterface`、各自一套接口注册表和 ToolSystem2**。
+> 本节记录桥接层从「只认 hammer」扩展到四模块、以及 pet（粒子编辑器）的活体验证过程。
+
+### 22.1 四模块常量（从各 DLL 导出表读出）
+
+| DLL | 编辑器 | ToolSystem 接口名 | `CreateInterface` RVA |
+| --- | --- | --- | --- |
+| `hammer.dll` | Hammer（地图） | `ToolSystem2_001` | `0x1401130` |
+| `met.dll` | Material Editor（材质） | `ToolSystem2_001` | `0x1D89A0` |
+| `modeldoc_editor.dll` | ModelDoc Editor（模型） | **`ToolSystem2_ModelDoc`** | `0xAF2AB0` |
+| `pet.dll` | Particle Editor（粒子） | `ToolSystem2_001` | `0x3A2AE0` |
+
+* 四者导出表完全一致（各 6 个导出，都真正导出 `CreateInterface`）；ImageBase 均 `0x180000000`，
+  DYNAMIC_BASE=False。路径：`…\game\bin\win64\tools\`。
+* **接口名不统一**：modeldoc 是 `ToolSystem2_ModelDoc`，其余三个是 `ToolSystem2_001`，必须按表取名。
+* Asset Browser 工具按钮只有 Hammer / ModelDoc / Material Editor / SFM / Postprocessing / Workshop，
+  **没有 Particle Editor 入口** → `pet.dll` 是**按需加载**（双击 `.vpcf` 粒子资源才加载）。
+  （CS2 本体资源封在 VPK 里，磁盘上没有 loose `.vpcf`，只能从 Asset Browser 内打开。）
+
+### 22.2 桥接层实现
+
+* [hammer_bridge.h](../injected_dll/hammer_bridge.h)：`struct ToolModule`（name/label/iface_name/
+  rva_create_iface/module/base/create_interface/tool_system/loaded），公开
+  `ToolModules()` / `GetToolModule()` / `GetToolSystemFor()`。
+* [hammer_bridge.cpp](../injected_dll/hammer_bridge.cpp)：`kToolModuleSpecs[]` 四模块表；
+  `RefreshToolModules()` 先 `GetModuleHandleA(name)`，失败再 `EnumProcessModules` 兜底
+  （防大小写/名称不匹配）；`GetProcAddress("CreateInterface")` 失败用 RVA 兜底；
+  `Initialize()` 放宽为「**任一模块** tool_system 可用即成功」（不再硬绑 hammer）。
+* [ipc_pipe.cpp](../injected_dll/ipc_pipe.cpp)：IPC 新增 `tool_modules` / `get_tool_system`。
+* [cs2_mcp_server.py](../mcp_server/cs2_mcp_server.py)：MCP 工具新增
+  `cs2_tool_modules` / `cs2_get_tool_system(module)`（工具数 54→**56**）。
+
+### 22.3 🐛 坑一：模块快照只在注入时刷一次 → pet 永远 `loaded=false`
+
+首版 `ToolModules()` 是「缓存为空才枚举」：
+
+```cpp
+const std::vector<ToolModule>& HammerBridge::ToolModules() {
+    if (tool_modules_.empty()) RefreshToolModules();   // 只有第一次会枚举
+    return tool_modules_;
+}
+```
+
+而注入发生在 Asset Browser 阶段（只有 hammer.dll），**之后打开粒子编辑器加载的 pet.dll
+永远进不了缓存** —— PowerShell `(Get-Process).Modules` 明明看得到 pet.dll，
+`cs2_get_tool_system pet` 却返回 `loaded=false / base=0`。
+
+**修法（惰性重探，无需重新注入）**：
+* `ToolModules(bool force_refresh=false)` 支持强制重枚举；
+* `GetToolModule()` 先查缓存，**命中但 `loaded==false`（或根本没命中）时自动重探一次**再判定；
+* IPC `tool_modules` 列表改为每次 `ToolModules(true)` 实时枚举。
+
+枚举用的是 `GetModuleHandleA` + `EnumProcessModules`（只遍历模块链表），开销可接受，
+且在管道线程执行，不碰 Hammer 主线程。
+
+### 22.4 ⚠️ 坑二（事故）：别用 CE `executeCodeEx` 远程调带字符串解引用的函数
+
+pet 验证第一反应是「不注入，直接用 CE 活体调 pet 的 CreateInterface」，结果 **cs2 当场闪退**。
+两个错误叠加：
+
+1. 该 CE 版本里 `allocateMemory(32)` 返回 **nil**（没先判空就继续用）；
+2. `executeCodeEx` 的参数位次是 `(waitTime, flags, fn, rcx, rdx, r8, r9)`，
+   当时写成 `executeCodeEx(0,0,fn,0,0,s,0)` → **rcx（name 形参）= 0**，字符串落到了 r8。
+
+`CreateInterface(name, &rc)` 内部对 name 做字符串比较 → **对 NULL 解引用 → 访问冲突闪退**。
+
+**规矩**：
+* CE MCP 只用于**只读活体校验**（读字节、RTTI、AOB、反汇编）；
+* 要在目标进程内**调用函数**（尤其带指针/字符串参数的），走注入 DLL 的桥接层
+  （进程内同上下文，参数封装可靠），不要用 CE 远程执行拼寄存器。
+
+### 22.5 pet 活体验证结果（pid 1800，粒子编辑器打开后）
+
+修复后**不重新注入**，直接 `cs2_tool_modules` / `cs2_get_tool_system pet`：
+
+| 字段 | 值 | 校验 |
+| --- | --- | --- |
+| pet.dll base | `0x7FF9EB6C0000` | 与 PowerShell 模块表一致 |
+| create_interface | `0x7FF9EBA62AE0` | = `base + 0x3A2AE0`，与导出表 RVA 精确吻合 |
+| tool_system | `0x7FF9EC0C2120`（= `base + 0xA02120`） | 非 0 全局单例 |
+| **RTTI 类名** | **`.?AVCPetApp@@`** | vtable `pet+0x739258` → COL → TD RVA `0x86DF00` |
+
+**关键认知**：`CreateInterface("ToolSystem2_001")` 返回的不是什么纯 `CToolSystem`，
+而是该编辑器的 **App 单例** —— pet 返回 `CPetApp`，与 hammer 侧返回 `CHammerApp`
+（`base+0x677F440`）完全对称：编辑器 App 对象自身实现 ToolSystem2 接口（多继承）。
+
+实时性验证：注入时只有 hammer（pet/met/modeldoc 全 `loaded=false`）；
+打开粒子编辑器后再查，pet 自动翻为 `loaded=true` 且 tool_system 有效，**无需重新注入**。
+met / modeldoc 本轮未打开（`loaded=false` 为预期），代码路径与 pet 相同，待需要时再验。
+回归：`cs2_pipe_ping` / `cs2_get_hammer_app` 全绿，Hammer 全程响应。
+
+## 23. ⭐⭐ met / modeldoc_editor / pet 三模块 IDA 逆向：接口注册表链头 + bind 描述符链头 → 跨模块枚举（2026-10 活体全绿）
+
+> §22 只打通了「四模块各自的 ToolSystem2 实例」。本节在三个 IDA 实例
+> （端口 13337/13338/13339，DLL 副本存 `ida_db/`）里逆向出与 hammer 对称的两条
+> 数据链（CreateInterface 注册表、Key Bindings 可绑定目标描述符链），
+> 并在**注入 DLL 内**实现进程内枚举（不做虚调用，纯 raw 读），四模块活体全部验证通过。
+
+### 23.1 逆向结论：四模块共用同一套 Source/tier2 框架
+
+三个 DLL 的 `CreateInterface` 序言、注册表节点、bind 描述符节点布局与 hammer
+**逐字节一致**（同一套框架代码静态链进各编辑器 DLL），只是全局地址不同：
+
+| 模块 | CreateInterface | s_pInterfaceRegs 链头 RVA | bind 描述符链头 RVA | 活体 bind 目标 / 命令数 |
+| --- | --- | --- | --- | --- |
+| hammer.dll | `0x1401130` | `0x2738770` | `0x2731E98` | 69 / 1194 |
+| met.dll | `0x1D89A0` | **`0x4A1740`** | **`0x4A0AD0`** | 1 / 15¹ |
+| modeldoc_editor.dll | `0xAF2AB0` | **`0x1AAB588`** | **`0x1AA9620`** | 23 / 227 |
+| pet.dll | `0x3A2AE0` | **`0x93A1D0`** | **`0x938408`** | 10 / 105 |
+
+¹ met 刚打开编辑器、未打开材质文档时只有全局热键目标（`CGlobalHotkeyCommands`）；
+具体材质工具的 bind 目标应在打开材质文档后注册（运行时数据现象，非枚举缺陷）。
+
+* InterfaceNode 仍是 §9 那套：`+0x00` factory · `+0x08` name(char*) · `+0x10` next。
+* bind 描述符节点 `CBindableTargetDescriptorInstance<T>` 布局与 §17.6 完全相同：
+  `+0x10` 目标名 · `+0x18` 实现类名 · `+0x20` 源文件(char*) · `+0x28` 行号(u32) ·
+  **`+0x38` next** · `+0x40` 命令数(i32) · `+0x48` 命令对象指针数组；命令对象 `+0x08` 命令名。
+* 链头逆向法：
+  * **接口链头**：`CreateInterface` 序言 `4C 8B 0D <disp32>`（或 `48 8B 05/0D`），
+    `head = fn + 7 + disp32`。桥接层在进程内做这个序言解析（SEH 保护），
+    RVA 只作兜底——四模块活体解析值与上表 RVA **逐一精确吻合**。
+  * **bind 链头**：纯数据全局，从各模块的 bind 枚举函数（遍历 `node=*(node+0x38)`）
+    的引用反推（met `sub_18018C080` / pet `sub_18031D0B0` / modeldoc `sub_180A494D0`），
+    无法从导出推导，只能按版本硬编码。
+* met 的 ToolSystem2 工厂 `sub_180055D50` 返回单例 `qword_180529350`，
+  RTTI 具体类 = **`CMaterialEditorTool`**（BCD64 的 pTypeDescriptor 在 **+0x00**，
+  不是 32 位 BCD 的 +0xC）；与 hammer=`CHammerApp`、pet=`CPetApp` 对称。
+
+### 23.2 实现要点（进程内 raw 读，零虚调用）
+
+旧 hammer bind 枚举在 Python 侧走 vtable 槽（vfn0/vfn3/vfn4）。跨模块版**全部改走
+§17.6 的固定字段偏移**，避免对其它模块发进程内虚调用：命令数直接读 `+0x40`、
+命令数组读 `+0x48`、命令名读命令对象 `+0x08`。所有读经 `ReadQword/ReadDword/ReadCString`
++ 可读性保护，节点上限 4096、命令上限 512、自指保护。
+
+* [hammer_bridge.h](../injected_dll/hammer_bridge.h)：`ToolModule` 增
+  `rva_iface_head` / `rva_bind_head` / `iface_list_head`；新增
+  `ModuleInterface{name, factory}`、`ModuleBindTarget{name, cls, source_file, line, commands}`，
+  方法 `ListModuleInterfaces` / `GetModuleInterface` / `ListModuleBindTargets(m, include_commands)`。
+* [hammer_bridge.cpp](../injected_dll/hammer_bridge.cpp)：`kToolModuleSpecs[]` 扩为 6 列；
+  `ParseInterfaceListHead()` 序言解析；三个枚举方法实现。
+* [ipc_pipe.cpp](../injected_dll/ipc_pipe.cpp)：IPC 新增
+  `module_interfaces` / `module_get_interface` / `module_bind_targets`（入 `list_tools`）；
+  `tool_modules` / `get_tool_system` 返回值带上两个链头地址。
+* [cs2_mcp_server.py](../mcp_server/cs2_mcp_server.py)：MCP 工具新增
+  `cs2_module_interfaces(module)` / `cs2_module_get_interface(module, name)` /
+  `cs2_module_bind_targets(module, include_commands=True, limit=0)`（工具数 56→**59**）。
+
+### 23.3 活体结果（同一 cs2 会话，四模块全加载）
+
+* 接口注册表：四模块各登记 1 个接口（hammer/met/pet=`ToolSystem2_001`，
+  modeldoc=`ToolSystem2_ModelDoc`）；`module_get_interface` 取
+  met/modeldoc 正名 rc=0 且指针与 ToolSystem2 单例一致，
+  错名/向 modeldoc 要 `ToolSystem2_001` 均 rc=1 指针 0。
+* bind 抽样：hammer `ToolWorkPlane←CToolWorkPlane toolworkplane.cpp:33`（含 DragWorkPlane…）、
+  pet `PetApp←CPetApp petapp.cpp:63`（FileNew/FileOpen/…）、
+  modeldoc `Tool_VertexAttachment←CModelDocEditorTool_VertexAttachment …:169`（CreateAtVertex/Cancel）。
+* 打开编辑器用 [qt_button.py](../injector/qt_button.py) 点 Asset Browser 工具图标
+  （Particle Editor 图标存在于顶栏，§22.1「没有 Particle Editor 入口」的说法据本轮
+  实测修正：顶栏有 `Particle Editor` 入口，tip 即此名；点击调用偶发 15s 超时 status=1，
+  但编辑器仍会打开、DLL 照常加载，重探即可见）。
+
+### 23.4 ⭐ 进程内 RTTI：每个模块 ToolSystem 的实现类（无需 CE）
+
+§22.5 当初只能借 CE 只读看到 pet 的 `CPetApp`。本轮把 RTTI 解析**搬进桥接层**
+（纯内存读，零虚调用），`tool_modules` / `get_tool_system` 新增 `tool_system_class`：
+
+| 模块 | `CreateInterface(ToolSystem2_*)` 返回对象 | RTTI 实现类 |
+| --- | --- | --- |
+| hammer | CHammerApp 单例 | **`CHammerApp`** |
+| met | CMaterialEditorTool 单例（`met+0x529350`） | **`CMaterialEditorTool`** |
+| modeldoc | App 单例 | **`CModelDocEditorApp`** |
+| pet | CPetApp 单例 | **`CPetApp`** |
+
+解析法（MSVC x64 BCD64）：对象 `+0x00` → 主虚表；虚表 `-8` → COL；**COL `+0x0C` 是
+pTypeDescriptor 的 32 位 RVA**（相对**模块加载基址**，故用 `module.base + rva`）；
+TD `+0x10` 起是内联的名字串（`.?AVCHammerApp@@`），剥掉前缀 `. ?AV` 与尾部 `@@`。
+
+⚠ 订正：§22 曾记「met RTTI 的 pTypeDescriptor 在 +0x00」——那只在**读 32 位 BCD** 时成立；
+本轮用 IDA 复核 COL，**x64 恒为 `+0x0C`（RVA）/ `+0x10`（pClassDescriptor）**，
+`+0x00` 是 signature（实测 =1）。
+
+### 23.5 ⚠ 负结论：没有独立的「工具字典」可枚举，`bind_targets` 就是工具表
+
+原本计划再加 `cs2_module_tools`。核查后**放弃**（避免加冗余功能）：
+
+* met 的 `CMaterialEditorTool`（`met+0x529350`）对象里那个 `CUtlVector` 容器，
+  元素 RTTI 是 **`CQMaterialEditor`**（打开的**材质文档**对象），不是工具；多继承的
+  `_0/_1/_2` 次级虚表槽是通用 hash 容器遍历（`sub_180056FA0` / `sub_180057060`）。
+* `VTOOLDICTIONARY003`（`IToolDictionary` 能力探测）在 met 全库**只被 QueryInterface
+  引用一次**（`sub_1801E3320`），没有任何实际使用方。
+* **每个「工具」在静态初始化时登记的就是一条 bind 描述符**（§17.2），所以
+  `cs2_module_bind_targets` 已经是各编辑器「工具 + 命令」的权威清单，
+  再单列一个 tools 工具纯属重复。
+
+另：met 只有 **1** 个 bind 目标（`GlobalHotkeys` / `CGlobalHotkeyCommands`）是**真实结果**
+——链头取对了（枚举函数 `sub_18018C080` 里 `vim6 = *(v6+56)`、vfn0 取名），
+met 的材质编辑工具本身不注册 bind 目标；hammer 69 / modeldoc 23 / pet 10 同理。
+
+### 23.6 ⭐⭐ 跨模块命令执行（`cs2_bind_list/inspect/run` 加 `module`）+ `_Do_call` 正确调用法
+
+§17.12 的 `cs2_bind_run` 原本只认 hammer（硬编码链头 RVA、CHammerApp 单例、hammer 的工具
+实例表）。本轮三个工具都加 `module` 参数（默认 hammer），链头改从 `get_tool_system(module).bind_head`
+取，其余读逻辑不变（纯只读），从而实现**任意已加载编辑器模块**的可绑定命令枚举与执行。
+
+**① ⚠ 关键订正：functor 布局随 lambda 捕获而变，不能盲调 `pmf`。**
+§17.8 的「`+0x08`=pmf · `+0x10`=adj · `+0x18`=arg，直接调 `pmf(ctx+adj, arg)`」只在
+lambda 捕获 `[pmf, adj, arg]` 时成立。实测同一 DLL 里至少三种：
+
+| functor 形状 | `_Do_call` 反汇编（pet） | 说明 |
+| --- | --- | --- |
+| 只捕 pmf | `mov rax,rcx; mov rcx,[rdx]; jmp qword [rax+8]` | `+0x10/+0x18` 是**堆残留**（adj 读到 ASCII 文本）→ 盲算 `ctx+adj` 会得到野 `this` |
+| `[pmf, adj, arg]` | `movsxd rcx,dword [rcx+10h]; add rcx,[rdx]; movzx edx,byte [rax+18h]; jmp [rax+8]` | arg 是 **bool（1 字节）**，不是 u32 |
+| `[pmf, arg(int), arg(int)]` | 见 `SetFunction<void (CGlobalHotkeyCommands::*)(int,int),int,int>` | 两个 int 实参 |
+
+→ **正确、布局无关的执行 = 调 `_Do_call` 本身**（它就是 `std::function::operator()`）：
+`_Do_call` 是编译器为**每个** lambda 生成的调用器，字段偏移全写死在它自己的代码里。
+`_Do_call` 的第 2 个实参是「**指向 ctx 指针的指针**」（`[rdx]` 取真实 ctx），所以实现是：
+先在目标进程 `alloc_memory(8)` → `write_value(cell, ctx, u64)` →
+`call_function(do_call, [fn_block, cell])` → `free_memory(cell)`。
+
+`cs2_bind_run` 现在**默认走 `_Do_call`**；只有显式传 `arg=`（要覆盖绑定实参）时才回退到
+「直接调 pmf」（那种场景下要求恰好是 `[pmf, adj, arg]` 布局，已标注风险）。
+
+**② 跨模块 ctx 自动解析**：只覆盖**该模块的 App 单例**（`CHammerApp` / `CMaterialEditorTool` /
+`CPetApp` / `CModelDocEditorApp`，用 `target 实现类名 == get_tool_system(module).class`
+判定，ctx = `tool_system` 指针）。非 hammer 模块的「工具实例表」（会话 → CToolManager，§17.10）
+**尚未逆向**，遇到工具类目标需 `ctx=` 显式给地址。
+
+**③ `GlobalHotkeys`（`CGlobalHotkeyCommands`）—— 实例找不到，但命令不碰 `this`，用 App 顶替。**
+四模块唯一共有的 bind 目标是 `GlobalHotkeys`，实现类 `CGlobalHotkeyCommands`（不是 App）。
+该类实例按「vtable/RTTI/静态初始化函数」三条路都**没定位到**（`sub_1803653F0` 只返回描述符
+`pet+0x938980`）。但 IDA 反汇编其命令（`ShowConsole` / `SwitchToEngineWindow` /
+`ShowInputDebugger` / `DebugWidgetUnderMouse` / `DummyNoOp` …）显示：**全部只操作模块全局量
+（控制台 widget 全局、`QApplication::beep()`、`QCursor::pos()` 等）+ 尾调虚函数，从不触碰 `this`**，
+且它们的 functor 都是「只捕 pmf」形状（`_Do_call` = `mov rcx,[rdx]; jmp [rax+8]`，无 adj）。
+→ `_bind_ctx` 对 `CGlobalHotkeyCommands` **自动回退到本模块 App 单例**（安全，因为 `this` 未被使用）。
+
+**④ 活体验收（2026-10-10，四模块同会话全加载）**：
+
+```
+# 零风险基线：functor 形状 = 只捕 pmf，pmf = retn 0；ctx 传什么都无害
+pet/met/modeldoc/hammer .GlobalHotkeys.DummyNoOp   ✅ 各自经 _Do_call 执行，ping ok
+
+# GlobalHotkeys 真实命令（ctx 自动回退到 App 单例）—— 可观察：控制台/窗口焦点
+met.GlobalHotkeys.SwitchToEngineWindow       ✅ 返回 0x1（切到引擎窗口）
+pet.GlobalHotkeys.ShowInputDebugger          ✅ 返回 0x7ff97b9e3b68
+pet / met / modeldoc / hammer .GlobalHotkeys.ShowConsole  ✅ 均返回 0x1（弹出控制台）
+
+# App 类真实命令
+pet.PetApp.ResetLayout                       ✅ 返回 0xffffffffffffffff（重置 pet 布局）
+pet.PetApp.PreviousSession                   ✅ 返回 0x6a76b65928
+modeldoc.ModelDocEditorApp.ClearRecentFiles  ✅ 返回 0xffffffff
+hammer.HammerApp.ToggleShowHelpers ×2         ✅ 返回 0x0（开关两次已还原）
+```
+
+全程 ping 保持 ok、cs2 无崩溃。`cs2_sel`（内部调 `cs2_bind_run`，走关键字默认 module=hammer）
+行为不变。
+
+**⑤ 仍待做的 ctx**：非 hammer 模块的「工具实例表」（App → 会话 → CToolManager，§17.10）尚未逆向
+（且需要该编辑器**打开一个文档**才会有会话：实测四模块 `app+0x58` 会话数现为 0）。所以
+modeldoc 的 20 个工具类目标（`Tool_Selection` / `Tool_Picker` / `ModelDocEditorSession` …）
+目前仍需 `ctx=` 显式给实例地址。
+
+
+
+
 
 
 

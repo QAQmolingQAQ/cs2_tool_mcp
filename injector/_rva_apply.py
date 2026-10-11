@@ -77,6 +77,36 @@ BRIDGE_RVAS = [
 ]
 
 
+def table_from_json(js: Path):
+    """用 `_rva_diff.py --json` 的结果生成 (名字, 目标文件现值, 新值) 表。
+
+    现值从目标文件里现读，所以不用手抄；两个文件都找一遍，按名落到对应表。
+    """
+    import json
+
+    mp = json.loads(js.read_text(encoding="utf-8"))
+    texts = {SERVER: SERVER.read_text(encoding="utf-8"),
+             BRIDGE: BRIDGE.read_text(encoding="utf-8")}
+    out = {SERVER: [], BRIDGE: []}
+    missing: list[str] = []
+    for name, new in mp.items():
+        if name.startswith("RVA_QT_"):     # Qt5Widgets/Qt5Core 的偏移，不属于 hammer.dll
+            continue
+        hit = False
+        for target, txt in texts.items():
+            m = re.search(rf"^(\s*(?:constexpr\s+\w+\s+)?{re.escape(name)}\s*=\s*)"
+                          rf"0[xX]([0-9A-Fa-f]+)", txt, re.M)
+            if not m:
+                continue
+            hit = True
+            cur = int(m.group(2), 16)
+            if cur != new:
+                out[target].append((name, cur, new))
+        if not hit:
+            missing.append(name)
+    return out[SERVER], out[BRIDGE], missing
+
+
 def patch(path: Path, table, dry: bool) -> list[str]:
     txt = path.read_text(encoding="utf-8")
     log: list[str] = []
@@ -98,17 +128,25 @@ def patch(path: Path, table, dry: bool) -> list[str]:
 
 def main() -> int:
     dry = "--dry" in sys.argv
+    srv_table, brg_table = SERVER_RVAS, BRIDGE_RVAS
+    if "--from-json" in sys.argv:      # 差分结果直接落盘，省掉手抄 (名字, 旧, 新) 三步
+        js = Path(sys.argv[sys.argv.index("--from-json") + 1])
+        srv_table, brg_table, missing = table_from_json(js)
+        print(f"[json] {js.name}: Python {len(srv_table)} 条 / DLL {len(brg_table)} 条")
+        if missing:
+            print(f"[json] ⚠ 目标文件里找不到这些名字，已跳过：{', '.join(missing)}")
+
     print(f"{'[dry] ' if dry else ''}更新 {SERVER.name}")
-    log = patch(SERVER, SERVER_RVAS, dry)
+    log = patch(SERVER, srv_table, dry)
     print("\n".join(log))
     bad = sum(1 for x in log if "❌" in x)
 
     print(f"\n{'[dry] ' if dry else ''}更新 {BRIDGE.name}")
-    log2 = patch(BRIDGE, BRIDGE_RVAS, dry)
+    log2 = patch(BRIDGE, brg_table, dry)
     print("\n".join(log2))
     bad += sum(1 for x in log2 if "❌" in x)
 
-    print(f"\n完成：Python {len(SERVER_RVAS)} 条 / DLL {len(BRIDGE_RVAS)} 条，失败 {bad}")
+    print(f"\n完成：Python {len(srv_table)} 条 / DLL {len(brg_table)} 条，失败 {bad}")
     return 1 if bad else 0
 
 

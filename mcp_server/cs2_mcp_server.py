@@ -303,6 +303,95 @@ def cs2_get_module(name: str) -> str:
     return _call("get_module", {"name": name})
 
 
+@mcp.tool()
+def cs2_tool_modules() -> str:
+    """列出四个 CS2 编辑器模块的加载状态：hammer（Hammer）/ met（材质编辑器）/
+    modeldoc_editor（ModelDoc）/ pet（粒子编辑器），各含 CreateInterface 地址、
+    工具系统接口名（hammer/met/pet 是 ToolSystem2_001，modeldoc 是 ToolSystem2_ModelDoc）、
+    工具系统实例指针，以及该实例的 RTTI 实现类名（tool_system_class，如
+    CHammerApp / CMaterialEditorTool / CPetApp —— 编辑器 App 单例自身实现 ToolSystem2）。
+    注意：只有把对应编辑器打开，它的 DLL 才会加载进进程。"""
+    return _call("tool_modules")
+
+
+@mcp.tool()
+def cs2_get_tool_system(module: str) -> str:
+    """取某个编辑器模块的工具系统实例指针。
+    module 可传 'hammer' / 'met' / 'modeldoc' / 'pet'（也可给 .dll 全名）。"""
+    return _call("get_tool_system", {"module": module})
+
+
+def _module_call(method: str, params: dict[str, Any]) -> tuple[Any, str | None]:
+    """带错误处理的原始调用，返回 (result, None) 或 (None, 错误文本)。"""
+    try:
+        resp = _get_pipe().call(method, params)
+    except ConnectionError as e:
+        return None, f"管道未连接: {e}\n请先把新版 cs2_tool.dll 注入 cs2.exe。"
+    except Exception as e:  # noqa: BLE001
+        return None, f"{type(e).__name__}: {e}"
+    if "error" in resp:
+        return None, resp["error"]
+    return resp.get("result"), None
+
+
+@mcp.tool()
+def cs2_module_interfaces(module: str) -> str:
+    """列出某个编辑器模块 CreateInterface 注册表里的全部接口（名字+工厂地址，
+    不调用工厂，纯遍历 s_pInterfaceRegs 链表）。
+    module: 'hammer' / 'met' / 'modeldoc' / 'pet'（也可给 .dll 全名）。
+    模块必须已加载（在 CS2 里打开过对应编辑器）。"""
+    data, err = _module_call("module_interfaces", {"module": module})
+    if err:
+        return f"ERROR {err}"
+    items = data if isinstance(data, list) else json.loads(data)
+    lines = [f"{module} 模块注册接口 {len(items)} 个（CreateInterface 注册表）"]
+    for it in items:
+        lines.append(f"  {it['name']:<40} factory={it['factory_hex']}")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def cs2_module_get_interface(module: str, name: str) -> str:
+    """向某个编辑器模块的 CreateInterface 请求任意命名接口，返回实例指针与返回码
+    （0=成功，1=未找到）。module: hammer/met/modeldoc/pet。
+    例如 name 可传 'ToolSystem2_001'、'VTOOLDICTIONARY003' 等。"""
+    return _call("module_get_interface", {"module": module, "name": name})
+
+
+@mcp.tool()
+def cs2_module_bind_targets(module: str, include_commands: bool = True,
+                            limit: int = 0) -> str:
+    """列出某个编辑器模块的可绑定目标（Key Bindings / 工具热键体系）。
+    四个编辑器 DLL（hammer/met/modeldoc/pet）共用同一套 tier2 bind 框架，
+    节点布局相同，链表头由 IDA 逆向硬编码（REVERSE_NOTES §17/§23）。
+    每个目标含：目标名、实现类名、注册源文件+行号、命令列表。
+
+    Args:
+        module: 'hammer' / 'met' / 'modeldoc' / 'pet'（或 .dll 全名）。
+        include_commands: 是否展开每个目标下的命令（modeldoc 目标很多，
+            只看目标名/类名时可传 false 大幅提速）。
+        limit: 最多显示多少个目标，0=全部。
+    """
+    data, err = _module_call("module_bind_targets",
+                             {"module": module, "include_commands": include_commands})
+    if err:
+        return f"ERROR {err}"
+    obj = data if isinstance(data, dict) else json.loads(data)
+    targets = obj.get("targets", [])
+    shown = targets if limit <= 0 else targets[:limit]
+    lines = [f"{obj['module']} 可绑定目标 {obj['target_count']} 个 / "
+             f"命令 {obj['command_total']} 条"
+             + (f"（只显示前 {len(shown)} 个）" if limit and len(targets) > limit else "")]
+    for t in shown:
+        src = t.get("source_file") or "?"
+        lines.append(f"\n[{t['name']}]  <- {t['class']}  ({src}:{t['line']})")
+        if include_commands:
+            cmds = t.get("commands", [])
+            if cmds:
+                lines.append("    命令: " + ", ".join(cmds))
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # 内存
 # ---------------------------------------------------------------------------
@@ -425,22 +514,26 @@ def cs2_call_virtual(this_ptr: str, vtable_offset: int, args: list[int] | None =
 # ---------------------------------------------------------------------------
 # 撤销 / 重做（2026-09 新版 hammer.dll 重新定位，见 REVERSE_NOTES.md §3）
 # ---------------------------------------------------------------------------
-# g_CDataModel 是静态内嵌对象（2026-10-01 新版在 hammer.dll+0x24B7AC0）；
-# hammer.dll+0x21B2958 (off_1821B2958) 处的 qword 也指向同一对象。
-RVA_CDATAMODEL_GLOBAL = 0x24B7AC0   # CDataModel 全局单例（静态初始化 sub_18004F890）
-RVA_CDATAMODEL_PTR_GLOBAL = 0x21B2958  # qword 指针，值 = base+0x24B7AC0
-RVA_CDATAMODEL_VTABLE = 0x16C25C8   # 用于运行前校验
+# g_CDataModel 是静态内嵌对象（2026-10-10 版在 hammer.dll+0x24BBE00，CE 活体实测）；
+# hammer.dll+0x21B6958 处的 qword 也指向同一对象。
+RVA_CDATAMODEL_GLOBAL = 0x24BBE00   # CDataModel 全局单例（CE 实测：该处 RTTI == CDataModel）
+RVA_CDATAMODEL_PTR_GLOBAL = 0x21B6958  # qword 指针，值 = base+0x24BBE00
+RVA_CDATAMODEL_VTABLE = 0x16C45D8   # 用于运行前校验（CE 实测：该单例的 vptr）
 UNDO_MANAGER_OFFSET = 240           # CUndoManager 内嵌在 CDataModel + 240（不变）
-RVA_CDATAMODEL_UNDO = 0x5C34A0      # 带 UI 通知(vfn+1040)的包装
-RVA_CDATAMODEL_REDO = 0x5C1520
-RVA_UNDO_MANAGER_UNDO = 0x60FC10    # CUndoManager::Undo 本体（带 profile）
-RVA_UNDO_MANAGER_REDO = 0x60F780    # CUndoManager::Redo 本体
+RVA_CDATAMODEL_UNDO = 0x5C34E0      # 带 UI 通知(vfn+1040)的包装
+RVA_CDATAMODEL_REDO = 0x5C1560
+RVA_UNDO_MANAGER_UNDO = 0x60FC50    # CUndoManager::Undo 本体（带 profile）
+RVA_UNDO_MANAGER_REDO = 0x60F7C0    # CUndoManager::Redo 本体
 # 新布局：undo 计数 @+0 / 栈 @+8；redo 计数 @+16 / 栈 @+24（Redo 反编译实测）
 UNDO_MGR_OFF_UNDO_COUNT = 0
 UNDO_MGR_OFF_REDO_COUNT = 16
 
 
 _HAMMER_BASE: int | None = None
+
+# 编辑器模块关键地址缓存（key = 模块短名 hammer/met/modeldoc/pet），由 _tool_module() 填充。
+# 与 _HAMMER_BASE 一样在管道重连时作废（见 _invalidate_address_cache）。
+_TOOL_MODULE_CACHE: dict[str, dict] = {}
 
 
 def _hammer_base() -> int:
@@ -471,6 +564,7 @@ def _invalidate_address_cache() -> None:
     对端可能换过进程（Hammer 重启/重注入），基址要重新取。"""
     global _HAMMER_BASE
     _HAMMER_BASE = None
+    _TOOL_MODULE_CACHE.clear()
 
 
 def _hammer_addr(rva: int) -> str:
@@ -639,8 +733,8 @@ APP_OFF_SESSION_VEC_MEM = 0x60
 SESSION_OFF_ACTIVE_WRAPPER = 0x138
 WRAPPER_DOC_EMBED_OFFSET = 0x10
 CMAPDOC_ROOT_OFFSET = 0x80           # CMapDoc -> CMapRootElement*
-RVA_CMAPROOT_VTABLE = 0x1763FA8
-RVA_MAP_HISTORY_VTABLE = 0x1763E00   # CMapDocHistory vtable
+RVA_CMAPROOT_VTABLE = 0x1765FA8      # CE 实测：全进程仅 1 个对象持此 vptr（即 root）
+RVA_MAP_HISTORY_VTABLE = 0x1765E00   # CMapDocHistory vtable（CE 实测 RTTI）
 ROOT_OFF_UNDO_HISTORY = 0x240
 ROOT_OFF_REDO_HISTORY = 0x248
 # 新版 CMapDocHistory 栈布局（运行时实测，与旧版一致）：
@@ -656,7 +750,7 @@ HISTORY_OFF_PAIR = 0x80
 #         逐条应用反操作(sub_181529D20); this->busy = 0; free(last); }
 # 撤销/重做共用本函数，靠传入的 history 指针区分（撤销=root+0x240，重做=root+0x248）。
 # ⚠ 内部有 CanUndo 守卫，空栈时整段跳过（不会像 Datamodel undo 那样破坏状态）。
-RVA_MAP_HISTORY_POP = 0x152A490
+RVA_MAP_HISTORY_POP = 0x152B910
 # Pop 最外层那个全局开关（旧版 byte_1820F2088，新版 byte_18221A418）
 RVA_MAP_HISTORY_GATE = 0x221A418
 
@@ -664,13 +758,13 @@ RVA_MAP_HISTORY_GATE = 0x221A418
 # 栈里每一项是一个 192B「步」对象（名字在 +0x24），步里挂若干个 80B「命令包装」；
 # 包装的 kind 就是动作类型：0=通用命令 / 1=对象被移除 / 2=对象被新增。
 # ⚠ 传的对象必须是 **元素 + 0xC8**（CMapNode 接口子对象），不是元素本身。
-RVA_MAP_HISTORY_PUSH_STEP = 0x15298A0   # sub_181529290(hist, name, 0, 0) 压入具名步（并清空重做栈）
-RVA_MAP_HISTORY_REC_ADDED = 0x15296C0   # sub_1815290B0(hist, node) 记录「对象被新增」(kind=2)
-RVA_MAP_HISTORY_REC_REMOVED = 0x15294D0  # sub_181528EC0(hist, node) 记录「对象被移除」(kind=1)
-RVA_MAP_HISTORY_NOTIFY = 0x1529D10      # sub_181529700(hist, 2) 通知监听者（刷新 Undo 菜单/工具态）
+RVA_MAP_HISTORY_PUSH_STEP = 0x152AD20   # sub_181529290(hist, name, 0, 0) 压入具名步（并清空重做栈）
+RVA_MAP_HISTORY_REC_ADDED = 0x152AB40   # sub_1815290B0(hist, node) 记录「对象被新增」(kind=2)
+RVA_MAP_HISTORY_REC_REMOVED = 0x152A950  # sub_181528EC0(hist, node) 记录「对象被移除」(kind=1)
+RVA_MAP_HISTORY_NOTIFY = 0x152B190      # sub_181529700(hist, 2) 通知监听者（刷新 Undo 菜单/工具态）
 # 把「被修改的节点（含子/父链）」登记进当前撤销步 —— Hammer 改属性/变换前就是这么干的。
 # 见 REVERSE_NOTES §17.14：sub_18086D9B0(hist, node, 1)
-RVA_HIST_RECORD_NODE = 0x86DCF0
+RVA_HIST_RECORD_NODE = 0x86DD30
 NODE_IFACE_OFFSET = 0xC8                # CDmElement -> 内嵌的 CMapNode 接口子对象
 
 # 主线程派发状态（与 injected_dll/hammer_bridge.cpp 的 g_last_dispatch_status 对应）
@@ -1250,7 +1344,7 @@ def _file_stat(path: str) -> tuple[int, str] | None:
 # ⚠️ 不要改调外层 sub_1801363C0：它在 a3==0 时还会顺带保存「编辑会话布局」
 #     （sub_180147DD0 → assetsystem/tier0），实测会把 Hammer 主线程永久卡死。
 #     详见 REVERSE_NOTES.md §12。
-RVA_HAMMER_SAVE_DOC = 0x1639B0
+RVA_HAMMER_SAVE_DOC = 0x1639F0
 
 
 @mcp.tool()
@@ -1312,16 +1406,16 @@ def cs2_map_save(doc: str = "") -> str:
 # ---------------------------------------------------------------------------
 # 实体：纯内存树遍历 + CDmElement 属性链（2026-09 新版，见 REVERSE_NOTES.md §3）
 # ---------------------------------------------------------------------------
-RVA_CMAPENTITY_VTABLE = 0x1758D00   # ??_7CMapEntity@@6B@（运行时实测）
-RVA_CMAPWORLD_VTABLE = 0x1772920    # CMapWorld
+RVA_CMAPENTITY_VTABLE = 0x175AD00   # ??_7CMapEntity@@6B@（CE 实测 RTTI + 67 个对象持有）
+RVA_CMAPWORLD_VTABLE = 0x1774920    # CMapWorld（CE 实测 RTTI + 1 个对象持有）
 # CMapGroup：分组（组成员在 `children` 属性里，元素句柄表）。RVA 由 ze_surf_easy
 # 元素表类型分布反查（IDA 按 RVA 取符号名，完整 RVA→类名对照见 REVERSE_NOTES §15.7.1）
-RVA_CMAPGROUP_VTABLE = 0x178B4A8
+RVA_CMAPGROUP_VTABLE = 0x178D4A8    # CE 实测 RTTI
 CMAPDOC_WORLD_OFFSET = 0x88         # CMapDoc -> CMapWorld*（136，旧版同偏移）
 
 # --- 工具系统「可绑定命令」注册表（Hammer Options → Key Bindings 那张表），见 REVERSE_NOTES §17 ---
 # 每个工具类在静态初始化时把一个 CBaseBindTargetDescriptor 头插进这条全局链表。
-RVA_BIND_TARGET_LIST = 0x272D6D8    # 链表头（qword_18272D898）
+RVA_BIND_TARGET_LIST = 0x2731E98    # 链表头（qword_18272D898）
 BIND_VFN_NAME = 0                   # vtable[0]  = 取工具名 (char*)
 BIND_VFN_CMD_COUNT = 24             # vtable[24] = 命令数 (int)
 BIND_VFN_CMD_AT = 32                # vtable[32] = 取第 i 个命令 (命令对象*)
@@ -1366,7 +1460,7 @@ DM_ATTR_TYPE_NAMES = {
 }
 # CDmElement::MarkDirty(this, flags)（sub_1805C81C0）：把标志或进 element+0x5E/+0x60
 # 并递归通知依赖者。摘掉属性后用它传播脏状态。
-RVA_ELEMENT_MARK_DIRTY = 0x5C8500
+RVA_ELEMENT_MARK_DIRTY = 0x5C8540
 
 # 句柄 -> 元素：CDataModel vtable slot21（字节偏移 168），args=[handle]，
 # 必须在主线程调用。
@@ -1384,24 +1478,24 @@ RVA_DATAMODEL = RVA_CDATAMODEL_GLOBAL
 # 由 sub_18062C9A0 / sub_18062C880 的调用序列实测确认。
 VFN_OFF_INTERN_STRING = 424
 # CDmAttribute 值写入：sub_1805CF020(attr, const CUtlStringToken*)（旧 0x4C7A10 已失效）
-RVA_ATTR_SET_SYMBOL = 0x5CF360
+RVA_ATTR_SET_SYMBOL = 0x5CF3A0
 # 更高层、更安全的按名写字符串属性：
 #   sub_18062C9A0(ownerElement, const char* name, const char* value, bool createIfMissing)
 # 内部自行 intern，并在属性缺失时以类型 5(AT_STRING) 创建。Drop/快照等内置逻辑均走它。
-RVA_PROPS_SET_STRING_ATTR = 0x62CCE0
+RVA_PROPS_SET_STRING_ATTR = 0x62CD20
 # 按名取属性（返回 CDmAttribute*），签名 (ownerElement, const char* name)
-RVA_PROPS_FIND_ATTR = 0x5C74B0
+RVA_PROPS_FIND_ATTR = 0x5C74F0
 # 按名写**实体 keyvalue**（推荐入口，比上面那个更高层）：
 #   sub_18083E0D0(entity, const char* name, const char* value)
 # 属性缺失时以类型 5(AT_STRING) 创建；值变化后还会调 CMapEntity 的类回调
 # (vfn+2136)、targetname 名字索引(vfn+1272/2160) 与包围盒/脏通知
 # (sub_1808672E0/sub_180867040)。⚠ origin/angles/scales 不走这里（见下）。
-RVA_ENTITY_SET_KEYVALUE = 0x83E410
+RVA_ENTITY_SET_KEYVALUE = 0x83E450
 # 按名写**实体属性表属性**（含变换），签名 (entity, const char* name, const char* value, uint flags)：
 #   sub_18086B550 取实体的 CMapNode 属性表，按属性声明类型分派 —— 变换类属性由
 #   CMapNodeTransformPin 直接落到 CMapEntity 的原生 Vec3D 成员（+0xA0/+0xAC/+0xB8），
 #   普通 keyvalue 仍写 CEditGameClassProps。属性不存在时返回 0（不创建）。
-RVA_ENTITY_SET_NODE_ATTR = 0x86B890
+RVA_ENTITY_SET_NODE_ATTR = 0x86B8D0
 # sub_18083E0D0 内部用的「实体 -> entity_properties 句柄」下标：entity + 1336
 ENTITY_OFF_PROPS_HANDLE = 1336
 
@@ -1419,19 +1513,19 @@ ENTITY_VFN_SET_CLASSNAME = 2144
 #   sub_180879170(doc, node, 0)           ← ★ AddChild：这一步才真正挂进世界
 # ⚠ 第一参数是 **CMapDoc**（不是 CMapWorld）：函数内默认锚点 = `*(doc+0x88)` 正好就是
 #   CMapWorld 字段；传 world 会让它把 `*(world+0x88)` 当锚点 → 拿错对象。
-RVA_NODE_POST_CLASS = 0x8670B0     # sub_180866D70(node, flag)
-RVA_NODE_ADD_CHILD = 0x8794B0      # sub_180879170(doc, child, siblingOr0)
-RVA_NODE_GET_PARENT = 0x8651E0     # sub_180864EA0(node) -> 父节点（实测：func_brush 的父就是 CMapWorld）
-RVA_NODE_GET_ROOT = 0x8651F0       # sub_180864EB0(node) -> 根/世界（实测全部实体都指向 CMapWorld）
+RVA_NODE_POST_CLASS = 0x8670F0     # sub_180866D70(node, flag)
+RVA_NODE_ADD_CHILD = 0x8794F0      # sub_180879170(doc, child, siblingOr0)
+RVA_NODE_GET_PARENT = 0x865220     # sub_180864EA0(node) -> 父节点（实测：func_brush 的父就是 CMapWorld）
+RVA_NODE_GET_ROOT = 0x865230       # sub_180864EB0(node) -> 根/世界（实测全部实体都指向 CMapWorld）
 # ★ AddChild 的对偶：父节点**虚表字节偏移 0x1D0** 的虚函数 = 移除子节点。
 #   CMapWorld  +0x1D0 -> sub_180925C60（第三参数透传给 sub_18084F400）
 #   CMapEntity +0x1D0 -> sub_18084F400（直接；notify 非 0 时多做 doc 侧簿记）
 #   CMapGroup  等 6 个类 -> sub_1809EB760，**强制 notify=1**，故删除默认也传 1
 NODE_VFN_REMOVE_CHILD = 0x1D0
 # CParticleHelper::SetDefinitionByName(this, const char* vpcfPath)
-RVA_PARTICLE_SET_DEFINITION = 0x7F5690
+RVA_PARTICLE_SET_DEFINITION = 0x7F56D0
 # CParticleHelper 主 vtable RVA —— 用于在堆/实体内存里识别 helper 对象
-RVA_CPARTICLE_HELPER_VTABLE = 0x17500B8
+RVA_CPARTICLE_HELPER_VTABLE = 0x17520B8   # CE 实测 RTTI（primary，coloff=0）
 CMAPENTITY_SIZE = 6232              # CMapEntity 对象大小（工厂 sub_180898D10 分配）
 OFF_HELPER_ENTITY_HANDLE = 152      # helper+0x98 = 所属实体句柄(u32)
 OFF_HELPER_EFFECT_NAME = 176        # helper+0xB0 = effect_name (CUtlString)
@@ -1501,14 +1595,14 @@ IO_TARGET_TYPE_NAMES = {
     7: "ENTITY_IO_TARGET_ENTITYNAME_OR_CLASSNAME",
 }
 # 追加一条连接到实体的原生向量：sub_180986EA0(entity, int outHandle[4], const Conn* src)
-RVA_ENTITY_ADD_CONN = 0x9871E0
+RVA_ENTITY_ADD_CONN = 0x987220
 # 删除按下标的连接：sub_180987AF0(entity, index<<16) -> char（1=成功/0=下标非法）。
 # Outputs 面板「Delete Output」(sub_18020CD40) 用的就是它：析构 Conn（paramMap +
 # 5 个 CUtlString 全部正确释放）→ 尾块前移 80B → 计数减一。
 # ⚠ 索引是**打包在高 16 位**的 int16（低字必须为 0），故仅支持 index < 32768。
-RVA_ENTITY_REMOVE_CONN = 0x987E30
+RVA_ENTITY_REMOVE_CONN = 0x987E70
 # KV3 值初始化：sub_1813E79E0(this, 1, 8)（Hammer 的 Conn::Conn 内部同款调用）
-RVA_CONN_VALUE_INIT = 0x13E7FF0
+RVA_CONN_VALUE_INIT = 0x13E9470
 
 # --- 实体 IO（DMX 侧，仅存档镜像参考；对照 VRF ValveMap.cs）---
 ENTITY_ATTR_CONNECTIONS = "connectionsData"   # 元素句柄数组 -> DmeConnectionData
@@ -1521,24 +1615,24 @@ IO_PLUG_FIELDS = ("names", "dataTypes", "plugTypes", "descriptions")
 
 # --- mesh（对照 VRF ValveMap.cs / HammerMeshBuilder.cs）---
 # CMapMesh（主虚表 RTTI ??_R4CMapMesh@@6B@）/ CDmePolygonMesh
-RVA_CMAPMESH_VTABLE = 0x176B8E0
-RVA_CDMEPOLYGONMESH_VTABLE = 0x1D70700
+RVA_CMAPMESH_VTABLE = 0x176D8E0     # CE 实测 RTTI + 21 个对象持有
+RVA_CDMEPOLYGONMESH_VTABLE = 0x1D73360   # CE 实测 RTTI == CDmePolygonMesh（无需改）
 # mesh 顶点坐标写入：sub_1809B8880(element, CUtlVector<顶点handle>*, CUtlVector<Vector>*)
 #   内部 = 取元素变换(vfn+160 → 48B 矩阵) → sub_180BFA650 转成存储空间 → sub_180CDC6E0
 #   sub_180CDC6E0(poly, handles, transform, positions) 是 CPolygonMesh 的官方算子
 #   "SetVertexPositions"（开事务/写位置通道/更新缓存/发脏通知），见 REVERSE_NOTES §13.10
-RVA_MESH_SET_VERTEX_POSITIONS = 0x9B8BC0
+RVA_MESH_SET_VERTEX_POSITIONS = 0x9B8C00
 # CPolygonMesh 本体的算子（元素级包装就是调它）：(poly, handles, 3x4矩阵, positions)
 # 传单位矩阵 = 直接把 positions 原样写进位置通道（不改参照系）
-RVA_POLY_SET_VERTEX_POSITIONS = 0xCDCA20
-RVA_MESH_BUILD_FACE = 0x902280       # sub_180901F40(el, 点数组, 默认贴图轴, 点数, 材质名)
+RVA_POLY_SET_VERTEX_POSITIONS = 0xCDCC10
+RVA_MESH_BUILD_FACE = 0x9022C0       # sub_180901F40(el, 点数组, 默认贴图轴, 点数, 材质名)
 # CPolygonMesh 算子（2026-09-29 逆向，见 REVERSE_NOTES §16.10）：
 #   sub_180CD21E0(poly, CUtlVector<16B 顶点条目>*, float 距离, char 维护半边, char 取中点, out*)
 #     "MergeVerticesWithinDistance"：把距离 <= 阈值的顶点两两合并；返回本轮合并数(>0 表示有变化)
 #     a4=1 焊接时同步重接半边（官方 UI 固定传 1）；a5=1 新位置取两端中点，0 保留其中一端
 #   sub_180CD83C0(poly) "RemoveIsolatedVertices"：删掉不再属于任何面的孤立顶点（焊接后必跑）
-RVA_POLY_MERGE_VERTICES = 0xCD2520
-RVA_POLY_REMOVE_ISOLATED = 0xCD8700
+RVA_POLY_MERGE_VERTICES = 0xCD2710
+RVA_POLY_REMOVE_ISOLATED = 0xCD88F0
 # ⚠ 2026-09-26 实测：运行时的 mesh 几何**不在** CDmePolygonMesh 里。
 # CMapMesh 的 `meshData` 属性值是无效句柄 0xFFFFFFFF，元素表里也没有 CDmePolygonMesh 实例；
 # 真正存几何的是 **CHammerPolyMesh : CPolygonMesh**（半边缘 DCEL）：
@@ -1548,8 +1642,8 @@ RVA_POLY_REMOVE_ISOLATED = 0xCD8700
 #     CHammerPolyMesh + 13596/-FLT_MAX … 是自身 AABB（+13596 min / +13608 max）
 #     CMapMesh + 0x118 附近是 CMapMesh 自己缓存的 AABB（空 mesh 时全是 ±FLT_MAX）
 # CDmePolygonMesh 只在 .vmap 存档/载入时使用（`Save Copy As Text` 可看到）。
-RVA_CHAMMERPOLYMESH_VTABLE = 0x1766ED8
-RVA_CPOLYGONMESH_VTABLE = 0x18143D0
+RVA_CHAMMERPOLYMESH_VTABLE = 0x1768ED8   # CE 实测 RTTI == CHammerPolyMesh（21 个对象持有）
+RVA_CPOLYGONMESH_VTABLE = 0x18163D0      # CE 实测 RTTI == CPolygonMesh
 MESH_OFF_POLYMESH = 0x498            # CMapMesh 内嵌 CHammerPolyMesh 的偏移
 MESH_OFF_POLYMESH_BACKPTR = 0x560    # 指回内嵌 CHammerPolyMesh 的指针
 MESH_OFF_AABB = 0x118                # CMapMesh 缓存的 AABB（空 mesh = ±FLT_MAX）
@@ -1619,11 +1713,11 @@ MESH_ATTR_EDGE_VERTEX_DATA_INDICES = "edgeVertexDataIndices"
 #   内部：sub_1805BA670 取空闲句柄 -> sub_1805BB7F0 按类型名查元素工厂表
 #         -> factory->vfn0(handle, type, name, flags, uid) 即下面的 CMapEntity Create
 #         -> 登记 句柄->元素、按需登记 CUndoCreateElement -> factory->vfn4(factory, elem)
-RVA_DATAMODEL_CREATE_ELEMENT = 0x5BBED0
-RVA_ELEMENT_CREATE_CORE = 0x5BBB30   # sub_1805BB7F0（内部，最终调工厂 Create）
+RVA_DATAMODEL_CREATE_ELEMENT = 0x5BBF10
+RVA_ELEMENT_CREATE_CORE = 0x5BBB70   # sub_1805BB7F0（内部，最终调工厂 Create）
 # CMapEntity 元素工厂对象 RVA / 其虚表 RVA（slot0 = Create = 0x898D10）
-RVA_CMAPENTITY_FACTORY = 0x21DB1F0
-RVA_CMAPENTITY_FACTORY_VTABLE = 0x1765170
+RVA_CMAPENTITY_FACTORY = 0x21DF1F0     # CE 实测：该处首字段 == 工厂 vtable（+0x1767170）
+RVA_CMAPENTITY_FACTORY_VTABLE = 0x1767170   # CE 实测 RTTI == CDmElementFactory<CMapEntity>
 ENTITY_DMX_TYPE = "CMapEntity"       # 实体在 .vmap 里的元素类型名
 ENTITY_CREATE_FLAGS = 1              # 与实体工具一致；!= -1 时登记 CUndoCreateElement 撤销步
 INVALID_DMX_HANDLE = 0xFFFFFFFF
@@ -1631,8 +1725,8 @@ INVALID_DMX_HANDLE = 0xFFFFFFFF
 # --- Datamodel undo scope（新版反编译实测）---
 # BeginUndoScope: "[%d] Pushing undo '%s'" 在 0x1816C7ED0 -> 0x60F370
 # EndUndoScope(um, bool abort): 自减 scope 深度(+88) -> 0x60F1C0
-RVA_UNDO_SCOPE_BEGIN = 0x60F6B0     # CUndoManager::BeginUndoScope(um, name, desc, flags)
-RVA_UNDO_SCOPE_END = 0x60F500       # CUndoManager::EndUndoScope(um, bool abort=0)
+RVA_UNDO_SCOPE_BEGIN = 0x60F6F0     # CUndoManager::BeginUndoScope(um, name, desc, flags)
+RVA_UNDO_SCOPE_END = 0x60F540       # CUndoManager::EndUndoScope(um, bool abort=0)
 UNDO_MGR_OFF_SCOPE_DEPTH = 88       # +0x58（新版；旧版在 +84）
 UNDO_MGR_OFF_FLAGS = 132            # +0x84 bit3 = undo 总开关（不变）
 UNDO_MGR_FLAG_ENABLED = 0x08
@@ -4206,35 +4300,31 @@ def _vfn_ptr(this_ptr: int, vtable_offset: int, args: list | None = None,
 
 
 @mcp.tool()
-def cs2_bind_list(filter: str = "", limit: int = 0) -> str:
-    """列出 Hammer 的「可绑定工具命令」全表 —— 就是 Options → Key Bindings 里那张表。
+def cs2_bind_list(module: str = "hammer", filter: str = "", limit: int = 0) -> str:
+    """列出某编辑器模块的「可绑定工具命令」全表 —— 即 Options → Key Bindings 那张表。
 
-    数据源（2026-09-27 逆向，见 REVERSE_NOTES.md §17）：Hammer 里**每个工具类**在静态初始化时，
-    把自己的 `CBaseBindTargetDescriptor` 头插进一条**全局链表**（表头 `hammer+0x272D898`）。
-    每个描述符给出「工具名 + 实现类名 + 注册处源文件/行号」，并通过虚函数给出它的一批命令。
+    数据源（见 REVERSE_NOTES §17/§23）：每个工具类在静态初始化时，把自己的
+    `CBaseBindTargetDescriptor` 头插进一条**全局链表**（表头 per 模块；hammer `0x2731E98`、
+    met `0x4A0AD0`、modeldoc `0x1AA9620`、pet `0x938408`）。每个描述符给出
+    「工具名 + 实现类名 + 注册处源文件/行号」，并通过虚函数给出它的一批命令。
 
-    读取方式**全只读**（纯 getter 虚调用），不改地图、不产生历史：
-
-        vtable[0]  → 工具名 (char*)        vtable[24] → 命令数 (int)
-        vtable[32] → 第 i 个命令 (对象*)   命令对象 +0x08 = 命令名 · +0x18 = 描述
-
-    用途：摸清 Hammer 自己有哪些原子操作（选择 / 对齐 / 吸附 / 各种工具的开关），
-    后续可以按名字去调它们，而不是逐个逆向底层实现。
+    读取方式**全只读**（纯 getter 虚调用），不改文档、不产生历史。
 
     Args:
+        module: `hammer` / `met` / `modeldoc` / `pet`（默认 hammer）。该模块必须已加载。
         filter: 大小写不敏感的子串过滤（匹配工具名 / 类名 / 命令名）。
         limit: 最多列多少条命令（0 = 不限）。
     """
-    base = _hammer_base()
     cap = max(0, int(limit))
     kw = str(filter).strip().lower()
     try:
-        head = _read_int(base + RVA_BIND_TARGET_LIST, "u64")
+        md = _tool_module(module)
+        head = _read_int(md["bind_head"], "u64")
         if not head:
-            return "绑定目标链表为空（Hammer 可能还没初始化完，或版本不符）"
+            return f"{md['label']} 绑定目标链表为空（可能还没初始化完，或版本不符）"
         nodes, seen, n_cmds = [], set(), 0
         node = head
-        while node and node not in seen and len(nodes) < 1024:
+        while node and node not in seen and len(nodes) < 4096:
             seen.add(node)
             name = _read_string(_vfn_ptr(node, BIND_VFN_NAME), 128)
             cls = _read_cptr(node, BIND_OFF_CLASS, 128)
@@ -4255,7 +4345,7 @@ def cs2_bind_list(filter: str = "", limit: int = 0) -> str:
             n_cmds += len(cmds)
             node = _read_int(node + BIND_OFF_NEXT, "u64")
 
-        lines = [f"Hammer 可绑定工具命令  工具 {len(nodes)} 个 / 命令 {n_cmds} 条"
+        lines = [f"{md['label']} 可绑定工具命令  工具 {len(nodes)} 个 / 命令 {n_cmds} 条"
                  f"  链表头={head:#x}"]
         shown = 0
         for node, name, cls, fname, line, cmds in nodes:
@@ -4320,13 +4410,50 @@ FN_OFF_PMF = 0x08
 FN_OFF_ADJ = 0x10
 FN_OFF_ARG = 0x18
 # CHammerApp（ToolSystem2）**单例对象本体**：全局变量地址，首字段就是它的 vtable
-RVA_CHAMMERAPP = 0x677AC80
+RVA_CHAMMERAPP = 0x677F440          # CE 实测：RTTI == CHammerApp，且 [+0x58] 会话数 == 1
 APP_OFF_SESSION_COUNT = 0x58         # CHammerApp+0x58 = 编辑器会话 CUtlVector 计数
 APP_OFF_SESSION_ARRAY = 0x60         # CHammerApp+0x60 = 会话数组
 SESSION_OFF_TOOLMGR = 0x120          # 会话+0x120 = 工具管理器（CToolManager）
 TOOLMGR_OFF_COUNT = 0x30             # 工具管理器+0x30 = 工具实例数
 TOOLMGR_OFF_ARRAY = 0x38             # 工具管理器+0x38 = 工具实例数组
 RTTI_COL_TO_TYPEDESC = 0xC           # MSVC COL+0xC = TypeDescriptor 的 RVA
+
+
+def _tool_module(module: str = "hammer") -> dict:
+    """取某编辑器模块的关键地址（base / bind_head / tool_system / 实现类名），带缓存。
+
+    数据来自注入层 `get_tool_system`（四模块通用，见 REVERSE_NOTES §22/§23）。
+    `bind_head` = 该模块 bind 描述符全局链表头的**地址**（值是首个节点指针）；
+    `tool_system` = `CreateInterface(ToolSystem2_*)` 返回的 App 单例，即该模块
+    「App 类」bind 目标要用的上下文对象（见 §23.4）。
+    """
+    key = (module or "hammer").strip().lower() or "hammer"
+    if key.endswith(".dll"):
+        key = key[:-4]
+    info = _TOOL_MODULE_CACHE.get(key)
+    if info is None:
+        resp = _get_pipe().call("get_tool_system", {"module": key})
+        if "error" in resp:
+            raise RuntimeError(resp["error"])
+        r = resp["result"]
+        if not r.get("loaded"):
+            raise RuntimeError(f"模块未加载: {key}（先用 cs2_tool_modules 看状态）")
+        size = 0
+        try:
+            m = _get_pipe().call("get_module", {"name": key}).get("result") or {}
+            size = int(m.get("size") or 0)
+        except Exception:  # noqa: BLE001
+            size = 0
+        info = {
+            "label": r.get("label", key),
+            "base": int(r["base_hex"], 16),
+            "size": size or 0x8000000,   # 兜底 128MB（仅用于「代码指针落在本模块」判断）
+            "bind_head": int(r["bind_head_hex"], 16),
+            "tool_system": int(r["tool_system_hex"], 16),
+            "cls": r.get("tool_system_class", ""),
+        }
+        _TOOL_MODULE_CACHE[key] = info
+    return info
 
 
 def _rtti_class(obj: int) -> str:
@@ -4388,34 +4515,46 @@ def _tool_instances() -> list[tuple[str, int]]:
     return out
 
 
-def _bind_ctx(target: str, cls: str, ctx: str) -> tuple[int, str]:
+def _bind_ctx(md: dict, target: str, cls: str, ctx: str) -> tuple[int, str]:
     """解析执行用的「上下文对象」-> (`地址`, 说明)。
 
     优先 `ctx` 参数；否则按类名自动解析：
-      · `CHammerApp`（全局菜单那批命令）→ CHammerApp 单例本体；
-      · 其它工具类（`CToolSelection` 等）→ 会话里对应的**工具实例**（RTTI 类名匹配）。
+      · 该模块的 **App 类**（`CHammerApp` / `CMaterialEditorTool` / `CPetApp` /
+        `CModelDocEditorApp`）→ 该模块 `CreateInterface` 返回的 App 单例；
+      · hammer 的其它工具类（`CToolSelection` 等）→ 会话里对应的**工具实例**（RTTI 类名匹配）。
+    非 hammer 模块的「工具实例表」（会话 → CToolManager）尚未逆向，遇到工具类目标需用
+    `ctx=` 显式给地址（见 REVERSE_NOTES §17.10）。
     """
     raw = (ctx or "").strip()
     if raw:
         return int(raw, 0), "由 ctx 参数指定"
-    base = _hammer_base()
     want = (cls or "").strip()
-    if want == "CHammerApp" or (target or "").strip().lower() == "hammerapp":
-        return base + RVA_CHAMMERAPP, "CHammerApp 全局单例"
-    if want:
+    tname = (target or "").strip()
+    # App 单例：目标实现类名 == 该模块 ToolSystem 实现类（App 对象自身实现工具系统）
+    if want and md["cls"] and want == md["cls"]:
+        return md["tool_system"], f"{md['cls']} App 单例（该模块 ToolSystem）"
+    if want == "CHammerApp" or tname.lower() == "hammerapp":
+        return md["tool_system"], "CHammerApp 全局单例"
+    # `GlobalHotkeys`（实现类 CGlobalHotkeyCommands）四模块都有，但该类实例未能定位。
+    # IDA 反汇编确认其命令（ShowConsole / SwitchToEngineWindow / ShowInputDebugger /
+    # DebugWidgetUnderMouse …）**全部只操作模块全局量、从不触碰 this**，故用本模块 App
+    # 单例顶替即可（见 REVERSE_NOTES §23.6）。
+    if want == "CGlobalHotkeyCommands":
+        return md["tool_system"], "CGlobalHotkeyCommands 实例未知；其命令不触碰 this，用 App 单例顶替"
+    # 工具实例表只在 hammer 侧逆向过（CHammerApp → 会话 → CToolManager）
+    if md["label"] == "hammer" and want:
         for name, addr in _tool_instances():
             if name == want:
                 return addr, f"{want} 工具实例（RTTI 匹配）"
     return 0, ""
 
 
-def _bind_targets() -> list[tuple[int, str, str]]:
-    """遍历描述符全局链表 -> [(desc 指针, 目标名, 实现类名)]（只读）。"""
-    base = _hammer_base()
+def _bind_targets(md: dict) -> list[tuple[int, str, str]]:
+    """遍历该模块的描述符全局链表 -> [(desc 指针, 目标名, 实现类名)]（只读）。"""
     out: list[tuple[int, str, str]] = []
-    node = _read_int(base + RVA_BIND_TARGET_LIST, "u64")
+    node = _read_int(md["bind_head"], "u64")
     seen = set()
-    while node and node not in seen and len(out) < 1024:
+    while node and node not in seen and len(out) < 4096:
         seen.add(node)
         out.append((node, _read_string(_vfn_ptr(node, BIND_VFN_NAME), 128),
                     _read_cptr(node, BIND_OFF_CLASS, 128)))
@@ -4423,12 +4562,12 @@ def _bind_targets() -> list[tuple[int, str, str]]:
     return out
 
 
-def _bind_find_target(name: str):
+def _bind_find_target(md: dict, name: str):
     """按目标名 / 实现类名（大小写不敏感）找描述符 -> (desc, 名, 类名) 或 None。"""
     want = (name or "").strip().lower()
     if not want:
         return None
-    for desc, tname, cls in _bind_targets():
+    for desc, tname, cls in _bind_targets(md):
         if tname.lower() == want or (cls or "").lower() == want:
             return desc, tname, cls
     return None
@@ -4455,7 +4594,7 @@ def _bind_find_command(desc: int, name: str):
     return None
 
 
-def _bind_stage(cmd: int, stage: int) -> dict | None:
+def _bind_stage(cmd: int, stage: int, md: dict) -> dict | None:
     """取某个 stage 上绑定的函数信息；该 stage 没绑返回 None（只读）。"""
     if not (0 <= stage < CMD_STAGE_COUNT):
         return None
@@ -4465,10 +4604,9 @@ def _bind_stage(cmd: int, stage: int) -> dict | None:
         if not vt:
             return None
         do_call = _read_int(vt + FN_VT_OFF_DOCALL, "u64")
-        base = _hammer_base()
         # 只有「vtable 槽 2 落在本模块代码区」才算真的绑了函数：
         # 空块的 +0x00 是堆里的残留指针，读出来的槽 2 不会落在代码区。
-        if not (base <= do_call < base + 0x8000000):
+        if not (md["base"] <= do_call < md["base"] + md["size"]):
             return None
         return {
             "stage": stage, "block": blk, "functor_vt": vt, "do_call": do_call,
@@ -4480,15 +4618,39 @@ def _bind_stage(cmd: int, stage: int) -> dict | None:
         return None
 
 
-def _bind_stages(cmd: int) -> list[dict]:
+def _bind_stages(cmd: int, md: dict) -> list[dict]:
     """列出该命令**已绑函数**的全部 stage。"""
-    return [s for s in (_bind_stage(cmd, k) for k in range(CMD_STAGE_COUNT)) if s]
+    return [s for s in (_bind_stage(cmd, k, md) for k in range(CMD_STAGE_COUNT)) if s]
 
 
-def _fmt_stage(s: dict, base: int) -> str:
+def _fmt_stage(s: dict, md: dict) -> str:
     return (f"stage{s['stage']}[{CMD_STAGE_LABELS.get(s['stage'], '?')}] "
             f"(+{CMD_BLOCK_BASE + CMD_BLOCK_STRIDE * s['stage']:#x}) "
-            f"pmf=hammer+{s['pmf'] - base:#x} adj={s['adj']} 绑定实参={s['arg']}")
+            f"pmf={md['label']}+{s['pmf'] - md['base']:#x} adj={s['adj']} 绑定实参={s['arg']}")
+
+
+def _bind_invoke_do_call(s: dict, ctx_addr: int, timeout: int = 30000) -> tuple[str, str]:
+    """通过模块自己的 `_Do_call` 执行该 stage 的 `std::function`（= `operator()`）。
+
+    为什么不用「直接调 pmf」：functor 的内存布局**随 lambda 捕获而变**（有只捕 pmf 的、
+    有捕 [pmf, adj, arg] 的、arg 还可能是 bool 1 字节）。`_Do_call` 是编译器为该 lambda
+    生成的调用器，偏移全写死在它自己代码里，所以走它**布局无关、最稳**。
+
+    `_Do_call` 第 2 个参数是「指向 ctx 指针的指针」，故先在目标进程分配 8 字节存放 ctx
+    指针，再调 `_Do_call(fn, &cell)`，最后释放。返回 (ret_hex, 错误串)。
+    """
+    pipe = _get_pipe()
+    a = pipe.call("alloc_memory", {"size": 8})
+    if "error" in a:
+        return "", f"alloc_memory 失败: {a['error']}"
+    cell = int(a["result"]["address"], 16)
+    try:
+        w = pipe.call("write_value", {"address": hex(cell), "type": "u64", "value": ctx_addr})
+        if "error" in w:
+            return "", f"write_value 失败: {w['error']}"
+        return _call_addr(s["do_call"], [s["block"], cell], timeout=timeout)
+    finally:
+        pipe.call("free_memory", {"address": hex(cell)})
 
 
 def _stage_index(stage) -> int:
@@ -4518,49 +4680,52 @@ def _pick_stage(allst: list[dict], stage: int) -> dict | None:
 
 
 @mcp.tool()
-def cs2_bind_inspect(target: str = "", command: str = "") -> str:
+def cs2_bind_inspect(module: str = "hammer", target: str = "", command: str = "") -> str:
     """（只读）看可绑定命令**实际绑了什么函数**、执行它需要哪个上下文对象。
 
-    背景见 REVERSE_NOTES.md §17：Hammer 每个工具类在静态初始化时把
-    `CBindTargetDescriptor<T>::CBindableCommand` 登记进全局链表（表头 `hammer+0x272D898`），
+    背景见 REVERSE_NOTES §17/§23：每个工具类在静态初始化时把
+    `CBindTargetDescriptor<T>::CBindableCommand` 登记进本模块的全局链表，
     每个命令对象里按 **stage** 存了最多 8 个 `std::function`。
 
     Args:
+        module:  `hammer` / `met` / `modeldoc` / `pet`（默认 hammer）。该模块必须已加载。
         target:  目标名（如 `HammerApp` / `ToolSelection`）；也可传实现类名。留空 = 列出全部目标。
         command: 命令名。留空 = 列出该目标下**所有已绑函数**的命令及其 stage。
     """
-    base = _hammer_base()
     try:
+        md = _tool_module(module)
         if not (target or "").strip():
             rows = []
-            for desc, tname, cls in _bind_targets():
+            for desc, tname, cls in _bind_targets(md):
                 cmds = _bind_commands(desc)
-                bound = [c for c, _, _ in cmds if _bind_stages(c)]
+                bound = [c for c, _, _ in cmds if _bind_stages(c, md)]
                 rows.append(f"  {tname or '(无名)':<28} 类={cls or '?':<28} "
                             f"命令 {len(cmds)} 条 / 其中 {len(bound)} 条绑了函数")
-            tools = _tool_instances()
-            trows = [f"  {name or '(未知)':<28} {addr:#x}" for name, addr in tools]
-            return ("目标（共 %d 个）：\n%s\n\n"
-                    "上下文对象（工具实例，共 %d 个）：\n%s\n\n"
-                    "用 cs2_bind_inspect(target=...) 看某个目标；"
-                    "用 cs2_bind_run(target=..., command=...) 执行。"
-                    % (len(rows), "\n".join(rows), len(trows), "\n".join(trows)))
+            ctxrows = []
+            if md["label"] == "hammer":
+                ctxrows = [f"  {name or '(未知)':<28} {addr:#x}" for name, addr in _tool_instances()]
+            ctxrows.insert(0, f"  {md['cls'] or '(App 类)':<28} {md['tool_system']:#x}  ← App 单例（tool_system）")
+            return (f"[{md['label']}] 目标（共 %d 个）：\n%s\n\n"
+                    "可用上下文对象（共 %d 个）：\n%s\n\n"
+                    "用 cs2_bind_inspect(module=..., target=...) 看某个目标；"
+                    "用 cs2_bind_run(module=..., target=..., command=...) 执行。"
+                    % (len(rows), "\n".join(rows), len(ctxrows), "\n".join(ctxrows)))
 
-        found = _bind_find_target(target)
+        found = _bind_find_target(md, target)
         if not found:
             return f"找不到目标 {target!r}。用 cs2_bind_list 看有哪些目标。"
         desc, tname, cls = found
 
         if not (command or "").strip():
-            lines = [f"目标 {tname!r}  类={cls}  desc={desc:#x}"]
+            lines = [f"[{md['label']}] 目标 {tname!r}  类={cls}  desc={desc:#x}"]
             for cmd, cname, cdesc in _bind_commands(desc):
-                st = _bind_stages(cmd)
+                st = _bind_stages(cmd, md)
                 if not st:
                     continue
                 lines.append(f"\n· {cname}" + (f"  — {cdesc}" if cdesc else ""))
                 lines.append(f"    cmd={cmd:#x} hash={_read_int(cmd + CMD_OFF_HASH, 'u32'):#x}")
                 for s in st:
-                    lines.append("    " + _fmt_stage(s, base))
+                    lines.append("    " + _fmt_stage(s, md))
             if len(lines) == 1:
                 return f"目标 {tname!r} 下没有任何命令绑定函数。"
             return "\n".join(lines)
@@ -4569,15 +4734,15 @@ def cs2_bind_inspect(target: str = "", command: str = "") -> str:
         if not fcmd:
             return f"目标 {tname!r} 下找不到命令 {command!r}。"
         cmd, cname, cdesc = fcmd
-        st = _bind_stages(cmd)
+        st = _bind_stages(cmd, md)
         lines = [f"{tname}.{cname}   desc={desc:#x} cmd={cmd:#x}",
                  f"  名字 hash = {_read_int(cmd + CMD_OFF_HASH, 'u32'):#x}"
                  + (f"   描述: {cdesc}" if cdesc else "")]
         if not st:
             return "\n".join(lines + ["  该命令没绑任何 stage 函数（可能只是文档占位）。"])
         for s in st:
-            lines.append("  " + _fmt_stage(s, base))
-        ctx_addr, why = _bind_ctx(tname, cls, "")
+            lines.append("  " + _fmt_stage(s, md))
+        ctx_addr, why = _bind_ctx(md, tname, cls, "")
         lines.append(f"  上下文对象: {ctx_addr:#x}（{why}）" if ctx_addr
                      else "  上下文对象: 未知（执行时要用 ctx= 显式给）")
         return "\n".join(lines)
@@ -4588,35 +4753,43 @@ def cs2_bind_inspect(target: str = "", command: str = "") -> str:
 
 
 @mcp.tool()
-def cs2_bind_run(target: str, command: str, stage: str = "", ctx: str = "",
-                 arg: int = -1, confirm: bool = False) -> str:
-    """执行一个 Hammer 可绑定命令（直接调它绑定的成员函数，等价 Ctrl+Z 之外的原生动作）。
+def cs2_bind_run(module: str = "hammer", target: str = "", command: str = "", stage: str = "",
+                 ctx: str = "", arg: int = -1, confirm: bool = False) -> str:
+    """执行某编辑器模块的一个可绑定命令（直接调它绑定的成员函数）。
 
-    ⚠ 这是**真执行**：会走 Hammer 自己的工具方法（可能改选择集 / 视图 / 甚至开新地图）。
+    ⚠ 这是**真执行**：会走该编辑器自己的工具方法（可能改选择集 / 视图 / 甚至开新文档）。
     先跑 `cs2_bind_inspect` 看清要调什么；真正执行必须显式 `confirm=True`。
 
     原理（REVERSE_NOTES §17.6）：命令对象的每个 stage 存一个 `std::function`，
     `_Do_call` 的语义是 `(上下文对象->*pmf)(绑定实参)`。我们直接调 pmf：
         pmf(ctx + adj, arg)
     全部参数是整数，所以 DLL 的调用桥无需支持 xmm。
+    跨模块时 `ctx` 自动解析覆盖：**该模块的 App 单例**（`CHammerApp` / `CMaterialEditorTool` /
+    `CPetApp` / `CModelDocEditorApp`），以及 `GlobalHotkeys`（其命令不触碰 `this`，回退用 App 单例）；
+    其它工具类目标（如 modeldoc 的 `Tool_Selection`）需用 `ctx=` 显式给实例地址。
 
     Args:
-        target:  目标名（`HammerApp` / `ToolSelection` ...）。
-        command: 命令名（`ToggleSnapping` / `ShrinkGizmo` ...）。
+        module:  `hammer` / `met` / `modeldoc` / `pet`（默认 hammer）。该模块必须已加载。
+        target:  目标名（`HammerApp` / `ToolSelection` / `PetApp` ...）。
+        command: 命令名（`ToggleSnapping` / `ShrinkGizmo` / `NextSession` ...）。
         stage:   要执行的 stage。可传数字 0-7，或名字 `press`/`drag`/`repeat`/`release`/`execute`。
                  **留空 = 自动**：优先 `execute`(5)，没有就 `press`(0)，再退到第一个已绑档。
                  持续型命令（`Nudge*` / `BoxSelect` 等）是分档的，需要「按住再松开」时手动传两次。
-        ctx:     上下文对象地址（`0x...`）。留空 = 自动解析（`HammerApp` 走单例，其余按类名 RTTI 找工具实例）。
+        ctx:     上下文对象地址（`0x...`）。留空 = 自动解析（App 类走该模块单例；hammer 的其它
+                 工具类按类名 RTTI 找工具实例）。
         arg:     覆盖绑定实参（整数）；默认 -1 = 用命令自带的。
         confirm: 必须为 True 才真的执行；否则只回显将要调用的内容。
     """
-    base = _hammer_base()
+    try:
+        md = _tool_module(module)
+    except Exception as e:  # noqa: BLE001
+        return f"ERROR {type(e).__name__}: {e}"
     try:
         stage_idx = _stage_index(stage)
     except ValueError as e:
         return f"ERROR {e}"
     try:
-        found = _bind_find_target(target)
+        found = _bind_find_target(md, target)
         if not found:
             return f"找不到目标 {target!r}。"
         desc, tname, cls = found
@@ -4625,7 +4798,7 @@ def cs2_bind_run(target: str, command: str, stage: str = "", ctx: str = "",
             return f"目标 {tname!r} 下找不到命令 {command!r}。"
         cmd, cname, _ = fcmd
 
-        allst = _bind_stages(cmd)
+        allst = _bind_stages(cmd, md)
         if not allst:
             return f"{tname}.{cname} 没绑任何 stage 函数，无法执行。"
         s = _pick_stage(allst, stage_idx)
@@ -4633,22 +4806,35 @@ def cs2_bind_run(target: str, command: str, stage: str = "", ctx: str = "",
             return (f"{tname}.{cname} 在 stage={stage_idx} 没绑函数；"
                     f"可用 stage: {[x['stage'] for x in allst]}")
 
-        ctx_addr, why = _bind_ctx(tname, cls, ctx)
+        ctx_addr, why = _bind_ctx(md, tname, cls, ctx)
         if not ctx_addr:
             return (f"{tname}.{cname} 需要「上下文对象」地址，但没有可自动解析的来源。\n"
                     f"请用 ctx='0x...' 指定（例如该工具类的实例地址）。\n"
                     f"可用 stage: {[x['stage'] for x in allst]}")
-        obj = ctx_addr + s["adj"]
-        real_arg = s["arg"] if arg < 0 else int(arg)
 
-        plan = (f"{tname}.{cname}  stage={s['stage']}"
-                f"[{CMD_STAGE_LABELS.get(s['stage'], '?')}]  pmf=hammer+{s['pmf'] - base:#x}\n"
-                f"  将调用 pmf(this={obj:#x}, arg={real_arg})   "
-                f"[_Do_call=hammer+{s['do_call'] - base:#x}  ctx={ctx_addr:#x} ({why}) adj={s['adj']}]")
+        label = CMD_STAGE_LABELS.get(s["stage"], "?")
+        if arg >= 0:
+            # 覆盖绑定实参 → 只能绕过 _Do_call 直接调 pmf（要求 [pmf, adj, arg] 布局）
+            this = ctx_addr + s["adj"]
+            how = (f"直接调 pmf({md['label']}+{s['pmf'] - md['base']:#x})(this={this:#x}, "
+                   f"arg={int(arg)})   [⚠ 仅对 [pmf, adj, arg] 布局安全；arg 已被覆盖]")
+            call_args = [this, int(arg)]
+            call_target = s["pmf"]
+        else:
+            how = (f"走 _Do_call({md['label']}+{s['do_call'] - md['base']:#x})"
+                   f"(fn={s['block']:#x}, &ctx={ctx_addr:#x})   [等价 std::function 调用，布局无关]")
+            call_args = None
+            call_target = s["do_call"]
+
+        plan = (f"[{md['label']}] {tname}.{cname}  stage={s['stage']}[{label}]  "
+                f"ctx={ctx_addr:#x} ({why})\n  {how}")
         if not confirm:
             return plan + "\n（confirm=False：只回显，未执行。确认无误后传 confirm=True。）"
 
-        ret_hex, err = _call_addr(s["pmf"], [obj, real_arg], timeout=30000)
+        if call_args is None:
+            ret_hex, err = _bind_invoke_do_call(s, ctx_addr)
+        else:
+            ret_hex, err = _call_addr(call_target, call_args, timeout=30000)
         if err:
             return plan + f"\n❌ 调用失败: {err}"
         return plan + f"\n✅ 已执行  返回值={ret_hex or '0x0'}"

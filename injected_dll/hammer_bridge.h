@@ -43,6 +43,39 @@ struct ModuleDesc {
     size_t size = 0;           // SizeOfImage
 };
 
+// 工具模块：CS2 每个编辑器 DLL（hammer / met / modeldoc_editor / pet）都**自带**一份
+// CreateInterface 和一套 ToolSystem2 工具系统，各自的接口注册表相互独立。
+struct ToolModule {
+    std::string name;                  // 模块文件名，如 "hammer.dll"
+    std::string label;                 // 短名，如 "hammer"
+    std::string iface_name;            // 工具系统接口名，如 "ToolSystem2_001"
+    uintptr_t   rva_create_iface = 0;  // CreateInterface 的 RVA（GetProcAddress 失败时兜底）
+    uintptr_t   rva_iface_head = 0;    // s_pInterfaceRegs 链表头的 RVA（序言解析失败时兜底）
+    uintptr_t   rva_bind_head = 0;     // CBaseBindTargetDescriptor 描述符全局链表头 RVA（见 REVERSE_NOTES §17/§23）
+    HMODULE     module = nullptr;
+    uintptr_t   base = 0;              // 加载基址（= 内存里的 OptionalHeader.ImageBase）
+    void*       create_interface = nullptr;
+    uintptr_t   iface_list_head = 0;   // s_pInterfaceRegs 的运行时地址（从 CreateInterface 序言解析）
+    void*       tool_system = nullptr; // CreateInterface(iface_name) 的结果
+    std::string tool_system_class;     // tool_system 的 RTTI 实现类名（如 CMaterialEditorTool / CPetApp）
+    bool        loaded = false;        // 该模块当前是否已加载进进程
+};
+
+// 模块内 CreateInterface 注册表里的一项
+struct ModuleInterface {
+    std::string name;                  // 接口名，如 "ToolSystem2_001"
+    uintptr_t   factory = 0;           // 工厂函数地址
+};
+
+// 模块内可绑定目标描述符（CBindableTargetDescriptorInstance<T>，布局见 REVERSE_NOTES §17.6）
+struct ModuleBindTarget {
+    std::string name;                  // 目标名（vfn0 / 节点 +0x10）
+    std::string cls;                   // 实现类名（节点 +0x18）
+    std::string source_file;           // 注册处源文件（节点 +0x20）
+    int         line = 0;              // 注册处行号（节点 +0x28）
+    std::vector<std::string> commands; // 命令名（命令对象 +0x08）
+};
+
 // Typed value kinds for read_value / write_value
 enum class ValueType {
     U8, U16, U32, U64,
@@ -67,6 +100,28 @@ public:
 
     void* GetHammerApp();
     void* GetToolSystem();
+
+    // --- 工具模块（hammer / met / modeldoc_editor / pet）------------------
+    // 每个编辑器 DLL 各自一套 CreateInterface + ToolSystem2；未加载的模块 loaded==false。
+    // force_refresh=true 时重新枚举进程模块（pet.dll 这类按需加载的编辑器
+    // 可能在注入之后才加载，不能只信 Initialize() 时的一次性快照）
+    const std::vector<ToolModule>& ToolModules(bool force_refresh = false);
+    // 目标模块未加载时会自动重探一次，再判定
+    bool GetToolModule(const std::string& module, ToolModule& out);
+    bool GetToolSystemFor(const std::string& module, void*& out);
+
+    // --- 按模块枚举（hammer / met / modeldoc / pet 通用）-------------------
+    // 该模块 CreateInterface 注册表里登记的全部接口（名字 + 工厂地址）
+    std::vector<ModuleInterface> ListModuleInterfaces(const ToolModule& m);
+    // 直接向该模块的 CreateInterface 取任意命名接口
+    void* GetModuleInterface(const ToolModule& m, const std::string& name, int* rc = nullptr);
+    // 该模块的可绑定目标描述符链（Key Bindings / 工具热键体系，见 REVERSE_NOTES §17/§23）。
+    // include_commands=false 时只列目标名/类名，不展开命令（大模块如 modeldoc 可省大量读取）。
+    std::vector<ModuleBindTarget> ListModuleBindTargets(const ToolModule& m, bool include_commands);
+
+    // 解析某个对象主虚表的 RTTI 实现类名（MSVC BCD64：vtable-8 → COL → TypeDescriptor）。
+    // module_base 用于把 COL 里的 32 位 RVA 还原成绝对地址。失败返回空串。
+    std::string ResolveVtableClassName(uintptr_t obj, uintptr_t module_base);
 
     bool ReadMem(uintptr_t addr, void* buf, size_t size);
     bool WriteMem(uintptr_t addr, const void* buf, size_t size);
@@ -140,6 +195,10 @@ private:
     void* hammer_app_instance_ = nullptr;
 
     std::vector<ModuleDesc> modules_;  // cached by ListModules()
+
+    // 探测 hammer / met / modeldoc_editor / pet，填充 tool_modules_
+    void RefreshToolModules();
+    std::vector<ToolModule> tool_modules_;
 };
 
 // 记录本 DLL 的模块句柄（WH_GETMESSAGE 钩子需要它），由 DllMain 调用

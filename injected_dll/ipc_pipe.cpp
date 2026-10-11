@@ -404,6 +404,122 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
             {"size", JsonMakeInt((int64_t)m.size)}
         }));
     }
+    if (method == "tool_modules") {
+        // 四个编辑器模块（hammer / met / modeldoc_editor / pet）各自的 CreateInterface + 工具系统
+        std::vector<std::string> items;
+        for (const auto& m : bridge.ToolModules(true)) {  // 实时重探（pet.dll 可能注入后才加载）
+            items.push_back(JsonMakeObject({
+                {"name", JsonMakeString(m.name)},
+                {"label", JsonMakeString(m.label)},
+                {"iface", JsonMakeString(m.iface_name)},
+                {"loaded", JsonMakeBool(m.loaded)},
+                {"base", JsonMakeInt((int64_t)m.base)},
+                {"base_hex", JsonMakeString(Hex(m.base))},
+                {"create_interface", JsonMakeInt((int64_t)(void*)m.create_interface)},
+                {"create_interface_hex", JsonMakeString(Hex((uint64_t)(void*)m.create_interface))},
+                {"iface_list_head", JsonMakeInt((int64_t)m.iface_list_head)},
+                {"iface_list_head_hex", JsonMakeString(Hex(m.iface_list_head))},
+                {"bind_head", JsonMakeInt((int64_t)(m.base ? m.base + m.rva_bind_head : 0))},
+                {"bind_head_hex", JsonMakeString(Hex(m.base ? m.base + m.rva_bind_head : 0))},
+                {"tool_system", JsonMakeInt((int64_t)m.tool_system)},
+                {"tool_system_hex", JsonMakeString(Hex((uint64_t)m.tool_system))},
+                {"tool_system_class", JsonMakeString(m.tool_system_class)}
+            }));
+        }
+        return success(JsonMakeArray(items));
+    }
+    if (method == "get_tool_system") {
+        if (!params) return error("missing params");
+        std::string module = params->GetString("module");
+        if (module.empty()) return error("missing 'module'");
+        ToolModule m;
+        if (!bridge.GetToolModule(module, m)) return error("unknown tool module: " + module);
+        return success(JsonMakeObject({
+            {"name", JsonMakeString(m.name)},
+            {"label", JsonMakeString(m.label)},
+            {"iface", JsonMakeString(m.iface_name)},
+            {"loaded", JsonMakeBool(m.loaded)},
+            {"base", JsonMakeInt((int64_t)m.base)},
+            {"base_hex", JsonMakeString(Hex(m.base))},
+            {"iface_list_head", JsonMakeInt((int64_t)m.iface_list_head)},
+            {"iface_list_head_hex", JsonMakeString(Hex(m.iface_list_head))},
+            {"bind_head", JsonMakeInt((int64_t)(m.base ? m.base + m.rva_bind_head : 0))},
+            {"bind_head_hex", JsonMakeString(Hex(m.base ? m.base + m.rva_bind_head : 0))},
+            {"tool_system", JsonMakeInt((int64_t)m.tool_system)},
+            {"tool_system_hex", JsonMakeString(Hex((uint64_t)m.tool_system))},
+            {"tool_system_class", JsonMakeString(m.tool_system_class)}
+        }));
+    }
+    if (method == "module_interfaces") {
+        // 枚举某模块 CreateInterface 注册表里的全部接口（不调用工厂，纯读链表）
+        if (!params) return error("missing params");
+        std::string module = params->GetString("module");
+        if (module.empty()) return error("missing 'module'");
+        ToolModule m;
+        if (!bridge.GetToolModule(module, m)) return error("unknown tool module: " + module);
+        if (!m.loaded) return error("module not loaded: " + module);
+        std::vector<std::string> items;
+        for (const auto& mi : bridge.ListModuleInterfaces(m)) {
+            items.push_back(JsonMakeObject({
+                {"name", JsonMakeString(mi.name)},
+                {"factory", JsonMakeInt((int64_t)mi.factory)},
+                {"factory_hex", JsonMakeString(Hex(mi.factory))}
+            }));
+        }
+        return success(JsonMakeArray(items));
+    }
+    if (method == "module_get_interface") {
+        // 向某模块的 CreateInterface 取任意命名接口
+        if (!params) return error("missing params");
+        std::string module = params->GetString("module");
+        std::string name = params->GetString("name");
+        if (module.empty()) return error("missing 'module'");
+        if (name.empty()) return error("missing 'name'");
+        ToolModule m;
+        if (!bridge.GetToolModule(module, m)) return error("unknown tool module: " + module);
+        if (!m.loaded) return error("module not loaded: " + module);
+        int rc = -1;
+        void* ptr = bridge.GetModuleInterface(m, name, &rc);
+        return success(JsonMakeObject({
+            {"name", JsonMakeString(name)},
+            {"return_code", JsonMakeInt(rc)},
+            {"pointer", JsonMakeInt((int64_t)ptr)},
+            {"pointer_hex", JsonMakeString(Hex((uint64_t)ptr))}
+        }));
+    }
+    if (method == "module_bind_targets") {
+        // 枚举某模块的可绑定目标（Key Bindings / 工具热键体系，REVERSE_NOTES §17/§23）
+        if (!params) return error("missing params");
+        std::string module = params->GetString("module");
+        if (module.empty()) return error("missing 'module'");
+        bool with_cmds = params->GetBool("include_commands", true);
+        ToolModule m;
+        if (!bridge.GetToolModule(module, m)) return error("unknown tool module: " + module);
+        if (!m.loaded) return error("module not loaded: " + module);
+        auto targets = bridge.ListModuleBindTargets(m, with_cmds);
+        std::vector<std::string> items;
+        int cmd_total = 0;
+        for (const auto& t : targets) {
+            cmd_total += (int)t.commands.size();
+            std::vector<std::string> cmds;
+            for (const auto& c : t.commands) cmds.push_back(JsonMakeString(c));
+            std::vector<std::pair<std::string, std::string>> fields = {
+                {"name", JsonMakeString(t.name)},
+                {"class", JsonMakeString(t.cls)},
+                {"source_file", JsonMakeString(t.source_file)},
+                {"line", JsonMakeInt(t.line)},
+                {"command_count", JsonMakeInt((int)t.commands.size())}
+            };
+            if (with_cmds) fields.push_back({"commands", JsonMakeArray(cmds)});
+            items.push_back(JsonMakeObject(fields));
+        }
+        return success(JsonMakeObject({
+            {"module", JsonMakeString(m.label)},
+            {"target_count", JsonMakeInt((int)targets.size())},
+            {"command_total", JsonMakeInt(cmd_total)},
+            {"targets", JsonMakeArray(items)}
+        }));
+    }
     if (method == "read_value") {
         if (!params) return error("missing params");
         uintptr_t addr = 0;
@@ -658,6 +774,11 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
             JsonMakeString("read_qword"),
             JsonMakeString("list_modules"),
             JsonMakeString("get_module"),
+            JsonMakeString("tool_modules"),
+            JsonMakeString("get_tool_system"),
+            JsonMakeString("module_interfaces"),
+            JsonMakeString("module_get_interface"),
+            JsonMakeString("module_bind_targets"),
             JsonMakeString("read_value"),
             JsonMakeString("write_value"),
             JsonMakeString("write_memory"),

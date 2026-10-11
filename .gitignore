@@ -29,6 +29,10 @@ screen.txt
 sync.zip
 _sync.zip
 
+# ---- Trae 工作区 ----
+# 仅沉淀的 skill 入库（.trae/skills/）；规划文档属于其他项目，含内网部署信息，不入库
+.trae/documents/
+
 # ---- 调试残留 / 临时产物 ----
 _vmap_out/
 _ws_out/

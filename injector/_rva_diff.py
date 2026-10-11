@@ -16,13 +16,17 @@ r"""hammer.dll 换版体检 + RVA 自动重定位。
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import re
 import struct
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SERVER = REPO / "mcp_server" / "cs2_mcp_server.py"
+# ⚠ RVA_SERVER 必须指向**与参考 DLL 同一版本**的 RVA 表：换版时先在 git 里把旧表
+#   另存一份再指过来，否则会在错误偏移上取字节（工具不会报错，只会全错）。
+SERVER = Path(os.environ.get("RVA_SERVER") or (REPO / "mcp_server" / "cs2_mcp_server.py"))
 GAME_DLL = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
                 r"\game\bin\win64\tools\hammer.dll")
 OLD_DLL = REPO / "ida_db" / "hammer_new.dll"
@@ -100,9 +104,14 @@ def parse_rvas() -> list[tuple[str, int]]:
     """两侧硬编码的 RVA：server 的 `RVA_*` + DLL 里 hammer_bridge.cpp 的 `kXxxRva`。"""
     out: list[tuple[str, int]] = []
     txt = SERVER.read_text(encoding="utf-8", errors="replace")
-    out += [(m.group(1), int(m.group(2), 16))
-            for m in re.finditer(r"^(RVA_[A-Z0-9_]+)\s*=\s*(0x[0-9A-Fa-f]+)\b", txt, re.M)]
-    bridge = REPO / "injected_dll" / "hammer_bridge.cpp"
+    # ⚠ RVA_QT_* 存的是 **Qt5Widgets.dll / Qt5Core.dll** 的偏移（server 里每条都有
+    #   `@ Qt5Widgets` / `@ Qt5Core` 注释），跟 hammer.dll 无关，绝不能拿 hammer.dll
+    #   的字节去差分它们。踩过一次：靠巧合把 QMainWindow::menuBar() 从 0x135220
+    #   "迁"到 0x135260，Hammer 一开图就在 Qt5Widgets+0x135262 闪退。
+    raw = [(m.group(1), int(m.group(2), 16))
+           for m in re.finditer(r"^(RVA_[A-Z0-9_]+)\s*=\s*(0x[0-9A-Fa-f]+)\b", txt, re.M)]
+    out += [(n, v) for n, v in raw if not n.startswith("RVA_QT_")]
+    bridge = Path(os.environ.get("RVA_BRIDGE") or (REPO / "injected_dll" / "hammer_bridge.cpp"))
     if bridge.exists():
         bt = bridge.read_text(encoding="utf-8", errors="replace")
         out += [(m.group(1), int(m.group(2), 16))
@@ -137,6 +146,7 @@ GLOBALS = [
     ("RVA_MAP_HISTORY_GATE",      0x221A418),
     ("RVA_BIND_TARGET_LIST",      0x272D898),
     ("RVA_CHAMMERAPP",            0x677AE50),
+    ("RVA_CMAPENTITY_FACTORY",    0x21DB400),
 ]
 
 # `[REX?][opcode][modrm]`，modrm 的 mod=00 rm=101 就是 RIP 相对（reg 字段任意）
@@ -260,7 +270,13 @@ def vtable_probe(pe: Pe, rva: int, count: int = 8):
 
 
 def main() -> int:
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    argv = list(sys.argv[1:])
+    json_out: Path | None = None
+    if "--json" in argv:                      # --json 是带值的选项，先摘出去，别混进位置参数
+        i = argv.index("--json")
+        json_out = Path(argv[i + 1])
+        del argv[i:i + 2]
+    args = [a for a in argv if not a.startswith("--")]
     old_p = Path(args[0]) if len(args) > 0 else OLD_DLL
     new_p = Path(args[1]) if len(args) > 1 else GAME_DLL
     win = int(args[2]) if len(args) > 2 else 48
@@ -336,16 +352,25 @@ def main() -> int:
             print(f"   ✘ {rva:#010x}  {name:<34} 旧片段 {snip[:8].hex(' ')}  → 函数本体被改，需重逆")
             real_lost.append((name, rva))
 
+    globals_map: dict[str, int] = {}
     if "--globals" in sys.argv:
         print("\n" + "=" * 78)
         print("④ 数据全局：靠 .text 里的 RIP 相对引用反查")
         for name, rva in GLOBALS:
             new, site_old, site_new, diag = relocate_via_xref(pe_old, pe_new, rva)
             if new:
+                globals_map[name] = new
                 print(f"   → {rva:#010x} → {new:#010x}  Δ{new - rva:+#x}  {name:<28}"
                       f" (引用指令 {site_old:#x}→{site_new:#x})")
             else:
                 print(f"   ✘ {rva:#010x}  {name:<28} 反查失败: {', '.join(diag[:6])}")
+
+    if json_out is not None:
+        mp = {name: nrva for name, _rva, nrva, _h, _o in moved}
+        mp.update(globals_map)
+        json_out.parent.mkdir(parents=True, exist_ok=True)
+        json_out.write_text(json.dumps(mp, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"\n已写出 {len(mp)} 条新 RVA -> {json_out}")
 
     print("\n" + "=" * 78)
     deltas: dict[int, int] = {}

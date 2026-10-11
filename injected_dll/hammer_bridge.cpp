@@ -100,10 +100,10 @@ bool ParseValueType(const std::string& s, ValueType& out) {
 }
 
 namespace HammerAddr {
-    constexpr uintptr_t kCreateInterfaceRva = 0x13FFCB0;
-    constexpr uintptr_t kInterfaceListHeadRva = 0x2733FB0;
-    constexpr uintptr_t kToolSystemFactoryRva = 0x115270;
-    constexpr uintptr_t kToolSystemNameRva = 0x1CB1C48;
+    constexpr uintptr_t kCreateInterfaceRva = 0x1401130;
+    constexpr uintptr_t kInterfaceListHeadRva = 0x2738770;
+    constexpr uintptr_t kToolSystemFactoryRva = 0x1152B0;
+    constexpr uintptr_t kToolSystemNameRva = 0x1CB4898;
 
     // 2026-09 新版 hammer.dll（见 REVERSE_NOTES.md §3）：
     // 旧全局文档表 (0x2355020/0x2355028) 已失效，改为运行时对象链枚举：
@@ -114,7 +114,7 @@ namespace HammerAddr {
     constexpr uintptr_t kAppSessionVecMem   = 0x60;
     constexpr uintptr_t kSessionActiveWrap  = 0x138;
     constexpr uintptr_t kWrapperDocEmbed    = 0x10;
-    constexpr uintptr_t kCMapDocVtableRva   = 0x1764188;
+    constexpr uintptr_t kCMapDocVtableRva   = 0x1766188;
 }
 
 HammerBridge& HammerBridge::Instance() {
@@ -132,6 +132,238 @@ static uintptr_t GetModuleImageBase(HMODULE hMod) {
         }
     }
     return 0;
+}
+
+// ---------------------------------------------------------------------------
+// 工具模块表：四个 CS2 编辑器 DLL 各自的工具系统接口名。
+//   · hammer.dll / met.dll / pet.dll  -> "ToolSystem2_001"
+//   · modeldoc_editor.dll             -> "ToolSystem2_ModelDoc"
+// 四者导出表完全一致（各 6 个导出，都含 CreateInterface），故优先 GetProcAddress；
+// RVA 只在取不到导出时兜底（值取自各 DLL 的导出表）。
+// ---------------------------------------------------------------------------
+namespace {
+struct ToolModuleSpec {
+    const char* name;
+    const char* label;
+    const char* iface;
+    uintptr_t   rva_create_iface;
+    uintptr_t   rva_iface_head;   // s_pInterfaceRegs 链头（序言解析失败时兜底）
+    uintptr_t   rva_bind_head;    // CBaseBindTargetDescriptor 链头（REVERSE_NOTES §23.2 IDA 实测）
+};
+const ToolModuleSpec kToolModuleSpecs[] = {
+    // rva_iface_head 也可从 CreateInterface 序言 `REX 8B /r [rip+d]` 动态解析，
+    // 表里的值是 2026-10-10 版实测，仅作兜底；rva_bind_head 是数据全局，无法推导，只能硬编码。
+    { "hammer.dll",          "hammer",   "ToolSystem2_001",      0x1401130, 0x2738770,  0x2731E98 },
+    { "met.dll",             "met",      "ToolSystem2_001",      0x1D89A0,  0x4A1740,   0x4A0AD0  },
+    { "modeldoc_editor.dll", "modeldoc", "ToolSystem2_ModelDoc", 0xAF2AB0,  0x1AAB588,  0x1AA9620 },
+    { "pet.dll",             "pet",      "ToolSystem2_001",      0x3A2AE0,  0x93A1D0,   0x938408 },
+};
+
+// 从 CreateInterface 序言解析 s_pInterfaceRegs 链头地址。
+// Source 系统一序言：4C 8B 0D d32（mov r9,[rip+d]）/ 48 8B 05/0D（mov rax/rcx,[rip+d]）。
+// 返回 0 = 不是这个模式（调用方改用 RVA 兜底）。
+uintptr_t ParseInterfaceListHead(void* fn) {
+    if (!fn) return 0;
+    auto* p = reinterpret_cast<uint8_t*>(fn);
+    __try {
+        uint8_t rex = p[0], op = p[1], modrm = p[2];
+        if ((rex == 0x48 || rex == 0x4C) && op == 0x8B && (modrm & 0xC7) == 0x05) {
+            int32_t disp = *reinterpret_cast<int32_t*>(p + 3);
+            return reinterpret_cast<uintptr_t>(p) + 7 + disp;
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return 0;
+    }
+    return 0;
+}
+
+std::string LowerAscii(const std::string& s) {
+    std::string r = s;
+    for (auto& c : r) {
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+    }
+    return r;
+}
+}  // namespace
+
+void HammerBridge::RefreshToolModules() {
+    tool_modules_.clear();
+    for (const auto& spec : kToolModuleSpecs) {
+        ToolModule tm;
+        tm.name = spec.name;
+        tm.label = spec.label;
+        tm.iface_name = spec.iface;
+        tm.rva_create_iface = spec.rva_create_iface;
+        tm.rva_iface_head = spec.rva_iface_head;
+        tm.rva_bind_head = spec.rva_bind_head;
+
+        HMODULE h = GetModuleHandleA(spec.name);
+        if (!h) {  // 大小写/名称不匹配时退回全量枚举
+            HMODULE mods[1024];
+            DWORD need = 0;
+            if (EnumProcessModules(GetCurrentProcess(), mods, sizeof(mods), &need)) {
+                for (DWORD i = 0; i < need / sizeof(HMODULE); i++) {
+                    char nm[MAX_PATH] = {};
+                    if (GetModuleBaseNameA(GetCurrentProcess(), mods[i], nm, sizeof(nm)) &&
+                        _stricmp(nm, spec.name) == 0) {
+                        h = mods[i];
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (h) {
+            tm.module = h;
+            tm.base = GetModuleImageBase(h);
+            tm.loaded = true;
+            tm.create_interface = (void*)GetProcAddress(h, "CreateInterface");
+            if (!tm.create_interface && tm.base) {
+                tm.create_interface = (void*)(tm.base + tm.rva_create_iface);
+            }
+            // s_pInterfaceRegs 链头：优先从 CreateInterface 序言动态解析，失败用 RVA 兜底
+            tm.iface_list_head = ParseInterfaceListHead(tm.create_interface);
+            if (!tm.iface_list_head && tm.base) {
+                tm.iface_list_head = tm.base + tm.rva_iface_head;
+            }
+            if (tm.create_interface) {
+                int rc = -1;
+                auto fn = (CreateInterfaceFn)tm.create_interface;
+                tm.tool_system = fn(tm.iface_name.c_str(), &rc);
+                if (tm.tool_system && tm.base) {
+                    tm.tool_system_class = ResolveVtableClassName((uintptr_t)tm.tool_system, tm.base);
+                }
+            }
+        }
+        tool_modules_.push_back(tm);
+    }
+}
+
+const std::vector<ToolModule>& HammerBridge::ToolModules(bool force_refresh) {
+    if (force_refresh || tool_modules_.empty()) RefreshToolModules();
+    return tool_modules_;
+}
+
+bool HammerBridge::GetToolModule(const std::string& module, ToolModule& out) {
+    const std::string want = LowerAscii(module);
+    auto find_module = [&](const std::vector<ToolModule>& list, bool require_loaded) -> const ToolModule* {
+        for (const auto& m : list) {
+            if (want == LowerAscii(m.name) || want == LowerAscii(m.label)) {
+                if (require_loaded && !m.loaded) return nullptr;
+                return &m;
+            }
+        }
+        return nullptr;
+    };
+
+    // 第一次查缓存（可能是注入后的旧快照）
+    if (const auto* m = find_module(tool_modules_, false)) {
+        if (m->loaded) { out = *m; return true; }
+    }
+    // 没查到 / 查到但尚未加载 -> 重新枚举进程模块再查一次
+    // （pet.dll 等按需加载的编辑器可能在注入之后才被打开）
+    if (const auto* m = find_module(ToolModules(true), false)) {
+        out = *m;
+        return true;
+    }
+    return false;
+}
+
+bool HammerBridge::GetToolSystemFor(const std::string& module, void*& out) {
+    ToolModule m;
+    if (!GetToolModule(module, m) || !m.tool_system) return false;
+    out = m.tool_system;
+    return true;
+}
+
+std::vector<ModuleInterface> HammerBridge::ListModuleInterfaces(const ToolModule& m) {
+    std::vector<ModuleInterface> out;
+    if (!m.loaded || !m.iface_list_head) return out;
+    // InterfaceNode { void* factory; const char* name; InterfaceNode* next; }（24 字节）
+    uintptr_t node = ReadQword(m.iface_list_head);
+    constexpr int kMaxNodes = 256;
+    for (int i = 0; node && i < kMaxNodes; ++i) {
+        ModuleInterface mi;
+        mi.factory = ReadQword(node + 0x00);
+        uintptr_t name_ptr = ReadQword(node + 0x08);
+        if (name_ptr) ReadCString(name_ptr, 128, mi.name);
+        out.push_back(std::move(mi));
+        node = ReadQword(node + 0x10);
+    }
+    return out;
+}
+
+void* HammerBridge::GetModuleInterface(const ToolModule& m, const std::string& name, int* rc) {
+    if (!m.loaded || !m.create_interface || name.empty()) return nullptr;
+    int local_rc = -1;
+    void* result = ((CreateInterfaceFn)m.create_interface)(name.c_str(), &local_rc);
+    if (rc) *rc = local_rc;
+    return result;
+}
+
+std::string HammerBridge::ResolveVtableClassName(uintptr_t obj, uintptr_t module_base) {
+    // MSVC x64 RTTI：对象 +0x00 = 主虚表；虚表 -8 = CompleteObjectLocator(COL)；
+    // COL +0x0C = pTypeDescriptor 的 32 位 RVA（相对模块基址）；TD +0x10 = 名字内联字符数组。
+    if (!obj || !module_base) return "";
+    uintptr_t vtable = ReadQword(obj + 0x00);
+    if (!vtable) return "";
+    uintptr_t col = ReadQword(vtable - 8);
+    if (!col) return "";
+    uint32_t td_rva = ReadDword(col + 0x0C);
+    if (!td_rva) return "";
+    std::string name;
+    ReadCString(module_base + td_rva + 0x10, 128, name);
+    if (name.rfind(".?AV", 0) == 0) name.erase(0, 4);  // 去掉 MSVC 修饰前缀
+    while (!name.empty() && name.back() == '@') name.pop_back();  // 去掉尾部修饰
+    return name;
+}
+
+std::vector<ModuleBindTarget> HammerBridge::ListModuleBindTargets(const ToolModule& m,
+                                                                  bool include_commands) {
+    // 节点布局与 hammer 完全一致（同一套 tier2 框架静态链进各编辑器 DLL），
+    // 字段偏移见 REVERSE_NOTES §17.6；四个模块的链表头 RVA 见 §23.2。
+    constexpr uintptr_t kOffName      = 0x10;  // 目标名 char*
+    constexpr uintptr_t kOffClass     = 0x18;  // 实现类名 char*
+    constexpr uintptr_t kOffFile      = 0x20;  // 注册源文件 char*
+    constexpr uintptr_t kOffLine      = 0x28;  // 行号 u32
+    constexpr uintptr_t kOffNext      = 0x38;  // next
+    constexpr uintptr_t kOffCmdCount  = 0x40;  // 命令数 i32
+    constexpr uintptr_t kOffCmdArray  = 0x48;  // 命令对象指针数组
+    constexpr uintptr_t kCmdOffName   = 0x08;  // 命令名 char*
+    constexpr int kMaxNodes = 4096;
+    constexpr int kMaxCmds  = 512;
+
+    std::vector<ModuleBindTarget> out;
+    if (!m.loaded || !m.base || !m.rva_bind_head) return out;
+    uintptr_t node = ReadQword(m.base + m.rva_bind_head);
+    uintptr_t prev = 0;
+    for (int i = 0; node && i < kMaxNodes; ++i) {
+        if (node == prev) break;  // 自指保护
+        prev = node;
+        ModuleBindTarget t;
+        uintptr_t p;
+        if ((p = ReadQword(node + kOffName)))  ReadCString(p, 128, t.name);
+        if ((p = ReadQword(node + kOffClass))) ReadCString(p, 128, t.cls);
+        if ((p = ReadQword(node + kOffFile)))  ReadCString(p, 260, t.source_file);
+        t.line = (int)ReadDword(node + kOffLine);
+        if (include_commands) {
+            int cnt = (int)ReadDword(node + kOffCmdCount);
+            uintptr_t arr = ReadQword(node + kOffCmdArray);
+            if (cnt > 0 && cnt <= kMaxCmds && arr) {
+                for (int k = 0; k < cnt; ++k) {
+                    uintptr_t cmd = ReadQword(arr + (uintptr_t)k * 8);
+                    if (!cmd) continue;
+                    uintptr_t cname = ReadQword(cmd + kCmdOffName);
+                    std::string s;
+                    if (cname) ReadCString(cname, 160, s);
+                    if (!s.empty()) t.commands.push_back(std::move(s));
+                }
+            }
+        }
+        out.push_back(std::move(t));
+        node = ReadQword(node + kOffNext);
+    }
+    return out;
 }
 
 bool HammerBridge::Initialize() {
@@ -168,32 +400,37 @@ bool HammerBridge::Initialize() {
         }
     }
 
-    if (!hammer_module_ || !hammer_base_) {
-        return false;
+    // hammer 专属路径：解析 CreateInterface 并拿 CHammerApp（ToolSystem2_001）
+    if (hammer_module_ && hammer_base_) {
+        create_interface_ = (CreateInterfaceFn)GetProcAddress(hammer_module_, "CreateInterface");
+        if (!create_interface_) {
+            create_interface_ = (CreateInterfaceFn)(hammer_base_ + HammerAddr::kCreateInterfaceRva);
+        }
+        list_head_rva_ = HammerAddr::kInterfaceListHeadRva;
+        if (create_interface_) {
+            int rc = -1;
+            hammer_app_instance_ = GetInterface("ToolSystem2_001", &rc);
+        }
     }
 
-    // Find CreateInterface export
-    create_interface_ = (CreateInterfaceFn)GetProcAddress(hammer_module_, "CreateInterface");
-    if (!create_interface_) {
-        create_interface_ = (CreateInterfaceFn)(hammer_base_ + HammerAddr::kCreateInterfaceRva);
-    }
-    if (!create_interface_) {
-        return false;
+    // 探测全部编辑器模块（hammer / met / modeldoc_editor / pet）
+    RefreshToolModules();
+    for (const auto& m : tool_modules_) {
+        if (m.label == "hammer" && m.tool_system) hammer_app_instance_ = m.tool_system;
     }
 
-    list_head_rva_ = HammerAddr::kInterfaceListHeadRva;
-
-    // Try get ToolSystem2_001
-    int rc = -1;
-    hammer_app_instance_ = GetInterface("ToolSystem2_001", &rc);
-
-    initialized_ = true;
-    return true;
+    // 只要有一个模块的工具系统可用就算初始化成功 —— 编辑器进程可能只加载了
+    // modeldoc_editor / pet，并没有 hammer.dll
+    for (const auto& m : tool_modules_) {
+        if (m.loaded && m.tool_system) { initialized_ = true; break; }
+    }
+    return initialized_;
 }
 
 void HammerBridge::Shutdown() {
     hammer_app_instance_ = nullptr;
     create_interface_ = nullptr;
+    tool_modules_.clear();
     initialized_ = false;
 }
 
