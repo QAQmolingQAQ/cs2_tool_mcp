@@ -10,6 +10,7 @@ from .bindings import (
     cs2_bind_inspect,
     cs2_bind_run,
     cs2_editor_sessions,
+    cs2_editor_document,
     cs2_sel,
 )
 from .editor_actions import (
@@ -150,6 +151,7 @@ TOOL_FUNCTIONS = (
     cs2_bind_inspect,
     cs2_bind_run,
     cs2_editor_sessions,
+    cs2_editor_document,
     cs2_modeldoc_action,
     cs2_particle_editor_action,
     cs2_sel,

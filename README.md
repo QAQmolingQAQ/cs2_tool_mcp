@@ -24,6 +24,10 @@ show ModelDoc node attributes and Particle Editor function/child arrays by path
 (for example `rootNode.children[0]` or `m_Operators[0]`). It does not include
 unsaved changes in an open editor session.
 
+`cs2_editor_document` identifies the active ModelDoc or Particle Editor's live
+document and root object using module-specific RTTI checks. It works for an
+unsaved document, but child-node and attribute enumeration are still pending.
+
 The build creates `cs2_tool.dll` at the project root and under
 `injected_dll/build_vs18/Release/` when using Visual Studio 18.
 

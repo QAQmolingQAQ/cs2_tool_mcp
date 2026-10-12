@@ -39,6 +39,21 @@ class EditorSessionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "implausible"):
                 bindings._editor_sessions(md)
 
+    def test_document_lookup_validates_both_document_and_root_rtti(self):
+        md = {"label": "pet"}
+        values = {0x1000 + 0x108: 0x2000, 0x2000 + 0x80: 0x3000}
+        classes = {0x2000: "CPetDoc", 0x3000: "CPetRootNode"}
+        with patch.object(bindings, "_tool_module", return_value=md), \
+             patch.object(bindings, "_editor_sessions", return_value=([0x1000], 0x1000)), \
+             patch.object(bindings, "_read_int", side_effect=lambda address, kind: values[address]), \
+             patch.object(bindings, "_editor_session_class",
+                          side_effect=lambda address, module: classes.get(address, "")):
+            result = bindings.cs2_editor_document("pet")
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["root"], "0x3000")
+            classes[0x3000] = "CWrongRoot"
+            self.assertFalse(bindings.cs2_editor_document("pet")["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

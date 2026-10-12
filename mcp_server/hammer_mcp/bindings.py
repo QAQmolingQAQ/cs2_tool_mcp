@@ -294,6 +294,44 @@ def cs2_editor_sessions(module: str = "modeldoc") -> str:
         return f"ERROR {error}"
 
 
+_EDITOR_DOCUMENT_LAYOUT = {
+    "modeldoc": (0x118, "CModelDoc", 0x3C0, "CModelDocRoot"),
+    "pet": (0x108, "CPetDoc", 0x80, "CPetRootNode"),
+}
+
+
+def cs2_editor_document(module: str = "modeldoc") -> dict:
+    """Identify the active editor's live document and validated root object.
+
+    Reads current memory, including an unsaved document. This is a structural
+    entry point; it does not yet enumerate the root's child nodes or attributes.
+
+    Args:
+        module: `modeldoc` or `pet` (Particle Editor).
+    """
+    try:
+        md = _tool_module(module)
+        layout = _EDITOR_DOCUMENT_LAYOUT.get(md["label"])
+        if layout is None:
+            raise ValueError("module must be modeldoc or pet")
+        sessions, active = _editor_sessions(md)
+        if not active:
+            raise RuntimeError("no validated active editor session")
+        doc_off, doc_class, root_off, root_class = layout
+        document = _read_int(active + doc_off, "u64")
+        if not document or _editor_session_class(document, md) != doc_class:
+            raise RuntimeError(f"document at session+{doc_off:#x} failed RTTI validation")
+        root = _read_int(document + root_off, "u64")
+        if not root or _editor_session_class(root, md) != root_class:
+            raise RuntimeError(f"root at document+{root_off:#x} failed RTTI validation")
+        return {"ok": True, "module": md["label"], "session": hex(active),
+                "document": hex(document), "document_class": doc_class,
+                "root": hex(root), "root_class": root_class,
+                "session_count": len(sessions), "scope": "live editor memory; unsaved state"}
+    except (ConnectionError, RuntimeError, ValueError, KeyError) as error:
+        return {"ok": False, "module": module, "error": f"{type(error).__name__}: {error}"}
+
+
 def _bind_ctx(md: dict, target: str, cls: str, ctx: str) -> tuple[int, str]:
     """解析执行用的「上下文对象」-> (`地址`, 说明)。
 

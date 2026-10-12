@@ -667,3 +667,9 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 - ModelDoc 与 Particle Editor 会话仍在线，分别验证有 1 个活动会话。当前 bind 操作已经覆盖会话命令；本轮转向节点和属性数据。
 - 新增只读 `cs2_asset_tree`，解析保存后的文本 KV3 `.vmdl` / `.vpcf`，支持按 `rootNode.children[0]`、`m_Operators[0]` 等路径查询节点、标量属性、粒子函数、子粒子引用。明确标注它不包含编辑器里未保存的改动；二进制编译资产不支持。
 - 39 项单元测试通过；实际 CS2 content 目录抽查 25 个 `.vpcf` 和 10 个 `.vmdl`，全部解析成功。MCP stdio 实机调用 `cs2_asset_tree(m_Children[0])` 读回子粒子资源引用成功（69 个工具）。后续仍需逆向编辑器会话内存和可写节点 API，以支持未保存状态及可靠修改。
+
+# 2026-10-13 — 编辑器内存中的活动文档和根对象
+
+- ModelDoc 活动会话 `+0x118` 指向 `CModelDoc`，文档 `+0x3C0` 指向 `CModelDocRoot`；Particle Editor 活动会话 `+0x108` 指向 `CPetDoc`，文档 `+0x80` 指向 `CPetRootNode`。两条链路的每级都以所属 DLL 的 MSVC RTTI 实机验证。
+- 新增只读 `cs2_editor_document`，返回活动会话、文档和根对象地址与验证后的类名，能定位未保存文档；尚未声称读取根节点的子元素或属性。
+- 40 项单元测试通过；MCP stdio 对 ModelDoc、Particle Editor 两个活动文档的调用均返回 `ok=true`（70 个工具）。
