@@ -2,6 +2,9 @@
 from .automation import (
     cs2_entity_create_brush,
 )
+from .asset_tree import (
+    cs2_asset_tree,
+)
 from .bindings import (
     cs2_bind_list,
     cs2_bind_inspect,
@@ -88,6 +91,7 @@ from .particles import (
     cs2_particle_set_definition,
 )
 TOOL_FUNCTIONS = (
+    cs2_asset_tree,
     cs2_pipe_ping,
     cs2_hammer_status,
     cs2_initialize,

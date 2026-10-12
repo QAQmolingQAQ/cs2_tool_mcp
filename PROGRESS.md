@@ -661,3 +661,9 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 - 参考 [Rmgs123/cs2-map-mcp](https://github.com/Rmgs123/cs2-map-mcp) 的 `check_map` 与“修改—检查”流程，但保留本项目的实时 Hammer 文档架构。
 - 新增 `cs2_map_check`：只读扫描当前地图的实体、mesh 和名称，报告缺失笔刷几何、空/未就绪 mesh、非法坐标和重复 targetname；读取故障返回 `ok=false`，不会误报地图干净。
 - 37 项单元测试通过。检查工具使用严格场景遍历，读取故障不再被忽略。实机桥接可连通，但当前 Hammer 没有打开地图文档（`count=0`），因此本轮无法做地图内容验证。
+
+# 2026-10-13 — ModelDoc / Particle 源素材树查询
+
+- ModelDoc 与 Particle Editor 会话仍在线，分别验证有 1 个活动会话。当前 bind 操作已经覆盖会话命令；本轮转向节点和属性数据。
+- 新增只读 `cs2_asset_tree`，解析保存后的文本 KV3 `.vmdl` / `.vpcf`，支持按 `rootNode.children[0]`、`m_Operators[0]` 等路径查询节点、标量属性、粒子函数、子粒子引用。明确标注它不包含编辑器里未保存的改动；二进制编译资产不支持。
+- 39 项单元测试通过；实际 CS2 content 目录抽查 25 个 `.vpcf` 和 10 个 `.vmdl`，全部解析成功。MCP stdio 实机调用 `cs2_asset_tree(m_Children[0])` 读回子粒子资源引用成功（69 个工具）。后续仍需逆向编辑器会话内存和可写节点 API，以支持未保存状态及可靠修改。

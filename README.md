@@ -19,6 +19,11 @@ unavailable meshes, invalid entity origins, and duplicate targetnames. Duplicate
 names are informational because Source I/O may intentionally use them. This
 check does not compile or playtest the map.
 
+`cs2_asset_tree` reads saved text-KV3 `.vmdl` and `.vpcf` source files. It can
+show ModelDoc node attributes and Particle Editor function/child arrays by path
+(for example `rootNode.children[0]` or `m_Operators[0]`). It does not include
+unsaved changes in an open editor session.
+
 The build creates `cs2_tool.dll` at the project root and under
 `injected_dll/build_vs18/Release/` when using Visual Studio 18.
 
