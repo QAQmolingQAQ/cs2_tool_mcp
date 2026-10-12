@@ -646,3 +646,4 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 - 将当前构建的 `cs2_tool.dll` 注入运行中的 CS2/Hammer 进程后，桥接层 ping 返回 `initialized=true`。
 - `module_interfaces` 从已加载模块读回：`tier0` 4 个接口（含 `VEngineCvar007`）、`scenesystem` 3 个（含 `SceneSystem_002`）、`particles` 1 个（`ParticleSystemMgr003`）、`hammer` 1 个（`ToolSystem2_001`）。
 - `module_get_interface` 对 `SceneSystem_002`、`VEngineCvar007`、`ParticleSystemMgr003` 均返回 `return_code=0` 且指针非零。新增的跨 DLL 发现路径已通过进程内验证。
+- 同一桥接路径继续覆盖 24 个已加载的运行时/工具 DLL，共读到 93 个注册接口；包括 `engine2` (34)、`filesystem_stdio` (2)、`materialsystem2` (5)、`networksystem` (4)、`client` (9)、`server` (10)、`assetsystem` (2) 等。`HostStateMgr001`、`VFileSystem017`、`SchemaSystem_001`、`VMaterialSystem2_001`、`MeshSystem001`、`AssetSystem001`、`ToolFramework2_002` 的 CreateInterface 调用均返回非零实例和成功码。
