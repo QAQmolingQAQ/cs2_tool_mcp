@@ -640,3 +640,9 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
   hammer、met、modeldoc_editor、pet 四个编辑器 DLL。
 - C++ Release 构建成功；Python 28 项测试与 MCP stdio 工具清单通过。
   本轮无运行中的 cs2 进程，新增跨 DLL 路径尚未做进程内读回验证。
+
+## 2026-10-13 — 其他 DLL 接口实机验证
+
+- 将当前构建的 `cs2_tool.dll` 注入运行中的 CS2/Hammer 进程后，桥接层 ping 返回 `initialized=true`。
+- `module_interfaces` 从已加载模块读回：`tier0` 4 个接口（含 `VEngineCvar007`）、`scenesystem` 3 个（含 `SceneSystem_002`）、`particles` 1 个（`ParticleSystemMgr003`）、`hammer` 1 个（`ToolSystem2_001`）。
+- `module_get_interface` 对 `SceneSystem_002`、`VEngineCvar007`、`ParticleSystemMgr003` 均返回 `return_code=0` 且指针非零。新增的跨 DLL 发现路径已通过进程内验证。
