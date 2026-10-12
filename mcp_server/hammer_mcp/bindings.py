@@ -1,6 +1,7 @@
 """Hammer bindings operations."""
 from __future__ import annotations
 from .offsets import (
+    APP_OFF_ACTIVE_SESSION,
     APP_OFF_SESSION_ARRAY,
     APP_OFF_SESSION_COUNT,
     BIND_CMD_OFF_DESC,
@@ -239,6 +240,60 @@ def _tool_instances() -> list[tuple[str, int]]:
     return out
 
 
+def _editor_session_class(obj: int, md: dict) -> str:
+    """Read a session's MSVC RTTI using its own DLL image base."""
+    base, size = md["base"], md["size"]
+    try:
+        vt = _read_int(obj, "u64")
+        if not base <= vt < base + size:
+            return ""
+        col = _read_int(vt - 8, "u64")
+        if not base <= col < base + size:
+            return ""
+        name = _read_string(base + _read_int(col + RTTI_COL_TO_TYPEDESC, "u32") + 0x10, 160)
+    except Exception:  # noqa: BLE001
+        return ""
+    return name[4:].split("@@")[0] if name.startswith(".?AV") else ""
+
+
+def _editor_sessions(md: dict) -> tuple[list[int], int]:
+    """Enumerate and validate the active ModelDoc/Particle Editor session."""
+    expected = {"modeldoc": "CModelDocEditorSession", "pet": "CPetSession"}.get(md["label"])
+    if not expected:
+        raise ValueError("only modeldoc and pet editor sessions are supported")
+    app = md["tool_system"]
+    count = _read_int(app + APP_OFF_SESSION_COUNT, "u32")
+    if count > 64:
+        raise ValueError(f"implausible {md['label']} session count: {count}")
+    array = _read_int(app + APP_OFF_SESSION_ARRAY, "u64")
+    if count and not 0x10000 < array < 0x7FFFFFFFFFFF:
+        raise ValueError("invalid editor session array")
+    sessions = []
+    for index in range(count):
+        address = _read_int(array + index * 8, "u64")
+        if 0x10000 < address < 0x7FFFFFFFFFFF and _editor_session_class(address, md) == expected:
+            sessions.append(address)
+    active = _read_int(app + APP_OFF_ACTIVE_SESSION, "u64")
+    return sessions, active if active in sessions else 0
+
+
+def cs2_editor_sessions(module: str = "modeldoc") -> str:
+    """List validated ModelDoc or Particle Editor sessions and the active context.
+
+    Args:
+        module: `modeldoc` or `pet` (Particle Editor). The editor must be loaded.
+    """
+    try:
+        md = _tool_module(module)
+        sessions, active = _editor_sessions(md)
+        lines = [f"{md['label']} sessions: {len(sessions)}, active={active:#x}"]
+        lines.extend(f"  {index}: {address:#x}" + (" [active]" if address == active else "")
+                     for index, address in enumerate(sessions))
+        return "\n".join(lines)
+    except (ConnectionError, RuntimeError, ValueError) as error:
+        return f"ERROR {error}"
+
+
 def _bind_ctx(md: dict, target: str, cls: str, ctx: str) -> tuple[int, str]:
     """解析执行用的「上下文对象」-> (`地址`, 说明)。
 
@@ -246,8 +301,8 @@ def _bind_ctx(md: dict, target: str, cls: str, ctx: str) -> tuple[int, str]:
       · 该模块的 **App 类**（`CHammerApp` / `CMaterialEditorTool` / `CPetApp` /
         `CModelDocEditorApp`）→ 该模块 `CreateInterface` 返回的 App 单例；
       · hammer 的其它工具类（`CToolSelection` 等）→ 会话里对应的**工具实例**（RTTI 类名匹配）。
-    非 hammer 模块的「工具实例表」（会话 → CToolManager）尚未逆向，遇到工具类目标需用
-    `ctx=` 显式给地址（见 REVERSE_NOTES §17.10）。
+    ModelDoc / Particle Editor 的当前会话可通过 App 会话数组与 RTTI 自动解析；
+    其它非 hammer 工具类实例尚未逆向，仍需用 `ctx=` 显式给地址。
     """
     raw = (ctx or "").strip()
     if raw:
@@ -259,6 +314,14 @@ def _bind_ctx(md: dict, target: str, cls: str, ctx: str) -> tuple[int, str]:
         return md["tool_system"], f"{md['cls']} App 单例（该模块 ToolSystem）"
     if want == "CHammerApp" or tname.lower() == "hammerapp":
         return md["tool_system"], "CHammerApp 全局单例"
+    expected_session = {"modeldoc": "CModelDocEditorSession", "pet": "CPetSession"}.get(md["label"])
+    if want and want == expected_session:
+        try:
+            _sessions, active = _editor_sessions(md)
+            if active:
+                return active, f"{want} 当前会话（RTTI 已验证）"
+        except (ValueError, OSError):
+            pass
     # `GlobalHotkeys`（实现类 CGlobalHotkeyCommands）四模块都有，但该类实例未能定位。
     # IDA 反汇编确认其命令（ShowConsole / SwitchToEngineWindow / ShowInputDebugger /
     # DebugWidgetUnderMouse …）**全部只操作模块全局量、从不触碰 this**，故用本模块 App

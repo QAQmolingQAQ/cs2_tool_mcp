@@ -24,7 +24,12 @@ from .bindings import (
     cs2_bind_inspect,
     cs2_bind_list,
     cs2_bind_run,
+    cs2_editor_sessions,
     cs2_sel,
+)
+from .editor_actions import (
+    cs2_modeldoc_action,
+    cs2_particle_editor_action,
 )
 from .datamodel import (
     _attr_value_at,

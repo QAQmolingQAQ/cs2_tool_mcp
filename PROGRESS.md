@@ -647,3 +647,11 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 - `module_interfaces` 从已加载模块读回：`tier0` 4 个接口（含 `VEngineCvar007`）、`scenesystem` 3 个（含 `SceneSystem_002`）、`particles` 1 个（`ParticleSystemMgr003`）、`hammer` 1 个（`ToolSystem2_001`）。
 - `module_get_interface` 对 `SceneSystem_002`、`VEngineCvar007`、`ParticleSystemMgr003` 均返回 `return_code=0` 且指针非零。新增的跨 DLL 发现路径已通过进程内验证。
 - 同一桥接路径继续覆盖 24 个已加载的运行时/工具 DLL，共读到 93 个注册接口；包括 `engine2` (34)、`filesystem_stdio` (2)、`materialsystem2` (5)、`networksystem` (4)、`client` (9)、`server` (10)、`assetsystem` (2) 等。`HostStateMgr001`、`VFileSystem017`、`SchemaSystem_001`、`VMaterialSystem2_001`、`MeshSystem001`、`AssetSystem001`、`ToolFramework2_002` 的 CreateInterface 调用均返回非零实例和成功码。
+
+
+## 2026-10-13 — Hammer IDA 接入、ModelDoc 与粒子编辑器操作
+
+- Hammer 的 IDA 批处理分析库已生成；IDA MCP 在 13331 端口提供 66 个工具。tier0 的 13334、scenesystem 的 13332 也已实机连通。
+- ModelDoc 与 Particle Editor 的 App 会话数组均使用 `+0x58` 计数、`+0x60` 指针数组，`+0x50` 指向当前会话。新增 `cs2_editor_sessions`，以所属 DLL 的 MSVC RTTI 校验会话类名后返回活动会话；`cs2_bind_run` 对 `ModelDocEditorSession` / `PetSession` 自动取得上下文地址，不再要求用户手填指针。
+- 新增 `cs2_modeldoc_action`（18 个命名操作）和 `cs2_particle_editor_action`（15 个命名操作），覆盖模型导入、文件操作、变换模式、撤销/重做、粒子预览与模拟控制、函数/子节点操作。空 action 列出可用项；默认只预览，`confirm=True` 执行。33 个映射均在已加载 DLL 中验证存在真实绑定。
+- ModelDoc 活动会话 RTTI 为 `CModelDocEditorSession`，执行 `SetManipulationMode_Selection` 成功；Particle Editor 打开后新建未保存文档，活动会话 RTTI 为 `CPetSession`，空文档执行 `Undo` 成功且会话保持。MCP stdio 实机预览与工具清单通过（67 个工具）；34 项 Python 测试通过。

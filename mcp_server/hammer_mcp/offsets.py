@@ -454,6 +454,8 @@ FN_OFF_ARG = 0x18
 
 RVA_CHAMMERAPP = 0x677F440          # CE 实测：RTTI == CHammerApp，且 [+0x58] 会话数 == 1
 
+APP_OFF_ACTIVE_SESSION = 0x50        # ModelDoc/Pet App 当前会话指针（RTTI 校验后使用）
+
 APP_OFF_SESSION_COUNT = 0x58         # CHammerApp+0x58 = 编辑器会话 CUtlVector 计数
 
 APP_OFF_SESSION_ARRAY = 0x60         # CHammerApp+0x60 = 会话数组

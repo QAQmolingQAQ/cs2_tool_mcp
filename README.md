@@ -43,6 +43,15 @@ and `particles`. These tools list registered interfaces or request a named
 interface. Editor-only ToolSystem and key-binding commands remain scoped to
 Hammer, Material Editor, ModelDoc, and Particle Editor.
 
+`cs2_editor_sessions(module="modeldoc")` lists validated ModelDoc sessions and marks
+its active one. `cs2_bind_run` now resolves the active context automatically for
+`ModelDocEditorSession` and `PetSession` commands after checking the session RTTI.
+Use `module="pet"` after opening the Particle Editor. Other editor tool targets
+still require an explicit `ctx` address. Calls remain dry runs until
+`confirm=true` is provided. `cs2_modeldoc_action` and
+`cs2_particle_editor_action` expose common native actions by simple names;
+call either with an empty action to see its choices.
+
 ## Architecture
 
 The Python implementation lives in `mcp_server/hammer_mcp/`. The original

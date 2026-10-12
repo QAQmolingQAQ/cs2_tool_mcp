@@ -21,9 +21,9 @@ class ArchitectureTests(unittest.TestCase):
     def test_existing_tool_contracts_are_unchanged(self):
         expected = json.loads((ROOT / "tests/fixtures/tool_contract.json").read_text(encoding="utf-8"))
         actual = [t.model_dump(mode="json", exclude_none=True) for t in asyncio.run(create_server().list_tools())]
-        added = [tool for tool in actual if tool['name'] in ('cs2_mesh_create_prism', 'cs2_mesh_create_primitive')]
-        self.assertEqual(len(added), 2)
-        self.assertEqual([tool for tool in actual if tool['name'] not in ('cs2_mesh_create_prism', 'cs2_mesh_create_primitive')], expected)
+        added = [tool for tool in actual if tool['name'] in ('cs2_mesh_create_prism', 'cs2_mesh_create_primitive', 'cs2_editor_sessions', 'cs2_modeldoc_action', 'cs2_particle_editor_action')]
+        self.assertEqual(len(added), 5)
+        self.assertEqual([tool for tool in actual if tool['name'] not in ('cs2_mesh_create_prism', 'cs2_mesh_create_primitive', 'cs2_editor_sessions', 'cs2_modeldoc_action', 'cs2_particle_editor_action')], expected)
 
     def test_sessions_and_all_caches_are_isolated_and_reset(self):
         first, second = BridgeSession(), BridgeSession()

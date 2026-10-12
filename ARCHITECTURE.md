@@ -24,7 +24,7 @@ flowchart TD
 | 模块 | 负责的内容 |
 | --- | --- |
 | `app.py` | 创建 FastMCP、CLI、为每个调用绑定会话；唯一导入 MCP 框架的实现模块 |
-| `registry.py` | 显式列出 64 个公开工具，不在业务模块使用装饰器注册 |
+| `registry.py` | 显式列出 67 个公开工具，不在业务模块使用装饰器注册 |
 | `session.py` | 管道生命周期、会话上下文、整次操作互斥、进程地址缓存 |
 | `protocol.py` | 请求编码、帧头和响应 ID 校验，限制载荷长度 |
 | `transport.py` | Windows 命名管道读写；断线关闭连接，不自动重放请求 |
@@ -37,6 +37,7 @@ flowchart TD
 | `entities.py`、`meshes.py` | 实体及网格编辑操作 |
 | `entity_io.py`、`particles.py` | 实体连接及粒子操作 |
 | `maps.py`、`bindings.py`、`qt.py` | 地图查询/保存、绑定命令、Qt 辅助读取 |
+| `editor_actions.py` | ModelDoc 与粒子编辑器的命名操作 |
 | `automation.py`、`results.py` | 跨模块工作流及结构化编辑结果 |
 | `diagnostics.py` | 连接、模块、接口和内存诊断工具 |
 | `compat.py` | 给既有 injector 脚本保留原来的 Python 导入名称 |
