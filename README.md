@@ -13,6 +13,12 @@ python -m unittest discover -s tests
 python injector/mcp_smoke.py
 ```
 
+`cs2_map_check` performs read-only structural checks on an open Hammer map:
+missing geometry on `func_button`/`func_brush`/trigger entities, empty or
+unavailable meshes, invalid entity origins, and duplicate targetnames. Duplicate
+names are informational because Source I/O may intentionally use them. This
+check does not compile or playtest the map.
+
 The build creates `cs2_tool.dll` at the project root and under
 `injected_dll/build_vs18/Release/` when using Visual Studio 18.
 

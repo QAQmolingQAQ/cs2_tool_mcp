@@ -92,7 +92,8 @@ def _doc_of_element(el: int) -> int:
     return _map_doc("")
 
 
-def _walk_elements(root: int, table: list[int] | None = None, cap: int = 0):
+def _walk_elements(root: int, table: list[int] | None = None, cap: int = 0,
+                   strict: bool = False):
     """从 CMapWorld 递归产出全部场景元素 -> (CDmElement*, vtable)。
 
     节点布局：+0x00 vtable / +0x1F8 子节点数 / +0x200 int32 句柄数组；句柄经
@@ -106,29 +107,43 @@ def _walk_elements(root: int, table: list[int] | None = None, cap: int = 0):
     seen: set[int] = set()
     while stack:
         node, depth = stack.pop()
+        if strict and depth > 64:
+            raise RuntimeError(f"scene traversal exceeded depth 64 at {node:#x}")
         if not node or node in seen or depth > 64:
             continue
         seen.add(node)
         try:
             raw = _read_bytes(node, NODE_OFF_CHILD_HANDLES + 8)
         except Exception:  # noqa: BLE001
+            if strict:
+                raise
             yield node, 0
             continue
         yield node, int.from_bytes(raw[0:8], "little")
         count = int.from_bytes(raw[NODE_OFF_CHILD_COUNT:NODE_OFF_CHILD_COUNT + 4], "little")
         arr = int.from_bytes(raw[NODE_OFF_CHILD_HANDLES:NODE_OFF_CHILD_HANDLES + 8], "little")
-        if count <= 0 or count > 1_000_000 or not arr:
+        if count > 1_000_000 or (count and not arr):
+            if strict:
+                raise RuntimeError(f"node {node:#x} has invalid child array")
+            continue
+        if count <= 0:
             continue
         try:
             kids_raw = _read_bytes(arr, count * 4)
         except Exception:  # noqa: BLE001
+            if strict:
+                raise
             continue
         children: list[int] = []
         for i in range(count):
             handle = int.from_bytes(kids_raw[i * 4:i * 4 + 4], "little", signed=True)
             if handle <= 0:
+                if strict:
+                    raise RuntimeError(f"node {node:#x} has invalid child handle {handle}")
                 continue
             child = _dm_handle_element(handle, table, cap)
+            if strict and not child:
+                raise RuntimeError(f"node {node:#x} has unresolved child handle {handle:#x}")
             if child and child not in seen:
                 children.append(child)
         # 逆序压栈，保持数组原顺序输出

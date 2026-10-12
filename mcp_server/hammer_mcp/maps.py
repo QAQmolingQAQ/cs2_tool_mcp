@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 import time
+import math
 from .datamodel import (
     _fmt_attr_line,
     _dm_find_attrs,
@@ -87,6 +88,82 @@ def cs2_map_info(doc: str = "") -> str:
     except Exception as e:  # noqa: BLE001
         lines.append(f"  （撤销历史读取失败: {e}）")
     return "\n".join(lines)
+
+
+def cs2_map_check(doc: str = "", max_issues: int = 100) -> dict:
+    """Read-only checks of an open Hammer map's entity and mesh structure.
+
+    Reports missing brush geometry, unreadable/empty meshes, invalid origins, and
+    duplicate targetnames. Duplicate names are informational: Source I/O may
+    intentionally address several entities with one name. This does not compile
+    the map or claim that it will load in game.
+    """
+    issues: list[dict] = []
+    issue_count = 0
+    counts = {"elements": 0, "entities": 0, "meshes": 0}
+    names: dict[str, list[str]] = {}
+    max_issues = max(1, min(int(max_issues), 1000))
+
+    def report(code: str, severity: str, address: int, detail: str) -> None:
+        nonlocal issue_count
+        issue_count += 1
+        if len(issues) < max_issues:
+            issues.append({"code": code, "severity": severity,
+                           "address": hex(address), "detail": detail})
+
+    try:
+        document = _map_doc(doc)
+        world = _read_int(document + CMAPDOC_WORLD_OFFSET, "u64")
+        if not world:
+            raise RuntimeError("CMapDoc has no CMapWorld")
+        table, cap = _dm_table()
+        base = _hammer_base()
+        entity_vt = base + RVA_CMAPENTITY_VTABLE
+        mesh_vt = base + RVA_CMAPMESH_VTABLE
+        for el, vt in _walk_elements(world, table, cap, strict=True):
+            counts["elements"] += 1
+            if counts["elements"] > 200000:
+                raise RuntimeError("scene traversal exceeded 200000 elements")
+            if vt == entity_vt:
+                counts["entities"] += 1
+                attrs = _entity_get_attrs(el, ("classname", ENTITY_TARGETNAME_ATTR))
+                cls = str(attrs.get("classname") or "").strip()
+                name = str(attrs.get(ENTITY_TARGETNAME_ATTR) or "").strip()
+                if not cls:
+                    report("missing_classname", "error", el, "entity has no classname")
+                if name:
+                    names.setdefault(name.casefold(), []).append(hex(el))
+                origin = _read_vec3(el + ENTITY_OFF_ORIGIN)
+                if not all(math.isfinite(v) for v in origin):
+                    report("invalid_origin", "error", el, f"origin={origin}")
+                if cls in {"func_button", "func_brush"} or cls.startswith("trigger_"):
+                    owned = _entity_meshes(el, table, cap)
+                    if not owned:
+                        report("missing_brush_mesh", "warning", el,
+                               f"{cls} has no owned CMapMesh")
+            elif vt == mesh_vt:
+                counts["meshes"] += 1
+                poly = _poly_ready(el)
+                if not poly:
+                    report("mesh_not_ready", "warning", el,
+                           "runtime CHammerPolyMesh is unavailable")
+                    continue
+                verts = _read_int(poly + POLY_OFF_VPOOL_CNT, "u32")
+                faces = _read_int(poly + POLY_OFF_FPOOL_CNT, "u32")
+                if not verts or not faces:
+                    report("empty_mesh", "warning", el,
+                           f"vertices={verts}, faces={faces}")
+        for name, addresses in names.items():
+            if len(addresses) > 1:
+                report("duplicate_targetname", "info", int(addresses[0], 16),
+                       f"{name}: {len(addresses)} entities ({', '.join(addresses[:8])})")
+        return {"ok": True, "document": hex(document), "counts": counts,
+                "issues": issues, "issue_count": issue_count,
+                "issues_truncated": issue_count > len(issues),
+                "scope": "open Hammer document; structural checks only"}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "document": doc, "counts": counts,
+                "issues": issues, "error": f"{type(exc).__name__}: {exc}"}
 
 
 def cs2_map_groups(doc: str = "") -> str:

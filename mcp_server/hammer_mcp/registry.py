@@ -69,6 +69,7 @@ from .history import (
 )
 from .maps import (
     cs2_map_info,
+    cs2_map_check,
     cs2_map_groups,
     cs2_map_save,
     cs2_area_query,
@@ -116,6 +117,7 @@ TOOL_FUNCTIONS = (
     cs2_map_undo,
     cs2_map_redo,
     cs2_map_info,
+    cs2_map_check,
     cs2_map_groups,
     cs2_map_save,
     cs2_entity_list,

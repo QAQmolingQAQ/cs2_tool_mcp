@@ -655,3 +655,9 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 - ModelDoc 与 Particle Editor 的 App 会话数组均使用 `+0x58` 计数、`+0x60` 指针数组，`+0x50` 指向当前会话。新增 `cs2_editor_sessions`，以所属 DLL 的 MSVC RTTI 校验会话类名后返回活动会话；`cs2_bind_run` 对 `ModelDocEditorSession` / `PetSession` 自动取得上下文地址，不再要求用户手填指针。
 - 新增 `cs2_modeldoc_action`（18 个命名操作）和 `cs2_particle_editor_action`（15 个命名操作），覆盖模型导入、文件操作、变换模式、撤销/重做、粒子预览与模拟控制、函数/子节点操作。空 action 列出可用项；默认只预览，`confirm=True` 执行。33 个映射均在已加载 DLL 中验证存在真实绑定。
 - ModelDoc 活动会话 RTTI 为 `CModelDocEditorSession`，执行 `SetManipulationMode_Selection` 成功；Particle Editor 打开后新建未保存文档，活动会话 RTTI 为 `CPetSession`，空文档执行 `Undo` 成功且会话保持。MCP stdio 实机预览与工具清单通过（67 个工具）；34 项 Python 测试通过。
+
+# 2026-10-13 — 参考文件式地图 MCP 的检查流程
+
+- 参考 [Rmgs123/cs2-map-mcp](https://github.com/Rmgs123/cs2-map-mcp) 的 `check_map` 与“修改—检查”流程，但保留本项目的实时 Hammer 文档架构。
+- 新增 `cs2_map_check`：只读扫描当前地图的实体、mesh 和名称，报告缺失笔刷几何、空/未就绪 mesh、非法坐标和重复 targetname；读取故障返回 `ok=false`，不会误报地图干净。
+- 37 项单元测试通过。检查工具使用严格场景遍历，读取故障不再被忽略。实机桥接可连通，但当前 Hammer 没有打开地图文档（`count=0`），因此本轮无法做地图内容验证。
