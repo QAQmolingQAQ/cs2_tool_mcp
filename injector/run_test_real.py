@@ -1,12 +1,14 @@
 import subprocess, sys, os
+from pathlib import Path
+import tempfile
 
-logfile = r"C:\Users\a5767\AppData\Local\Temp\hammer_test_output.txt"
+logfile = str(Path(tempfile.gettempdir()) / 'hammer_test_output.txt')
 if os.path.exists(logfile): os.remove(logfile)
 
 proc = subprocess.Popen(
-    [sys.executable, "-u", r"d:\ai\agent\tool\mcp\cs2\cs2_tool_mcp\injector\test_real_hammer.py"],
+    [sys.executable, "-u", str(Path(__file__).resolve().parent / 'test_real_hammer.py')],
     stdout=open(logfile, 'wb'), stderr=subprocess.STDOUT,
-    cwd=r"d:\ai\agent\tool\mcp\cs2\cs2_tool_mcp"
+    cwd=str(Path(__file__).resolve().parents[1])
 )
 try:
     proc.wait(timeout=20)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """直连 cs2_tool.dll 命名管道的命令行客户端（供 VM 内使用）。
 
-不依赖 `mcp` 包：`map-*` 子命令通过 stub 掉 FastMCP 来复用
+不依赖 `mcp` 包：`map-*` 子命令通过兼容入口复用
 `mcp_server/cs2_mcp_server.py` 里的**真实实现**，避免复制逻辑。
 
 用法:
@@ -21,41 +21,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "mcp_server"))
 
 
 def _load_server():
-    """导入 cs2_mcp_server，用假的 FastMCP 顶掉 mcp 依赖。
-
-    cs2_mcp_server 在导入期会 `mcp = FastMCP(...)` 并用 `@mcp.tool()` 装饰工具函数；
-    这里让 `FastMCP().tool()` 返回「原样返回函数」的装饰器即可。
-    """
-    class _FakeMCP:
-        def __init__(self, *a, **k):
-            pass
-
-        def tool(self, *a, **k):
-            def deco(fn):
-                return fn
-            return deco
-
-        def run(self, *a, **k):
-            raise RuntimeError("fake MCP 不可 run")
-
-    pkg_mcp = types.ModuleType("mcp")
-    pkg_server = types.ModuleType("mcp.server")
-    mod_fastmcp = types.ModuleType("mcp.server.fastmcp")
-    mod_fastmcp.FastMCP = _FakeMCP
-    pkg_mcp.server = pkg_server
-    pkg_server.fastmcp = mod_fastmcp
-    sys.modules.setdefault("mcp", pkg_mcp)
-    sys.modules.setdefault("mcp.server", pkg_server)
-    sys.modules.setdefault("mcp.server.fastmcp", mod_fastmcp)
-
-    import cs2_mcp_server  # noqa: PLC0415
+    """Load bridge operations without importing the MCP framework."""
+    import cs2_mcp_server
     return cs2_mcp_server
 
 
@@ -72,7 +45,7 @@ def main() -> int:
 
     server = _load_server()
     if args.pipe:
-        server._pipe = server.Cs2Pipe(args.pipe)
+        server.configure_default(args.pipe)
 
     if args.command == "map-info":
         print(server.cs2_map_info())

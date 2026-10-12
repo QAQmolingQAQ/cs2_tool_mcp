@@ -26,7 +26,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 # ⚠ RVA_SERVER 必须指向**与参考 DLL 同一版本**的 RVA 表：换版时先在 git 里把旧表
 #   另存一份再指过来，否则会在错误偏移上取字节（工具不会报错，只会全错）。
-SERVER = Path(os.environ.get("RVA_SERVER") or (REPO / "mcp_server" / "cs2_mcp_server.py"))
+SERVER = Path(os.environ.get("RVA_SERVER") or (REPO / "mcp_server" / "hammer_mcp" / "offsets.py"))
 GAME_DLL = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
                 r"\game\bin\win64\tools\hammer.dll")
 OLD_DLL = REPO / "ida_db" / "hammer_new.dll"

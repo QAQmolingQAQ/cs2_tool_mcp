@@ -97,6 +97,7 @@ def main() -> int:
     mesh_tools = [n for n in names if "mesh" in n]
     print("     mesh 相关: %s" % mesh_tools)
     missing = [n for n, _ in calls if n not in names]
+    failures = len(missing)
     if missing:
         print("[FAIL] 工具不存在: %s" % missing)
 
@@ -108,14 +109,21 @@ def main() -> int:
         rid += 1
         if not resp:
             print("[FAIL] %s 调用无响应" % name)
+            failures += 1
             continue
         res = resp.get("result", {})
         text = ""
         for item in res.get("content", []):
             if item.get("type") == "text":
                 text += item.get("text", "")
-        if resp.get("error") or res.get("isError"):
+        try:
+            structured = json.loads(text)
+        except (ValueError, TypeError):
+            structured = None
+        failed_result = isinstance(structured, dict) and structured.get("ok") is False
+        if resp.get("error") or res.get("isError") or failed_result or text.startswith(("ERROR", "INJECTED_DLL_ERROR")):
             print("[FAIL] %s -> %s" % (name, resp.get("error") or text[:400]))
+            failures += 1
             continue
         lines = text.splitlines()
         print("[OK] %s -> %d 行输出:" % (name, len(lines)))
@@ -129,7 +137,7 @@ def main() -> int:
         proc.wait(timeout=5)
     except subprocess.TimeoutExpired:
         proc.kill()
-    return 0
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

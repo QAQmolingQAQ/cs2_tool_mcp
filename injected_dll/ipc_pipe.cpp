@@ -456,7 +456,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         std::string module = params->GetString("module");
         if (module.empty()) return error("missing 'module'");
         ToolModule m;
-        if (!bridge.GetToolModule(module, m)) return error("unknown tool module: " + module);
+        if (!bridge.GetInterfaceModule(module, m)) return error("module not loaded or CreateInterface unavailable: " + module);
         if (!m.loaded) return error("module not loaded: " + module);
         std::vector<std::string> items;
         for (const auto& mi : bridge.ListModuleInterfaces(m)) {
@@ -476,7 +476,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         if (module.empty()) return error("missing 'module'");
         if (name.empty()) return error("missing 'name'");
         ToolModule m;
-        if (!bridge.GetToolModule(module, m)) return error("unknown tool module: " + module);
+        if (!bridge.GetInterfaceModule(module, m)) return error("module not loaded or CreateInterface unavailable: " + module);
         if (!m.loaded) return error("module not loaded: " + module);
         int rc = -1;
         void* ptr = bridge.GetModuleInterface(m, name, &rc);

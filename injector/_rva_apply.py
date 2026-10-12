@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SERVER = REPO / "mcp_server" / "cs2_mcp_server.py"
+SERVER = REPO / "mcp_server" / "hammer_mcp" / "offsets.py"
 BRIDGE = REPO / "injected_dll" / "hammer_bridge.cpp"
 
 # (常量名, 旧, 新)

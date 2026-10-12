@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cs2-tool": {
+      "command": "python",
+      "args": [
+        "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
+        "--stdio"
+      ]
+    }
+  }
+}

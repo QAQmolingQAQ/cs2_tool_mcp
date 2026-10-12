@@ -40,3 +40,9 @@ injector/scr*.png
 injector/stk*.txt
 injector/stacks.txt
 injector/err.txt
+
+# Local CMake builds
+injected_dll/build*/
+
+# Per-machine MCP client configuration (may contain private paths or credentials)
+mcp.json

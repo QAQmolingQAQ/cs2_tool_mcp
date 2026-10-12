@@ -191,7 +191,7 @@ def main():
     # Get DLL path
     script_dir = os.path.dirname(os.path.abspath(__file__))
     dll_path = os.path.join(
-        script_dir, "..", "injected_dll", "build_vs18", "Release", "cs2_tool.dll"
+        script_dir, "..", "cs2_tool.dll"
     )
 
     # Get PID

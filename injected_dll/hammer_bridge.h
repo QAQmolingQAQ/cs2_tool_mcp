@@ -108,6 +108,9 @@ public:
     const std::vector<ToolModule>& ToolModules(bool force_refresh = false);
     // 目标模块未加载时会自动重探一次，再判定
     bool GetToolModule(const std::string& module, ToolModule& out);
+    // Resolve any loaded DLL that exports CreateInterface. Editor modules retain
+    // their known ToolSystem/bind metadata; other DLLs expose interfaces only.
+    bool GetInterfaceModule(const std::string& module, ToolModule& out);
     bool GetToolSystemFor(const std::string& module, void*& out);
 
     // --- 按模块枚举（hammer / met / modeldoc / pet 通用）-------------------

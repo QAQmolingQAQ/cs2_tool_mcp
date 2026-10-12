@@ -169,8 +169,8 @@
 | 项                 | 值                                                                                                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | CS2 tools 目录     | `D:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\tools`                                       |
-| IDA 安装           | `C:\Users\a5767\Downloads\IDA Professional 9.1`                                                                               |
-| ida-pro-mcp 源码   | `C:\Users\a5767\Downloads\IDA Professional 9.1\mcp\ida-pro-mcp-main`                                                          |
+| IDA 安装           | `C:\Users\<user>\Downloads\IDA Professional 9.1`                                                                               |
+| ida-pro-mcp 源码   | `C:\Users\<user>\Downloads\IDA Professional 9.1\mcp\ida-pro-mcp-main`                                                          |
 | **IDA MCP 端口**   | **动态分配**，以 `instances/*.json` 为准。当前 hammer.dll → **13331**（PID 34476）                                            |
 | **hammer.dll.i64** | `D:\SteamLibrary\...\game\bin\win64\tools\hammer.dll.i64`（**87.7 MB**，含完整分析）                                          |
 | IDA 实例注册文件   | `%APPDATA%\Hex-Rays\IDA Pro\mcp\instances\instance_<port>.json`                                                               |
@@ -186,7 +186,7 @@
 IDA 实例关掉后 `instances/*.json` 会残留（PID 已死），直接查端口会「积极拒绝」。重新拉起：
 
 ```powershell
-Start-Process -FilePath "C:\Users\a5767\Downloads\IDA Professional 9.1\ida.exe" `
+Start-Process -FilePath "C:\Users\<user>\Downloads\IDA Professional 9.1\ida.exe" `
   -ArgumentList '"D:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\tools\hammer.dll.i64"'
 # 约 40s 后插件 autostart 会自行起 MCP 并注册实例，端口看 instances/*.json
 Get-ChildItem "$env:APPDATA\Hex-Rays\IDA Pro\mcp\instances" -Filter *.json |
@@ -230,7 +230,7 @@ VM 里也装了 CS2，因此把**整条链路**（DLL + 注入器 + 管道客户
 | **SSH 助手**       | `injector/vm_ssh.py`（paramiko；`--ps64` 用 `-EncodedCommand` 免引号转义；支持 `--upload/--download`）                                                                                                    |
 | **管道客户端**     | `injector/vm_pipe.py`（stub 掉 `mcp` 包复用 `cs2_mcp_server.py`；子命令：`ping`/`map-info`/`map-undo`/`map-redo`/`call-main`/`main_thread_selftest`/`module <名>`/`enumerate [类名] [flags]`/`entities`） |
 | **UI 自动化**      | `injector/vm_ui.py` + `vm_screen.ps1` + `vm_input.ps1`（走 `schtasks /IT` 投到 Session 1；支持 `setup/shot/click/dblclick/drag/wheel/key/type/activate`）                                                 |
-| **调试图省事副本** | `C:\Users\ssss\cs2mcp\`（只放 `injector\` + `mcp_server\`，跑 `vm_pipe.py`/`probe_entities.py` 用；DLL 仍从 `C:\cs2_tool_mcp\...` 加载）                                                                  |
+| **调试图省事副本** | `C:\Users\<user>\cs2mcp\`（只放 `injector\` + `mcp_server\`，跑 `vm_pipe.py`/`probe_entities.py` 用；DLL 仍从 `C:\cs2_tool_mcp\...` 加载）                                                                  |
 
 复制链路的命令（在仓库根）：
 
@@ -279,8 +279,8 @@ Get-Process cs2 | Select-Object Id,SessionId,Responding
 
 | 项       | 值                                                                                                                                                                                                          |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| IDA 安装 | `C:\Users\ssss\Desktop\IDA Professional 9.1`（内置 `python311`）                                                                                                                                            |
-| 插件位置 | `C:\Users\ssss\AppData\Roaming\Hex-Rays\IDA Pro\plugins\`（`ida_mcp.py` + `ida_mcp\`）                                                                                                                      |
+| IDA 安装 | `C:\Users\<user>\Desktop\IDA Professional 9.1`（内置 `python311`）                                                                                                                                            |
+| 插件位置 | `C:\Users\<user>\AppData\Roaming\Hex-Rays\IDA Pro\plugins\`（`ida_mcp.py` + `ida_mcp\`）                                                                                                                      |
 | 安装方式 | 从实体机 `%APPDATA%\Hex-Rays\IDA Pro\plugins` 打包（去 `__pycache__`/`tests`）后解压过去                                                                                                                    |
 | **备注** | VM 的 IDA **没有** `hammer.dll.i64`（87.7 MB 分析库在实体机）。若要用 VM 做 RE，需把 `hammer.dll` + `hammer.dll.i64` 一起拷过去（IDB 与输入文件路径绑定，跨机打开会提示"数据库由其它文件创建"，选继续即可） |
 
@@ -382,11 +382,11 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 1. **测实体属性读写**（当前地图已有实体，`info_player_start` = `0x378df29e000`）：
 
    ```powershell
-   python injector\vm_ssh.py --ps64 'cd C:\Users\ssss\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py entities'
-   python injector\vm_ssh.py --ps64 'cd C:\Users\ssss\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py attr <实体地址> targetname'
-   python injector\vm_ssh.py --ps64 'cd C:\Users\ssss\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py setattr <实体地址> targetname ai_test'
-   python injector\vm_ssh.py --ps64 'cd C:\Users\ssss\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py dm-info'   # 看 DMX 撤销栈
-   python injector\vm_ssh.py --ps64 'cd C:\Users\ssss\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py dm-undo'   # 撤销属性修改
+   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py entities'
+   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py attr <实体地址> targetname'
+   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py setattr <实体地址> targetname ai_test'
+   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py dm-info'   # 看 DMX 撤销栈
+   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py dm-undo'   # 撤销属性修改
    ```
 
    > ⚠️ `enumerate <类名>` 恒为 0：类名过滤参数是**驻留符号指针**，不是 C 字符串 → 只能用 `enumerate` 全枚举后本地过滤。
@@ -396,7 +396,7 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
    ```powershell
    python injector\vm_ssh.py --ps64 'Get-Process cs2 | Select-Object Id,Responding'
    python injector\vm_ssh.py --ps64 'cd C:\cs2_tool_mcp\injector; python inject_dll.py <pid>'
-   python injector\vm_ssh.py --ps64 'cd C:\Users\ssss\cs2mcp\injector; python vm_pipe.py module hammer.dll'
+   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; python vm_pipe.py module hammer.dll'
    ```
    > 部署新 DLL：先 `Stop-Process cs2`，把新 dll 覆盖到
    > `C:\cs2_tool_mcp\injected_dll\build_msvc\Release\cs2_tool.dll`（运行中会被占用），
@@ -566,3 +566,77 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 * **有新进度就写进 md**（本文件 + REVERSE_NOTES.md）。
 * 已加载可用：**Cheat Engine**（`cheatengine-x86_64-SSE4-AVX2.exe`，pid 会变）与 **Computer Use MCP**。
   需要**其他 DLL 的 IDA MCP**（pet.dll / particles.dll 等）时提前提出来，由用户添加。
+
+
+## 10. 2026-10-12 Hammer 优先：实体 mesh 检查与范围查询
+
+- 新增 `cs2_entity_get_meshes(entity, limit)`：按实际子树列出实体拥有的 CMapMesh，支持中间 group，排除嵌套实体的几何；区分无 mesh、几何未就绪及读取失败。
+- 修复 `cs2_area_query` 对带 mesh 实体只按 origin 筛选的漏报：现在逐个检查所拥有 mesh 的 AABB；任一相交即命中。只有无 mesh 时回退到 origin。
+- `trigger*` 仍归 trigger；其他实际有 mesh 的实体归 brush；保留无 mesh 的 `func_*` 分类。
+- `cs2_entity_create` 文档明确：创建 func_button/func_brush 只生成实体节点，不自动生成或绑定 mesh。带笔刷创建/挂接仍待实现，不能宣称已完成。
+- 测试：`python tests/test_entity_meshes.py`，8 项通过；Python 语法检查通过。
+- 尚未进行本轮实机验证：检查时 CS2 未运行，配置中的 Hammer IDA MCP 13331 端口未监听。MCP 常驻服务需要重启才能加载 Python 修改；无需重编注入 DLL。
+
+
+### 2026-10-12 活体补验与 mesh 挂接工具
+
+- 启动必须用既有交互任务 `schtasks /run /tn HammerLaunch`；受限 shell 直接启动曾仅出现 Stall Detected/残留进程，并未打开编辑器。清理本轮失败进程后通过任务成功打开 Asset Browser。
+- 桥接注入后定位 Hammer 按钮并调用 Qt click；确认 hammer.dll 加载，新建测试文档 untitled_3（本轮测试不修改其他地图）。
+- 实测 func_button 创建成功但 mesh=0。创建盒形 mesh（8 顶点/6 面，中心 128,0,0），调用实体 vfn456 挂接成功；父节点 world -> entity。
+- 新增 `cs2_entity_attach_mesh`：类型校验、严格文档归属（禁止 docs[0] 回退）、跨文档拒绝、循环校验、重复操作不压历史、修改前 `_hist_record_node` 快照、挂接后父节点与 children 复核。
+- 挂接撤销 world <- entity，重做 world -> entity 已实测；origin=(0,0,0) 的实体在范围 (120,-8,-8)~(136,8,8) 中因 mesh 相交正确命中。ping 始终正常。
+- Hammer IDA MCP 当前实际端口 13340，配置中 13331 已过期；13337 是 met。该 IDA 数据库是旧版，虚表需用库内旧地址；执行使用运行时虚表，不硬编码旧函数 RVA。
+- 变换采用 Hammer 原生挂接语义；非默认旋转/缩放父节点的坐标语义仍待进一步验证。不宣称已完成带 mesh 的单步骤实体创建。
+
+
+### 2026-10-12 Brush entity automation
+
+- Added cs2_entity_create_brush: validates inputs, supports dry_run, creates entity + box mesh + native attach, verifies document/classname/ownership, returns structured steps and partial addresses on failure. No automatic retry, rollback or save. Three native Undo steps.
+- Live untitled_3.vmap test: func_button at (256,0,0), size 32; owned mesh=1, vertices=8, faces=6, AABB=(240,-16,-16)-(272,16,16). Test creation undone, undo history restored to 3; no save.
+- Live test exposed missing names argument to _entity_get_attrs; fixed and reverified. Existing 8 tests pass; MCP tools/list now 62.
+
+
+### 2026-10-12 Rebuild in C:\codex\cs2_tool_mcp
+
+- Copied current source, uncommitted feature work, tests and Git history from C:\cs2_tool_mcp. Original directory retained.
+- Added build.ps1 (VS discovery, x64 configure/build), requirements.txt, start_mcp.cmd, mcp.json and README.md. Made bringup root relative and default injection use the root DLL.
+- Built Release with MSVC 19.51 and CMake 4.3.1. Verified AMD64 PE and matching root/build DLL bytes.
+- 10 unit tests passed; actual MCP stdio initialization, 62-tool listing and cs2_entity_create_brush dry_run passed. New DLL has not been injected into the running editor.
+
+
+### 2026-10-12 MCP architecture refactor
+
+- Replaced the ~6000-line server with the hammer_mcp package. The legacy entry is 26 lines and delegates imports through compat.py. Protocol/transport/session/runtime, offsets, DMX/scene/history/geometry, domain operations, automation and MCP registration now have explicit boundaries and acyclic dependencies.
+- FastMCP is imported only by app.py; registry.py explicitly lists the existing 62 tools. Saved the pre-refactor full tool schema and verified names, descriptions, input/output schemas remain identical.
+- BridgeSession owns the connection and all process-specific caches. Connections and explicit initialization invalidate module, symbol, element-table and Qt caches. A session serializes whole tool operations. Transport validates frames/IDs and never replays requests after ambiguous failures.
+- Added EditResult for create_entity/create_box/attach_mesh. Automation consumes addresses and statuses directly, pins the selected document, and preserves partial addresses. Public report wrappers and native multi-step Undo remain compatible.
+- Migrated VM client away from fake FastMCP injection; RVA maintenance scripts target offsets.py. Smoke tests now return failure for tool errors, including structured ok=false responses.
+- Validation: 23 tests passed; full 62-tool contract match; real MCP stdio ping/map listing/dry-run succeeded; negative smoke call returns exit 1; module dependency and unresolved-global checks passed.
+- Live untitled_3.vmap verification: func_brush with a 32-unit box at (512,0,0), owned mesh=1, vertices=8, faces=6, AABB=(496,-16,-16)-(528,16,16). Three test Undo steps restored the world child count and history depth. No save; native bridge binary unchanged for this refactor.
+- Architecture and extension guide: ARCHITECTURE.md.
+
+
+## 2026-10-12 — Block Tool 形状与焊接后 UV
+
+- 新增 `cs2_mesh_create_primitive`，覆盖截图中的 `block` / `quad` /
+  `cylinder` / `spike` / `sphere`。它们都创建真正的 CMapMesh；
+  `quad` 为 XY 单面，其余为闭合网格。圆周分段与球体纬向分段可调。
+- 定位到新的 UV 错误：`CreateFaceLocalFromPoints` 写入的逐角 UV 正确，
+  但 `MergeVerticesWithinDistance` 焊接后会重新计算它们。现在焊接后按
+  面与顶点位置恢复逐半边 texcoord；盒、棱柱、拱门及新形状共用这一修复。
+  圆柱/尖锥侧面按周长连续展开，球体按经纬展开。
+- 实测创建并立即一步 Undo：盒、quad、cylinder、spike、sphere、棱柱、拱门。
+  盒焊接后首面 UV 为 (0,0)/(0,-1.5)/(1,-1.5)/(1,0)，与输入一致。
+  28 个单元测试和 MCP stdio 工具清单检查通过（64 个工具）。
+
+## 2026-10-12 — 其他 DLL 的接口发现
+
+- `scenesystem.dll`、`tier0.dll`、`particles.dll` 当前安装版本都导出
+  `CreateInterface`，入口开头均为 `4C 8B 0D disp32`，可复用桥接层的
+  `s_pInterfaceRegs` 链表头解析。
+- `module_interfaces` / `module_get_interface` 现可接收任意**已加载且导出**
+  `CreateInterface` 的 DLL 名。只按当前进程的模块表解析，不加载用户路径；
+  动态链表头还需落在模块映像内且可读。ToolSystem / bind 目录仍只用于
+  hammer、met、modeldoc_editor、pet 四个编辑器 DLL。
+- C++ Release 构建成功；Python 28 项测试与 MCP stdio 工具清单通过。
+  本轮无运行中的 cs2 进程，新增跨 DLL 路径尚未做进程内读回验证。

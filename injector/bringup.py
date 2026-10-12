@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 
-REPO = r"c:\cs2_tool_mcp"
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

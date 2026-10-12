@@ -4577,3 +4577,33 @@ modeldoc 的 20 个工具类目标（`Tool_Selection` / `Tool_Picker` / `ModelDo
 
 
 
+
+
+## 24. 2026-10-12 实体与 mesh 的实际归属（Python 层修复）
+
+复用已确认的节点布局与 CDataModel 句柄表，无新增 RVA。`_entity_meshes` 从实体 children 子树读取 CMapMesh；穿过 group，遇到另一个 CMapEntity 停止，以免把嵌套实体的几何算给外层。无法解析的句柄、循环、超深子树及读失败都报错，避免误报“没有 mesh”。
+
+范围查询不再先以实体 origin 排除候选。带 mesh 时使用现有 `_mesh_world_box` 对每个 mesh 判 AABB 相交，无 mesh 时按点判断。AABB 沿用现有缓存/顶点兜底的近似性质，并非精确多边形碰撞。嵌套实体变换与真实地图挂接仍需实机确认。
+
+`func_*` 类名不足以证明实体具有几何。新建 CMapEntity 不自动生成 CMapMesh；本轮增加检查工具和查询修复，并未实现 mesh 转实体或带笔刷创建。8 项模拟回归通过，尚无本轮活体验收。
+
+
+### 2026-10-12 活体补验与 mesh 挂接工具
+
+- 启动必须用既有交互任务 `schtasks /run /tn HammerLaunch`；受限 shell 直接启动曾仅出现 Stall Detected/残留进程，并未打开编辑器。清理本轮失败进程后通过任务成功打开 Asset Browser。
+- 桥接注入后定位 Hammer 按钮并调用 Qt click；确认 hammer.dll 加载，新建测试文档 untitled_3（本轮测试不修改其他地图）。
+- 实测 func_button 创建成功但 mesh=0。创建盒形 mesh（8 顶点/6 面，中心 128,0,0），调用实体 vfn456 挂接成功；父节点 world -> entity。
+- 新增 `cs2_entity_attach_mesh`：类型校验、严格文档归属（禁止 docs[0] 回退）、跨文档拒绝、循环校验、重复操作不压历史、修改前 `_hist_record_node` 快照、挂接后父节点与 children 复核。
+- 挂接撤销 world <- entity，重做 world -> entity 已实测；origin=(0,0,0) 的实体在范围 (120,-8,-8)~(136,8,8) 中因 mesh 相交正确命中。ping 始终正常。
+- Hammer IDA MCP 当前实际端口 13340，配置中 13331 已过期；13337 是 met。该 IDA 数据库是旧版，虚表需用库内旧地址；执行使用运行时虚表，不硬编码旧函数 RVA。
+- 变换采用 Hammer 原生挂接语义；非默认旋转/缩放父节点的坐标语义仍待进一步验证。不宣称已完成带 mesh 的单步骤实体创建。
+## 2026-10-12 运行时 DLL 接口发现补充
+
+当前安装版本的 `scenesystem.dll`、`tier0.dll`、`particles.dll` 均导出
+`CreateInterface`；三个入口的首条指令均为 `mov r9, [rip+disp32]`
+（字节 `4C 8B 0D`），与已有编辑器模块的接口链表头解析器兼容。
+桥接层 `GetInterfaceModule` 先复用四个编辑器模块的既有元数据，其余模块
+只从进程已加载模块表取句柄并查找导出，不推断 ToolSystem 或 bind 链。
+动态解析出的链表头必须位于目标模块映像且内存可读，才允许遍历。
+本次只做静态导出/序言验证和 C++ 编译；尚无进程内接口列表读回。
+

@@ -269,6 +269,36 @@ bool HammerBridge::GetToolModule(const std::string& module, ToolModule& out) {
     return false;
 }
 
+bool HammerBridge::GetInterfaceModule(const std::string& module, ToolModule& out) {
+    if (GetToolModule(module, out)) return true;
+
+    // Resolve by the process module list, never by a caller-supplied path.
+    // This supports runtime DLLs such as scenesystem/tier0/particles without
+    // pretending that they own an editor ToolSystem or bind-target chain.
+    ModuleDesc desc;
+    if (!GetModule(module, desc)) return false;
+    HMODULE handle = reinterpret_cast<HMODULE>(desc.base);
+    void* create = reinterpret_cast<void*>(GetProcAddress(handle, "CreateInterface"));
+    if (!create) return false;
+
+    out = ToolModule{};
+    out.name = desc.name;
+    out.label = LowerAscii(desc.name);
+    if (out.label.size() > 4 && out.label.substr(out.label.size() - 4) == ".dll") {
+        out.label.resize(out.label.size() - 4);
+    }
+    out.module = handle;
+    out.base = desc.base;
+    out.loaded = true;
+    out.create_interface = create;
+    const uintptr_t head = ParseInterfaceListHead(create);
+    if (head >= desc.base && head - desc.base < desc.size &&
+        IsRangeReadable(head, sizeof(uintptr_t))) {
+        out.iface_list_head = head;
+    }
+    return true;
+}
+
 bool HammerBridge::GetToolSystemFor(const std::string& module, void*& out) {
     ToolModule m;
     if (!GetToolModule(module, m) || !m.tool_system) return false;
