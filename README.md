@@ -88,4 +88,4 @@ For the latest live-editor findings and next steps, see
 
 Source-format and behavior references: [Source 2 Viewer](https://s2v.app) ([ValveResourceFormat](https://github.com/ValveResourceFormat/ValveResourceFormat)). Local reference coverage is recorded in [VRF_REFERENCE_NOTES.md](VRF_REFERENCE_NOTES.md).
 
-分模块 MCP 配置与固定 IDA 端口见 [MCP_MODULES.md](MCP_MODULES.md)。默认兼容入口仍可用，客户端已改为独立模块组。
+按 DLL 拆分的 MCP 配置与固定 IDA 端口见 [MCP_MODULES.md](MCP_MODULES.md)。默认兼容入口仍可用，客户端已改为独立模块组。

@@ -1,52 +1,49 @@
-# 分模块 MCP 与 IDA 端口（2026-10-14）
+# 按 DLL 拆分 MCP（2026-10-14）
 
-CS2 MCP 现在按 `--scope` 分别启动，服务实现复用现有桥接 DLL。
-`all` 保留原来的 78 个工具契约；模块组不暴露其他编辑器的高层修改工具。
-共享诊断接口会重复出现，不把各组数量相加作为新增工具数。
+划分依据是目标 DLL、文档对象与原生入口的归属，不能根据“粒子/模型/材质”功能名称分组。
+每个现有工具的主归属明确登记在
+`mcp_server/hammer_mcp/data/tool_ownership.json`；新增工具未登记或重复登记会报错。
+原 `all` 保留 78 个工具契约。
 
-| 客户端名称 | scope | 工具数 |
+| 客户端名称 | 目标 DLL / scope | 当前工具数 |
 | --- | --- | ---: |
-| cs2-hammer | hammer | 48 |
-| cs2-particles | pet | 18 |
-| cs2-materials | met | 9 |
-| cs2-models | modeldoc | 13 |
-| cs2-assets | assets | 5 |
-| cs2-runtime | runtime | 28 |
+| cs2-hammer | hammer.dll / hammer | 49 |
+| cs2-pet | pet.dll / pet | 17 |
+| cs2-particles | particles.dll / particles | 7 |
+| cs2-met | met.dll / met | 10 |
+| cs2-modeldoc-editor | modeldoc_editor.dll / modeldoc_editor | 14 |
+| cs2-scenesystem | scenesystem.dll / scenesystem | 5 |
+| cs2-tier0 | tier0.dll / tier0 | 5 |
+| cs2-bridge | 共享桥接与辅助服务 / bridge | 30 |
 
-MET 组当前提供连接/接口/原生绑定检查；9 个工具不代表材质参数写入已完成。
-编辑器通用命令的 module 默认值绑定到本组，传错模块时拒绝执行。
-完整调用以 Windows 命名互斥量跨 MCP 进程序列化，避免历史事务相互穿插。
-这不限制高级 runtime 工具原有的底层能力。
+通用接口检查被绑定到相应 DLL，连接诊断会重复出现，各组工具数不能相加当作新增工具数。
+依赖其他 DLL 不自动改变工具的主归属；目前还没有独立高层操作的 DLL 组仅提供接口/加载信息，
+不把服务已建立当作已实现安全写入。
+
+## 粒子功能的三个归属
+
+- Hammer 的 `cs2_particle_set_definition` 修改地图中的粒子实体属性并刷新 Hammer CParticleHelper，
+  使用 Hammer 文档与撤销链，归 `hammer.dll`。
+- 实时粒子文档、函数节点树、参数读取与保存值对照，归 `pet.dll`。
+- 从 ParticleSystemMgr003 / Schema 得到的函数目录与参数查询，归 `particles.dll`。
+
+源码文件解析、外部 resourcecompiler 编译、原始内存诊断属于共享桥接辅助服务，
+不是 Assets/Runtime 两个伪 DLL。原按功能命名的客户端项已移除。
+跨进程命名互斥量继续保护完整操作，避免历史事务穿插。
 
 ## IDA 固定端口
 
-| 分析模块 | 端口 | 数据库 |
-| --- | ---: | --- |
-| Hammer | 13341 | hammer.dll.i64 |
-| Pet | 13342 | pet.dll.i64 |
-| MET | 13343 | met_clean_20261014.dll.i64 |
-| ModelDoc | 13344 | modeldoc_editor.dll.i64 |
-| particles.dll | 13345 | particles.dll.i64 |
-| scenesystem | 13346 | scenesystem.dll.i64 |
-| tier0 | 13347 | tier0.dll.i64 |
+Hammer 13341；Pet 13342；MET 13343；ModelDoc 13344；
+particles.dll 13345；scenesystem 13346；tier0 13347。
+权威表为 `config/ida_modules.json`。七个数据库已保存端口；
+Pet/MET 已读回在线端点的数据库身份，其余按需启动。此次未改变端口。
 
-权威表在 `config/ida_modules.json`；对应客户端 URL 是
-`http://127.0.0.1:<port>/mcp`。CS2 六组使用 stdio，不占 TCP 端口。
-七个 IDA 数据库都已保存插件端口与自动启动设置。
-本轮 Pet、MET HTTP MCP 已实际在线，并读回数据库身份；其余五个按需启动。
+CS2 MCP 使用 stdio，不占 TCP 端口。Codex、Trae 和本地配置已同步并保留私人备份；
+客户端重新加载配置后使用新的 DLL 名称。
+配置方式见 [官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。
 
-## 配置与验证
+`python scripts/check_module_mcp.py` 验证七个 DLL 服务与桥接的真实 stdio 清单、错 DLL 拒绝及目录读取。
+`python scripts/ida_module.py start met` 可隐藏启动对应分析库；status 会核对数据库身份。
+configure 只能对未打开的数据库执行。
 
-已同步 Codex 的用户 config.toml、Trae User/mcp.json 和仓库本地 mcp.json。
-原通用 cs2-tool/ida-pro-mcp 在 Codex 中禁用，Trae 改为明确模块名；
-其他配置保留，私人备份留在配置目录或本地 scratch，未提交。
-配置格式参照 [官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。
-当前聊天已加载的旧工具需客户端重新加载后才能改用新名称。
-
-- `python scripts/check_module_mcp.py`：六组真实 stdio 初始化、工具清单、错模块拒绝及离线目录查询。
-- `python scripts/ida_module.py status met`：核对 HTTP MCP 与数据库身份。
-- `python scripts/ida_module.py start met`：隐藏启动该分析库；固定端口被未知服务占用时拒绝启动。
-- `configure <模块>`：在数据库未被打开时保存端口。不要对正在使用的数据库运行批处理配置。
-
-58 项测试通过，包含跨进程互斥量验证。此次未重启或编辑 CS2；实时写入能力不因服务拆分而扩大。
-只保留本地，不推 GitHub。
+59 项测试通过，八个 stdio 服务验证通过。此次未操作 CS2，未新增未经验证的粒子/MET 写入；仅留本地。

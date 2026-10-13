@@ -729,3 +729,7 @@ IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚
 ### 2026-10-14 分模块 MCP 与 IDA 固定端口
 
 新增六组 MCP scope、跨进程事务互斥及固定端口表 13341–13347，保持 all 旧工具契约。58 项测试及六组 stdio 验证通过；七个 IDA 数据库保存端口，Pet/MET 两个 HTTP 端点在线且数据库身份正确。Codex/Trae 配置已同步，保留私人备份，未推送。详情在 MCP_MODULES.md。
+
+### 2026-10-14 修正为 DLL 归属
+
+用户指出 Hammer 本身含粒子功能，不能按功能分组。新增显式工具主归属清单，拆为 hammer/pet/particles/met/modeldoc_editor/scenesystem/tier0 和辅助 bridge。Hammer 粒子实体设置保留，Pet 文档与 particles.dll 目录分开。移除功能式客户端别名，保留私人备份及原 IDA 端口。59 项测试、八组实际 stdio 验证通过，未推送。

@@ -19,12 +19,15 @@ async def check(scope):
             tools = await session.list_tools()
             expected = {f.__name__ for f in select_tools(scope)}
             assert {t.name for t in tools.tools} == expected
-            if scope == "pet":
+            if scope == "particles":
                 result = await session.call_tool("cs2_particle_functions", {"limit": 1})
                 assert not result.isError
                 assert json.loads(result.content[0].text)["ok"]
-            if scope in ("hammer", "pet", "met", "modeldoc"):
+            if scope in ("hammer", "pet", "met", "modeldoc_editor"):
                 result = await session.call_tool("cs2_bind_list", {"module": "incorrect"})
+                assert result.isError
+            if scope in ("particles", "scenesystem", "tier0"):
+                result = await session.call_tool("cs2_module_interfaces", {"module": "incorrect"})
                 assert result.isError
             print(json.dumps({"scope": scope, "tools": len(tools.tools), "stdio_verified": True}), flush=True)
 

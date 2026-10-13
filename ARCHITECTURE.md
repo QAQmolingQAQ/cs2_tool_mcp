@@ -69,4 +69,4 @@ python injector/mcp_smoke.py cs2_entity_create_brush '{"dry_run":true}'
 
 ## Module MCP profiles
 
-`scopes.py` selects editor-specific inventories and binds generic module arguments. `app.py --scope` creates independent stdio servers; services and the injected bridge remain shared. `operation_lock.py` serializes complete calls across Windows MCP processes. See [MCP_MODULES.md](MCP_MODULES.md).
+`data/tool_ownership.json` explicitly records the target DLL for each high-level tool. `scopes.py` selects DLL inventories and binds generic module arguments. Shared bridge, file and compiler helpers are separate from DLL ownership. `app.py --scope` creates independent stdio servers; services and the injected bridge remain shared. `operation_lock.py` serializes complete calls across Windows MCP processes. See [MCP_MODULES.md](MCP_MODULES.md).

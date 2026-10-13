@@ -9,7 +9,7 @@
         "hammer"
       ]
     },
-    "cs2-particles": {
+    "cs2-pet": {
       "command": "python",
       "args": [
         "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
@@ -18,7 +18,16 @@
         "pet"
       ]
     },
-    "cs2-materials": {
+    "cs2-particles": {
+      "command": "python",
+      "args": [
+        "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
+        "--stdio",
+        "--scope",
+        "particles"
+      ]
+    },
+    "cs2-met": {
       "command": "python",
       "args": [
         "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
@@ -27,31 +36,40 @@
         "met"
       ]
     },
-    "cs2-models": {
+    "cs2-modeldoc-editor": {
       "command": "python",
       "args": [
         "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
         "--stdio",
         "--scope",
-        "modeldoc"
+        "modeldoc_editor"
       ]
     },
-    "cs2-assets": {
+    "cs2-scenesystem": {
       "command": "python",
       "args": [
         "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
         "--stdio",
         "--scope",
-        "assets"
+        "scenesystem"
       ]
     },
-    "cs2-runtime": {
+    "cs2-tier0": {
       "command": "python",
       "args": [
         "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
         "--stdio",
         "--scope",
-        "runtime"
+        "tier0"
+      ]
+    },
+    "cs2-bridge": {
+      "command": "python",
+      "args": [
+        "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
+        "--stdio",
+        "--scope",
+        "bridge"
       ]
     },
     "ida-pro-mcp-hammer": {

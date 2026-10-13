@@ -9,7 +9,7 @@
 
 - 主仓库：`C:\codex\cs2_tool_mcp`；IDA/探针副本：`C:\cs2_tool_mcp\ida_db`。
 - ModelDoc 原生按路径打开、单资源编译、粒子目录查询均已推送。最新 `origin/master` 请用 `git log -1` 和 `git ls-remote origin refs/heads/master` 核对，不依赖交接文档中的旧哈希。
-- 此前 CS2 工具模式在线；2026-10-14 本轮后段实测进程不在线、管道不存在，下一轮先恢复运行环境；源码现有 78 个 MCP 工具（新工具需 MCP 进程重连后显示），最近 58 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
+- 此前 CS2 工具模式在线；2026-10-14 本轮后段实测进程不在线、管道不存在，下一轮先恢复运行环境；源码现有 78 个 MCP 工具（新工具需 MCP 进程重连后显示），最近 59 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
 - IDA MCP 固定端口为 Hammer 13341、Pet 13342、MET 13343、ModelDoc 13344、particles 13345、scenesystem 13346、tier0 13347，详见 MCP_MODULES.md；
   `modeldoc_editor.dll.i64` 的本地 IDA 数据库在上述 IDA 副本目录，可用 IDA 9.1 批处理。
 
@@ -75,6 +75,6 @@
 
 已读取用户提供的 ValveResourceFormat。当前工厂表覆盖 153/376 个粒子函数；源实现及参数引用索引在 VRF_PARTICLE_REFERENCE.json，用法边界与 MET Shader 元数据入口在 VRF_REFERENCE_NOTES.md。源码 VCS 检查接受 59–72，尚未构建或复测旧 CLI 失败素材。继续实时编辑器架构，不把文件解析当作安全写入。
 
-## 分模块 MCP（2026-10-14）
+## 按 DLL 拆分 MCP（2026-10-14）
 
-已配置六组 stdio：Hammer/Pet/MET/ModelDoc/Assets/Runtime；保留 all 兼容入口，78 个独立工具契约。跨进程操作已用命名互斥量串行化。六组真实 MCP 启动与清单验证通过，58 项测试通过。Codex、Trae 和本地配置已同步，IDA 七库保存固定端口；Pet 13342、MET 13343 已在线并核对数据库身份，其余按需启动。详见 [MCP_MODULES.md](MCP_MODULES.md)。旧泛用连接不再作为默认。
+用户纠正划分依据：按目标 DLL，不按功能。现有 hammer/pet/particles/met/modeldoc_editor/scenesystem/tier0 七组 DLL 服务，另有共享 bridge 辅助服务。Hammer 粒子实体设置仍属 hammer.dll，Pet 文档属 pet.dll，函数目录与 Schema 属 particles.dll。所有 78 个工具有显式主归属，登记在 mcp_server/hammer_mcp/data/tool_ownership.json；不再根据 Python 文件名或功能名称猜归属。59 项测试及八组 stdio 验证通过，客户端配置已同步，IDA 端口不变。详情见 MCP_MODULES.md。
