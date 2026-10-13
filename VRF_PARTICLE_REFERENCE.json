@@ -1,0 +1,3716 @@
+{
+  "reference_project": "ValveResourceFormat / Source 2 Viewer",
+  "reference_url": "https://github.com/ValveResourceFormat/ValveResourceFormat",
+  "reference_commit": "f3ad9fba9c58ffe2659a441506b1e81662d15429",
+  "reference_worktree_dirty": false,
+  "catalog_sha256": "9dc34a2de4311ec811b381611658fd4010861edc26e717496319a3cda72303b0",
+  "scope": "Source-code references; not native CS2 behavior or editor-write verification",
+  "registered_count": 376,
+  "referenced_count": 153,
+  "functions": [
+    {
+      "class_name": "C_OP_RemapSpeedtoCP",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapSpeedtoCP",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/RemapSpeedtoCP.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bUseDeltaV",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nField",
+        "m_nInControlPointNumber",
+        "m_nOutControlPointNumber"
+      ],
+      "source_sha256": "9a0ddca41f9cd77650a6117464955fa3da91b350a4d3649f1f29c3b7db39ecdf"
+    },
+    {
+      "class_name": "C_OP_RemapModelVolumetoCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapBoundingVolumetoCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapAverageScalarValuetoCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapDotProductToCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RampCPLinearRandom",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RampCPLinearRandom",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/RampCPLinearRandom.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_nOutControlPointNumber",
+        "m_vecRateMax",
+        "m_vecRateMin"
+      ],
+      "source_sha256": "ad9ce9b44388b39da8b6e618ed58aa365a3b8c0fac44007baf7b17bef19e1295"
+    },
+    {
+      "class_name": "C_OP_SetParentControlPointsToChildCP",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetParentControlPointsToChildCP",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/SetParentControlPointsToChildCP.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bSetOrientation",
+        "m_nChildControlPoint",
+        "m_nChildGroupID",
+        "m_nFirstSourcePoint",
+        "m_nNumControlPoints"
+      ],
+      "source_sha256": "5ca50d077d11981d0c01f253bdc2ee6b12a8465a2c12b3d2b94b178c8a92cda7"
+    },
+    {
+      "class_name": "C_OP_SetControlPointPositions",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetControlPointPositions",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/SetControlPointPositions.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bSetOnce",
+        "m_bUseWorldLocation",
+        "m_nCP1",
+        "m_nCP2",
+        "m_nCP3",
+        "m_nCP4",
+        "m_nHeadLocation",
+        "m_vecCP1Pos",
+        "m_vecCP2Pos",
+        "m_vecCP3Pos",
+        "m_vecCP4Pos"
+      ],
+      "source_sha256": "18bdf00b9c7d317c0f625edd63250aae9a1a0164d50b03a0969b6efede5f5f13"
+    },
+    {
+      "class_name": "C_OP_SetSingleControlPointPosition",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetSingleControlPointPosition",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/SetSingleControlPointPosition.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bSetOnce",
+        "m_nCP1",
+        "m_transformInput",
+        "m_vecCP1Pos"
+      ],
+      "source_sha256": "00fa622745e16c5e8de4f7b41a02ac821d6e1815ed335ff6b5d5e36caea1b541"
+    },
+    {
+      "class_name": "C_OP_SetRandomControlPointPosition",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetRandomControlPointPosition",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/SetRandomControlPointPosition.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bOrient",
+        "m_bUseWorldLocation",
+        "m_flInterpolation",
+        "m_flReRandomRate",
+        "m_nCP1",
+        "m_nHeadLocation",
+        "m_vecCPMaxPos",
+        "m_vecCPMinPos"
+      ],
+      "source_sha256": "2239e3f9420655704dbedb1cec7753a60cfb6340b53148ad994f5c1099fa0b0b"
+    },
+    {
+      "class_name": "C_OP_SetControlPointOrientation",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetControlPointOrientation",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/SetControlPointOrientation.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bRandomize",
+        "m_bSetOnce",
+        "m_bUseWorldLocation",
+        "m_flInterpolation",
+        "m_nCP",
+        "m_nHeadLocation",
+        "m_vecRotation",
+        "m_vecRotationB"
+      ],
+      "source_sha256": "9cb853930572e265cebce537da962cba8f3fba4e2f85bdc75cd3b3799df2483a"
+    },
+    {
+      "class_name": "C_OP_SetControlPointFromObjectScale",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_DistanceBetweenCPsToCP",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "DistanceBetweenCPsToCP",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/DistanceBetweenCPsToCP.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nEndCP",
+        "m_nOutputCP",
+        "m_nOutputCPField",
+        "m_nStartCP"
+      ],
+      "source_sha256": "ae1d2420c3808415146aaed57c7b24fc8c7f01c1cb7d211e2ddd2c9b541437e0"
+    },
+    {
+      "class_name": "C_OP_SetControlPointToPlayer",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointToHand",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointToHMD",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointPositionToTimeOfDayValue",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointToCenter",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetControlPointToCenter",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/SetControlPointToCenter.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bUseAvgParticlePos",
+        "m_nCP1",
+        "m_vecCP1Pos"
+      ],
+      "source_sha256": "368399e3f721473d1ba604e2cdc01f8dc79232dc8a69dfc0fad783e8d49a55ea"
+    },
+    {
+      "class_name": "C_OP_StopAfterCPDuration",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "StopAfterDuration",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/StopAfterDuration.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bDestroyImmediately",
+        "m_bPlayEndCap",
+        "m_flDuration"
+      ],
+      "source_sha256": "16f2c38f213a38135cbbde759341e288e43cb0ca4fb615dcc44704c1ca4b9a0c"
+    },
+    {
+      "class_name": "C_OP_SetControlPointRotation",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetControlPointRotation",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/SetControlPointRotation.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flRotRate",
+        "m_nCP",
+        "m_nLocalCP",
+        "m_vecRotAxis"
+      ],
+      "source_sha256": "d75354f1a51c1b388e85e1a0be3fde6902e59495f5b455093c65ad4ec654160d"
+    },
+    {
+      "class_name": "C_OP_RemapCPtoCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_HSVShiftToCP",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "HSVShiftToCP",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/HSVShiftToCP.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_DefaultHSVColor",
+        "m_nColorCP",
+        "m_nColorGemEnableCP",
+        "m_nOutputCP"
+      ],
+      "source_sha256": "e8eeb00307586614e845fa71711054e2ef30ec50ba28474041936154e29c16de"
+    },
+    {
+      "class_name": "C_OP_SetControlPointToImpactPoint",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetCPOrientationToPointAtCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_EnableChildrenFromParentParticleCount",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_DriveCPFromGlobalSoundFloat",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointFieldToWater",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_PlayEndCapWhenFinished",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PlayEndCapWhenFinished",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/PlayEndCapWhenFinished.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bFireOnEmissionEnd",
+        "m_bIncludeChildren"
+      ],
+      "source_sha256": "c52e77469d6516d83c834a1f445c6cf368e959e648c903af545351a5aaf871d6"
+    },
+    {
+      "class_name": "C_OP_SetControlPointFieldToScalarExpression",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointToVectorExpression",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetControlPointToVectorExpression",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/SetControlPointToVectorExpression.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flLerp",
+        "m_nExpression",
+        "m_nOutputCP",
+        "m_vInput1",
+        "m_vInput2"
+      ],
+      "source_sha256": "69fcd8dfa1cb2b8315004bbb10a39761e1a401d7cd83818c93558aea937c8a9a"
+    },
+    {
+      "class_name": "C_OP_SetControlPointFieldFromVectorExpression",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RepeatedTriggerChildGroup",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ChooseRandomChildrenInGroup",
+      "category": 0,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "ChooseRandomChildrenInGroup",
+      "source_file": "ValveResourceFormat/Particles/PreEmissionOperators/ChooseRandomChildrenInGroup.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flNumberOfChildren",
+        "m_nChildGroupID"
+      ],
+      "source_sha256": "b4c7967de4f4e220ecef4c2d6f2dacc096382be156c546e41d133eebbf531c70"
+    },
+    {
+      "class_name": "C_OP_ForceControlPointStub",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SelectivelyEnableChildren",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetSimulationRate",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ControlPointToRadialScreenSpace",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_LightningSnapshotGenerator",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapExternalWindToCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointToCPVelocity",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointOrientationToCPVelocity",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapAverageHitboxSpeedtoCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_QuantizeCPComponent",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointToWaterSurface",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointPositionToRandomActiveCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetVariable",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetGravityToCP",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ModelSurfaceSnapshotGenerator",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_MultiSegmentDisplaySnapshotGenerator",
+      "category": 0,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ContinuousEmitter",
+      "category": 1,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "ContinuousEmitter",
+      "source_file": "ValveResourceFormat/Particles/Emitters/ContinuousEmitter.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flEmissionDuration",
+        "m_flEmitRate",
+        "m_flStartTime"
+      ],
+      "source_sha256": "a4c032e2af00452d4c9c2614b352a48da7da383f9840f86c2cd36ff731a3a79b"
+    },
+    {
+      "class_name": "C_OP_InstantaneousEmitter",
+      "category": 1,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InstantaneousEmitter",
+      "source_file": "ValveResourceFormat/Particles/Emitters/InstantaneousEmitter.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flInitFromKilledParentParticles",
+        "m_flParentParticleScale",
+        "m_flStartTime",
+        "m_nMaxEmittedPerFrame",
+        "m_nParticlesToEmit"
+      ],
+      "source_sha256": "1e99413ead3ea361b859cfa3e9e2ab41f7549b9938af17da3f53e003339adc0c"
+    },
+    {
+      "class_name": "C_OP_NoiseEmitter",
+      "category": 1,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "NoiseEmitter",
+      "source_file": "ValveResourceFormat/Particles/Emitters/NoiseEmitter.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bAbsVal",
+        "m_bAbsValInv",
+        "m_flEmissionDuration",
+        "m_flEmissionScale",
+        "m_flNoiseScale",
+        "m_flOffset",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_flStartTime",
+        "m_flWorldNoiseScale",
+        "m_flWorldTimeScale",
+        "m_nScaleControlPoint",
+        "m_nScaleControlPointField",
+        "m_nWorldNoisePoint",
+        "m_vecOffsetLoc"
+      ],
+      "source_sha256": "1db22be91115c1b770d8f9f7c18414dd8f004e4ee1184dd3adefdf17ab3ac332"
+    },
+    {
+      "class_name": "C_OP_MaintainEmitter",
+      "category": 1,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_PointList",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PointList",
+      "source_file": "ValveResourceFormat/Particles/Initializers/PointList.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bClosedLoop",
+        "m_bLocalCoords",
+        "m_bPlaceAlongPath",
+        "m_nControlPoint",
+        "m_nFieldOutput",
+        "m_nNumPointsAlongPath",
+        "m_pointList",
+        "m_vOffset"
+      ],
+      "source_sha256": "2ab9abc8315b577f058b000d63d30d1357338ced3d9367249b930e329acb23b6"
+    },
+    {
+      "class_name": "C_INIT_RingWave",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RingWave",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RingWave.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bEvenDistribution",
+        "m_bXYVelocityOnly",
+        "m_flInitialRadius",
+        "m_flInitialSpeedMax",
+        "m_flInitialSpeedMin",
+        "m_flParticlesPerOrbit",
+        "m_flThickness"
+      ],
+      "source_sha256": "518979a5b3225cc57cb69e87b7f95212a0a1255edf66325f474ee9d34001acef"
+    },
+    {
+      "class_name": "C_INIT_CreateAlongPath",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateAlongPath",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateAlongPath.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bSaveOffset",
+        "m_bUseRandomCPs",
+        "m_fMaxDistance",
+        "m_fT",
+        "m_flMaxDistance",
+        "m_nType"
+      ],
+      "source_sha256": "b32fcd8fbb7b0c1f4f982fb775750f1fedd5da7fe98059ffaabff2b774719b7e"
+    },
+    {
+      "class_name": "C_INIT_MoveBetweenPoints",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreateWithinSphereTransform",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateWithinSphereTransform",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateWithinSphereTransform.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput"
+      ],
+      "source_sha256": "5a9679bf5638902700cad64e10444f23b489dc843a3a40635fef0ae610cb542e"
+    },
+    {
+      "class_name": "C_INIT_CreateWithinCapsuleTransform",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_VelocityRandom",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "VelocityRandom",
+      "source_file": "ValveResourceFormat/Particles/Initializers/VelocityRandom.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_LocalCoordinateSystemSpeedMax",
+        "m_LocalCoordinateSystemSpeedMin",
+        "m_bIgnoreDT",
+        "m_fSpeedMax",
+        "m_fSpeedMin",
+        "m_nControlPointNumber"
+      ],
+      "source_sha256": "c6c3dc7013a329af46b0dfc95f7ed79052b60d67ab62bcf1b8b2d3c1e8b7b062"
+    },
+    {
+      "class_name": "C_INIT_CreateOnModel",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreateWithinBox",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateWithinBox",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateWithinBox.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_nControlPointNumber",
+        "m_vecMax",
+        "m_vecMin"
+      ],
+      "source_sha256": "32952629b3ab697f79e0b0839253a1ac56ab3559a4ffb0fb57d0e90ad151f602"
+    },
+    {
+      "class_name": "C_INIT_RandomColor",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RandomColor",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RandomColor.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_ColorMax",
+        "m_ColorMin",
+        "m_TintMax",
+        "m_TintMin",
+        "m_flLightAmplification",
+        "m_flTintPerc",
+        "m_flUpdateThreshold",
+        "m_nFieldOutput",
+        "m_nTintBlendMode",
+        "m_nTintCP"
+      ],
+      "source_sha256": "ca54374912ca366999301fd871076fc44df41c314e111cb34c1a61a0b6612b57"
+    },
+    {
+      "class_name": "C_INIT_ColorLitPerParticle",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RandomSequence",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RandomSequence",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RandomSequence.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_WeightedList",
+        "m_bLinear",
+        "m_bShuffle",
+        "m_flRelativeWeight",
+        "m_nSequence",
+        "m_nSequenceMax",
+        "m_nSequenceMin"
+      ],
+      "source_sha256": "41b73b9a7b3ed3e6480886e493cb16b7065fd20805b3a9d340d21d2c847f3e47"
+    },
+    {
+      "class_name": "C_INIT_RandomNamedModelSequence",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RandomNamedModelBodyPart",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RandomNamedModelMeshGroup",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_PositionOffset",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PositionOffset",
+      "source_file": "ValveResourceFormat/Particles/Initializers/PositionOffset.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_OffsetMax",
+        "m_OffsetMin",
+        "m_TransformInput",
+        "m_bLocalCoords",
+        "m_bProportional"
+      ],
+      "source_sha256": "ace14886dbf37202bfc23267947510b2fbd75162c4c3f131ba69bfc3a290b957"
+    },
+    {
+      "class_name": "C_INIT_PositionWarp",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PositionWarp",
+      "source_file": "ValveResourceFormat/Particles/Initializers/PositionWarp.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bInvertWarp",
+        "m_bUseCount",
+        "m_flPrevPosScale",
+        "m_flWarpStartTime",
+        "m_flWarpTime",
+        "m_nControlPointNumber",
+        "m_nRadiusComponent",
+        "m_nScaleControlPointNumber",
+        "m_vecWarpMax",
+        "m_vecWarpMin"
+      ],
+      "source_sha256": "41f7c9f02f4114d81b0e1fed5b50af70859f7fd685671445bc20be20b44e2195"
+    },
+    {
+      "class_name": "C_INIT_PositionWarpScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_PositionPlaceOnGround",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreationNoise",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreationNoise",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreationNoise.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bAbsVal",
+        "m_bAbsValInv",
+        "m_flNoiseScale",
+        "m_flNoiseScaleLoc",
+        "m_flOffset",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_flWorldTimeScale",
+        "m_nFieldOutput",
+        "m_vecOffsetLoc"
+      ],
+      "source_sha256": "425550f6131e50930fa237553a854a4fa4ee817368fdf194906c46be5a704b4e"
+    },
+    {
+      "class_name": "C_INIT_InitialVelocityNoise",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InitialVelocityNoise",
+      "source_file": "ValveResourceFormat/Particles/Initializers/InitialVelocityNoise.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bIgnoreDt",
+        "m_flNoiseScale",
+        "m_flNoiseScaleLoc",
+        "m_flOffset",
+        "m_vecAbsVal",
+        "m_vecAbsValInv",
+        "m_vecOffsetLoc",
+        "m_vecOutputMax",
+        "m_vecOutputMin"
+      ],
+      "source_sha256": "44a8be892a6dc916ee334fe77c25e8f3f7499701f597013eae862ed4cb4d4986"
+    },
+    {
+      "class_name": "C_INIT_RemapParticleCountToScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Initializers.RemapParticleCountToScalar",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RemapParticleCountToScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bActiveRange",
+        "m_bInvert",
+        "m_bScaleInitialRange",
+        "m_bWrap",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_flRemapBias",
+        "m_nFieldOutput",
+        "m_nInputMax",
+        "m_nInputMin",
+        "m_nScaleControlPoint",
+        "m_nScaleControlPointField",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "e93e85ac58787e3d672554f5bdd9570fe33140804bf0d882eecf664aa1ad4b9e"
+    },
+    {
+      "class_name": "C_INIT_RemapParticleCountToNamedModelSequenceScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapParticleCountToNamedModelBodyPartScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapParticleCountToNamedModelMeshGroupScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapNamedModelSequenceToScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapNamedModelBodyPartToScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapNamedModelMeshGroupToScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_InheritVelocity",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InheritVelocity",
+      "source_file": "ValveResourceFormat/Particles/Initializers/InheritVelocity.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flVelocityScale",
+        "m_nControlPointNumber"
+      ],
+      "source_sha256": "1bf7d14ec394ed0c73fdf52177e00a626b02a57510813b3fe27bdc8af941a1fe"
+    },
+    {
+      "class_name": "C_INIT_AgeNoise",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "AgeNoise",
+      "source_file": "ValveResourceFormat/Particles/Initializers/AgeNoise.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bAbsVal",
+        "m_bAbsValInv",
+        "m_flAgeMax",
+        "m_flAgeMin",
+        "m_flNoiseScale",
+        "m_flNoiseScaleLoc",
+        "m_flOffset",
+        "m_vecOffsetLoc"
+      ],
+      "source_sha256": "ce4d4064ab5bd72d9988cecb99d36c20328129b4ae671b83df5c7c17c10b053f"
+    },
+    {
+      "class_name": "C_INIT_SequenceLifeTime",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SequenceLifeTime",
+      "source_file": "ValveResourceFormat/Particles/Initializers/SequenceLifeTime.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flFramerate"
+      ],
+      "source_sha256": "361a166e1d00fb1cb5b4d92acc7ed00d93acb968ae167dce91a34244255aea5a"
+    },
+    {
+      "class_name": "C_INIT_RemapScalarToVector",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapScalarToVector",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RemapScalarToVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bLocalCoords",
+        "m_flEndTime",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flRemapBias",
+        "m_flStartTime",
+        "m_nControlPointNumber",
+        "m_nFieldInput",
+        "m_nFieldOutput",
+        "m_nSetMethod",
+        "m_vecOutputMax",
+        "m_vecOutputMin"
+      ],
+      "source_sha256": "a7bcdcd5648d09a538a50928c9f31928300e5dab92e66cfa7b451b240eb6847c"
+    },
+    {
+      "class_name": "C_INIT_CreateSequentialPath",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateSequentialPath",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateSequentialPath.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bCPPairs",
+        "m_bLoop",
+        "m_bSaveOffset",
+        "m_fMaxDistance",
+        "m_flNumToAssign"
+      ],
+      "source_sha256": "e25ea0278716cd94800024bd2aee30e04a8f58085864d12d41110dabd578350f"
+    },
+    {
+      "class_name": "C_INIT_CreateSequentialPathV2",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateSequentialPathV2",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateSequentialPathV2.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bCPPairs",
+        "m_bLoop",
+        "m_bSaveOffset",
+        "m_fMaxDistance",
+        "m_flNumToAssign"
+      ],
+      "source_sha256": "43044e1fd1ecfe398df88274712ac407272256c1bb2c1f245fc6f14a6d9d0ce7"
+    },
+    {
+      "class_name": "C_INIT_InitialRepulsionVelocity",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RandomYawFlip",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RandomYawFlip",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RandomYawFlip.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flPercent"
+      ],
+      "source_sha256": "6ab833bb91908d81719ad1b3642fa4f13efd79685ee3455b44e91e318ce6bfaf"
+    },
+    {
+      "class_name": "C_INIT_RandomSecondSequence",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RandomSecondSequence",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RandomSecondSequence.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_nSequenceMax",
+        "m_nSequenceMin"
+      ],
+      "source_sha256": "d39921dde04df89f39ee6ecaabe8934f3d351fad37bea7f362a5b1802ce19b46"
+    },
+    {
+      "class_name": "C_INIT_RemapTransformToVector",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapTransformToVector",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RemapTransformToVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_LocalSpaceTransform",
+        "m_TransformInput",
+        "m_bAccelerate",
+        "m_bOffset",
+        "m_flEndTime",
+        "m_flRemapBias",
+        "m_flStartTime",
+        "m_nFieldOutput",
+        "m_nSetMethod",
+        "m_nType",
+        "m_vInputMax",
+        "m_vInputMin",
+        "m_vOutputMax",
+        "m_vOutputMin"
+      ],
+      "source_sha256": "b6108d2cace79a7db24eef676d00bec79b421401b71a9be4a5d217d80e5ade2d"
+    },
+    {
+      "class_name": "C_INIT_CreateFromParentParticles",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateFromParentParticles",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateFromParentParticles.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bRandomDistribution",
+        "m_bSetRopeSegmentID",
+        "m_bSubFrame",
+        "m_flIncrement",
+        "m_flVelocityScale",
+        "m_nRandomSeed"
+      ],
+      "source_sha256": "c546af67545374f58dd0c1f438ada50ab13a1b71187ddcabe09d519c696ab437"
+    },
+    {
+      "class_name": "C_INIT_DistanceToCPInit",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "DistanceToCPInit",
+      "source_file": "ValveResourceFormat/Particles/Initializers/DistanceToCPInit.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bActiveRange",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_flRemapBias",
+        "m_nFieldOutput",
+        "m_nSetMethod",
+        "m_nStartCP",
+        "m_vecDistanceScale"
+      ],
+      "source_sha256": "90762f8b58809a3851d2cdb4fc27d1c9f713adcf56f2c1eba5a19f70f4f436cb"
+    },
+    {
+      "class_name": "C_INIT_LifespanFromVelocity",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreateFromPlaneCache",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_ChaoticAttractor",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_ModelCull",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RtEnvCull",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_NormalAlignToCP",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "NormalAlignToCP",
+      "source_file": "ValveResourceFormat/Particles/Initializers/NormalAlignToCP.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_nControlPointAxis",
+        "m_transformInput"
+      ],
+      "source_sha256": "cfdc32cc3d0eca73c3006c26c544c54cddd2ac16e1aeec40f4c62d45249fd6ea"
+    },
+    {
+      "class_name": "C_INIT_NormalOffset",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "NormalOffset",
+      "source_file": "ValveResourceFormat/Particles/Initializers/NormalOffset.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_OffsetMax",
+        "m_OffsetMin",
+        "m_bLocalCoords",
+        "m_bNormalize",
+        "m_nControlPointNumber"
+      ],
+      "source_sha256": "02a2d70c90d47bdc32bf35f662c11f7aad25da911df1e5715499d637a19f8481"
+    },
+    {
+      "class_name": "C_INIT_VelocityFromCP",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "VelocityFromCP",
+      "source_file": "ValveResourceFormat/Particles/Initializers/VelocityFromCP.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bDirectionOnly",
+        "m_flVelocityScale",
+        "m_transformInput",
+        "m_velocityInput"
+      ],
+      "source_sha256": "7a8c831edd8a0d006d3dec29a7d138cde65d956d852727c4d8b49d80c304eb9f"
+    },
+    {
+      "class_name": "C_INIT_SequenceFromCP",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_InitFromCPSnapshot",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InitFromCPSnapshot",
+      "source_file": "ValveResourceFormat/Particles/Initializers/InitFromCPSnapshot.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bLocalSpaceAngles",
+        "m_nManualSnapshotIndex"
+      ],
+      "source_sha256": "c116a1bc6a12d7e0670bd014c1e9c90dc714ccad8b2086832e16289664467afb"
+    },
+    {
+      "class_name": "C_INIT_InitFromParentKilled",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_SetHitboxToModel",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_InheritFromParentParticles",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InheritFromParentParticles",
+      "source_file": "ValveResourceFormat/Particles/Initializers/InheritFromParentParticles.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bRandomDistribution",
+        "m_flScale",
+        "m_nFieldOutput",
+        "m_nIncrement",
+        "m_nRandomSeed"
+      ],
+      "source_sha256": "daced25f137cf6f84b5704fc1efe3b02c39060431fef61109d26968e55f656b0"
+    },
+    {
+      "class_name": "C_INIT_RandomVectorComponent",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RandomVectorComponent",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RandomVectorComponent.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flMax",
+        "m_flMin",
+        "m_nComponent",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "8dc66fa3cc99f264796eb1352de366fd7e29b4d6fc3b19a1f75450e129ba228e"
+    },
+    {
+      "class_name": "C_INIT_CreateInEpitrochoid",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreatePhyllotaxis",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_SetHitboxToClosest",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapInitialDirectionToTransformToVector",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapInitialDirectionToTransformToVector",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RemapInitialDirectionToTransformToVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bNormalize",
+        "m_flOffsetRot",
+        "m_flScale",
+        "m_nFieldOutput",
+        "m_vecOffsetAxis"
+      ],
+      "source_sha256": "f59be82b3bb0484b85f0b963bc43fa791c140e7677e614c9b28f054fac0e36d5"
+    },
+    {
+      "class_name": "C_INIT_RemapInitialTransformDirectionToRotation",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapInitialTransformDirectionToRotation",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RemapInitialTransformDirectionToRotation.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_flOffsetRot",
+        "m_nComponent",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "87f777009ec3ca85a14c60bf5bd21be2f6b12930a6f5781a610c162aed1183d7"
+    },
+    {
+      "class_name": "C_INIT_CreateFromCPs",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateFromCPs",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateFromCPs.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_nDynamicCPCount",
+        "m_nIncrement",
+        "m_nMaxCP",
+        "m_nMinCP"
+      ],
+      "source_sha256": "61bc8a2113c397206a0c682bf3024c80e9fcfbc61b84b9305a6d007d7ff451c5"
+    },
+    {
+      "class_name": "C_INIT_RandomModelSequence",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreateSpiralSphere",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapQAnglesToRotation",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapTransformOrientationToRotations",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Initializers.RemapTransformOrientationToRotations",
+      "source_file": "ValveResourceFormat/Particles/Initializers/RemapTransformOrientationToRotations.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bUseQuat",
+        "m_bWriteNormal",
+        "m_vecRotation"
+      ],
+      "source_sha256": "812a1f44a1fdf3b29ff697489bfc00dc16911807081a241e08d5f73884dec475"
+    },
+    {
+      "class_name": "C_INIT_SetRigidAttachment",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreateOnModelAtHeight",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_PositionOffsetToCP",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RadiusFromCPObject",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_InitialVelocityFromHitbox",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_Orient2DRelToCP",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_RemapInitialVisibilityScalar",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_VelocityRadialRandom",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "VelocityRadialRandom",
+      "source_file": "ValveResourceFormat/Particles/Initializers/VelocityRadialRandom.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bIgnoreDelta",
+        "m_fSpeedMax",
+        "m_fSpeedMin",
+        "m_nControlPointNumber",
+        "m_vecLocalCoordinateSystemSpeedScale"
+      ],
+      "source_sha256": "cb4e260350cb6ed964dc0b4050df5541b058cd2a53cbd2c6da5540afd1ce46fa"
+    },
+    {
+      "class_name": "C_INIT_InitialSequenceFromModel",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_InitSkinnedPositionFromCPSnapshot",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_VelocityFromNormal",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_GlobalScale",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "GlobalScale",
+      "source_file": "ValveResourceFormat/Particles/Initializers/GlobalScale.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bScalePosition",
+        "m_bScaleRadius",
+        "m_bScaleVelocity",
+        "m_flScale",
+        "m_nControlPointNumber",
+        "m_nScaleControlPointNumber"
+      ],
+      "source_sha256": "76c273a7d0a066f65aa6b8c103b4af8b4646722cffb7ee23f1e7488ba9af040a"
+    },
+    {
+      "class_name": "C_INIT_StatusEffect",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_StatusEffectCitadel",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_StatusEffectTf",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreateOnGrid",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateOnGrid",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateOnGrid.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bCenter",
+        "m_bHollow",
+        "m_nControlPointNumber",
+        "m_nXCount",
+        "m_nXSpacing",
+        "m_nYCount",
+        "m_nYSpacing",
+        "m_nZCount",
+        "m_nZSpacing"
+      ],
+      "source_sha256": "65685cc542a55ed280f6db34dda66de13208b1cb94dd3d41e35f0596ab0f8aa9"
+    },
+    {
+      "class_name": "C_INIT_CreateParticleImpulse",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_QuantizeFloat",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_InitFloat",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InitFloat",
+      "source_file": "ValveResourceFormat/Particles/Initializers/InitFloat.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_InputStrength",
+        "m_InputValue",
+        "m_nOutputField",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "4b9eae2324be993a90fb61f09be13b5292fe7e4b5f254ae0d5a84422faac3005"
+    },
+    {
+      "class_name": "C_INIT_InitFloatCollection",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InitFloatCollection",
+      "source_file": "ValveResourceFormat/Particles/Initializers/InitFloatCollection.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_InputValue",
+        "m_nOutputField"
+      ],
+      "source_sha256": "b322a1419691db476a302ac99c02c15194fe688a56c704344c4835e6126a0ee5"
+    },
+    {
+      "class_name": "C_INIT_InitVec",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InitVec",
+      "source_file": "ValveResourceFormat/Particles/Initializers/InitVec.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_InputValue",
+        "m_bWritePreviousPosition",
+        "m_nOutputField"
+      ],
+      "source_sha256": "2b221e46da1a9ce9a951fa302731cb01221e836cf8fef47f1a55250b50923477"
+    },
+    {
+      "class_name": "C_INIT_InitVecCollection",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_DistanceCull",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_PlaneCull",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_ScaleVelocity",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_DistanceToNeighborCull",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_SetVectorAttributeToVectorExpression",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_SetAttributeToScalarExpression",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_InitFromVectorFieldSnapshot",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_SetFloatAttributeToVectorExpression",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_ScreenSpacePositionOfTarget",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CheckParticleForWater",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_SkyVisCull",
+      "category": 2,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_INIT_CreateWithinCone",
+      "category": 2,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CreateWithinCone",
+      "source_file": "ValveResourceFormat/Particles/Initializers/CreateWithinCone.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bCollapseOffset",
+        "m_flInnerAngle",
+        "m_flOffset",
+        "m_flOuterAngle",
+        "m_flSpeed"
+      ],
+      "source_sha256": "3b3efc819907d9848d024c4c89c18143c8ec2bd445a9f6928af48eec575789f7"
+    },
+    {
+      "class_name": "C_OP_LockToPointList",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_BasicMovement",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "BasicMovement",
+      "source_file": "ValveResourceFormat/Particles/Operators/BasicMovement.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_Gravity",
+        "m_fDrag"
+      ],
+      "source_sha256": "d6b5664f722b871294feb325d960ea5e1f911405f7bbfc5f1d73934954860cd6"
+    },
+    {
+      "class_name": "C_OP_Decay",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Decay",
+      "source_file": "ValveResourceFormat/Particles/Operators/Decay.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [],
+      "source_sha256": "be172e8155b85b205458466f1c6d27fa39f3c6329245a3c45b7ef9e18f557450"
+    },
+    {
+      "class_name": "C_OP_EndCapDecay",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "EndCapDecay",
+      "source_file": "ValveResourceFormat/Particles/Operators/EndCapDecay.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [],
+      "source_sha256": "203b0bae8d3ab2e300bbbe6bf2953b03b98794f3c262bdf63d8ac7ac79f33d89"
+    },
+    {
+      "class_name": "C_OP_EndCapTimedDecay",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "EndCapTimedDecay",
+      "source_file": "ValveResourceFormat/Particles/Operators/EndCapTimedDecay.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flDecayTime"
+      ],
+      "source_sha256": "fddca0b9bac677c60d7025101409b8da1d9c8fbf1fd4b62a26985b9904e0381d"
+    },
+    {
+      "class_name": "C_OP_DecayMaintainCount",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_VelocityDecay",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "VelocityDecay",
+      "source_file": "ValveResourceFormat/Particles/Operators/VelocityDecay.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flMinVelocity"
+      ],
+      "source_sha256": "556314ee0e916ac8edffdbf8ee9fa5482cb64558ca485072ab72dd2909f1931d"
+    },
+    {
+      "class_name": "C_OP_AlphaDecay",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "AlphaDecay",
+      "source_file": "ValveResourceFormat/Particles/Operators/AlphaDecay.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flMinAlpha"
+      ],
+      "source_sha256": "6e3473b713877e112df3bfc5bea1c40ca9ba9e3f87230ff30ea2c5d3a126477e"
+    },
+    {
+      "class_name": "C_OP_FadeAndKill",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "FadeAndKill",
+      "source_file": "ValveResourceFormat/Particles/Operators/FadeAndKill.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flEndAlpha",
+        "m_flEndFadeInTime",
+        "m_flEndFadeOutTime",
+        "m_flStartAlpha",
+        "m_flStartFadeInTime",
+        "m_flStartFadeOutTime"
+      ],
+      "source_sha256": "8d4ce04d8479e439ee1db4c13b2d77f38986b41ea4218430dab1cfac286afdad"
+    },
+    {
+      "class_name": "C_OP_FadeAndKillForTracers",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "FadeAndKillForTracers",
+      "source_file": "ValveResourceFormat/Particles/Operators/FadeAndKillForTracers.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [],
+      "source_sha256": "b3c175272015d21a9ad07388e2fb7ba0430976c3e88d1edc6e836032ceecd4da"
+    },
+    {
+      "class_name": "C_OP_FadeIn",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "FadeInRandom",
+      "source_file": "ValveResourceFormat/Particles/Operators/FadeInRandom.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flFadeInTime"
+      ],
+      "source_sha256": "4e9565c06d3f41bbf776e6361c08cbfb0c47167584471bf292f1715a23cef976"
+    },
+    {
+      "class_name": "C_OP_FadeInSimple",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "FadeInSimple",
+      "source_file": "ValveResourceFormat/Particles/Operators/FadeInSimple.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flFadeInTime",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "d23e8558ec2e3c7f567c0c5838e634023884e886cabbb7baac8844a5ebdd9d4f"
+    },
+    {
+      "class_name": "C_OP_FadeOut",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "FadeOutRandom",
+      "source_file": "ValveResourceFormat/Particles/Operators/FadeOutRandom.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bEaseInAndOut",
+        "m_flFadeOutTime"
+      ],
+      "source_sha256": "07c98752cd22e88728fd29f8d50362ffb3ceb32160826d1e775398c6c1fa1875"
+    },
+    {
+      "class_name": "C_OP_FadeOutSimple",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "FadeOutSimple",
+      "source_file": "ValveResourceFormat/Particles/Operators/FadeOutSimple.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flFadeOutTime",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "3b271bfdd1443131e51e6dd0101e5aeaf402b624e5f87295a1db9b1eb9eb3b4f"
+    },
+    {
+      "class_name": "C_OP_Spin",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Spin",
+      "source_file": "ValveResourceFormat/Particles/Operators/Spin.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_fSpinRateStopTime",
+        "m_nSpinRateDegrees",
+        "m_nSpinRateMinDegrees"
+      ],
+      "source_sha256": "8e292aa5d137ac1452c1f390713ea515d74dff974c09ffde27f7f4d7c06281b4"
+    },
+    {
+      "class_name": "C_OP_SpinUpdate",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SpinUpdate",
+      "source_file": "ValveResourceFormat/Particles/Operators/SpinUpdate.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [],
+      "source_sha256": "1ef1c251f3b34dbdbbddf55504d37d2b47da48e59d4aa85f707702124c3a4c82"
+    },
+    {
+      "class_name": "C_OP_SpinYaw",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SpinYaw",
+      "source_file": "ValveResourceFormat/Particles/Operators/Spin.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_fSpinRateStopTime",
+        "m_nSpinRateDegrees",
+        "m_nSpinRateMinDegrees"
+      ],
+      "source_sha256": "8e292aa5d137ac1452c1f390713ea515d74dff974c09ffde27f7f4d7c06281b4"
+    },
+    {
+      "class_name": "C_OP_OrientTo2dDirection",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_Orient2DRelToCP",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_InterpolateRadius",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "InterpolateRadius",
+      "source_file": "ValveResourceFormat/Particles/Operators/InterpolateRadius.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bEaseInAndOut",
+        "m_flBias",
+        "m_flEndScale",
+        "m_flEndTime",
+        "m_flStartScale",
+        "m_flStartTime"
+      ],
+      "source_sha256": "303c5a36db24bd44049ba2f14952d5394ce99baf29189816dd1724739c7d6490"
+    },
+    {
+      "class_name": "C_OP_ColorInterpolate",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "ColorInterpolate",
+      "source_file": "ValveResourceFormat/Particles/Operators/ColorInterpolate.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_ColorFade",
+        "m_bEaseInOut",
+        "m_flFadeEndTime",
+        "m_flFadeStartTime",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "d054d3f070b39e0da4605d9243b0bcf28b83c85252eac20f8d4c86a340306350"
+    },
+    {
+      "class_name": "C_OP_ColorInterpolateRandom",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "ColorInterpolateRandom",
+      "source_file": "ValveResourceFormat/Particles/Operators/ColorInterpolateRandom.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_ColorFadeMax",
+        "m_ColorFadeMin",
+        "m_bEaseInOut",
+        "m_flFadeEndTime",
+        "m_flFadeStartTime",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "c70d1ab06f7e73ee52959dedc3aab1767988b426edf3f77e651fe5f83b5f011e"
+    },
+    {
+      "class_name": "C_OP_OscillateScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "OscillateScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/OscillateScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_Frequency",
+        "m_FrequencyMax",
+        "m_FrequencyMin",
+        "m_Rate",
+        "m_RateMax",
+        "m_RateMin",
+        "m_bProportional",
+        "m_bProportionalOp",
+        "m_flEndTime_max",
+        "m_flEndTime_min",
+        "m_flOscAdd",
+        "m_flOscMult",
+        "m_flStartTime_max",
+        "m_flStartTime_min",
+        "m_nField"
+      ],
+      "source_sha256": "fe17597c9eaa558115cbcac7a490c98f9fc72e8429a801ffc293e38d35735083"
+    },
+    {
+      "class_name": "C_OP_OscillateScalarSimple",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "OscillateScalarSimple",
+      "source_file": "ValveResourceFormat/Particles/Operators/OscillateScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_Frequency",
+        "m_FrequencyMax",
+        "m_FrequencyMin",
+        "m_Rate",
+        "m_RateMax",
+        "m_RateMin",
+        "m_bProportional",
+        "m_bProportionalOp",
+        "m_flEndTime_max",
+        "m_flEndTime_min",
+        "m_flOscAdd",
+        "m_flOscMult",
+        "m_flStartTime_max",
+        "m_flStartTime_min",
+        "m_nField"
+      ],
+      "source_sha256": "fe17597c9eaa558115cbcac7a490c98f9fc72e8429a801ffc293e38d35735083"
+    },
+    {
+      "class_name": "C_OP_OscillateVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "OscillateVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/OscillateVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_Frequency",
+        "m_FrequencyMax",
+        "m_FrequencyMin",
+        "m_Rate",
+        "m_RateMax",
+        "m_RateMin",
+        "m_bOffset",
+        "m_bProportional",
+        "m_bProportionalOp",
+        "m_flEndTime_max",
+        "m_flEndTime_min",
+        "m_flOscAdd",
+        "m_flOscMult",
+        "m_flRateScale",
+        "m_flStartTime_max",
+        "m_flStartTime_min",
+        "m_nField"
+      ],
+      "source_sha256": "29a59d07cf823489505dfa605c1402a35812cbc70b8bb30ff74ce931bb7328c1"
+    },
+    {
+      "class_name": "C_OP_OscillateVectorSimple",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "OscillateVectorSimple",
+      "source_file": "ValveResourceFormat/Particles/Operators/OscillateVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_Frequency",
+        "m_FrequencyMax",
+        "m_FrequencyMin",
+        "m_Rate",
+        "m_RateMax",
+        "m_RateMin",
+        "m_bOffset",
+        "m_bProportional",
+        "m_bProportionalOp",
+        "m_flEndTime_max",
+        "m_flEndTime_min",
+        "m_flOscAdd",
+        "m_flOscMult",
+        "m_flRateScale",
+        "m_flStartTime_max",
+        "m_flStartTime_min",
+        "m_nField"
+      ],
+      "source_sha256": "29a59d07cf823489505dfa605c1402a35812cbc70b8bb30ff74ce931bb7328c1"
+    },
+    {
+      "class_name": "C_OP_DampenToCP",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "DampenToCP",
+      "source_file": "ValveResourceFormat/Particles/Operators/DampenToCP.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flRange",
+        "m_flScale",
+        "m_nControlPointNumber"
+      ],
+      "source_sha256": "6b875cbae01bf3bec61e76623b02f68e2772b17f4e8cb628e3605bdd80c08f35"
+    },
+    {
+      "class_name": "C_OP_PositionLock",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PositionLock",
+      "source_file": "ValveResourceFormat/Particles/Operators/PositionLock.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bLockRot",
+        "m_flEndTime_exp",
+        "m_flEndTime_max",
+        "m_flEndTime_min",
+        "m_flJumpThreshold",
+        "m_flPrevPosScale",
+        "m_flRange",
+        "m_flRangeBias",
+        "m_flStartTime_exp",
+        "m_flStartTime_max",
+        "m_flStartTime_min",
+        "m_nFieldOutput",
+        "m_nFieldOutputPrev",
+        "m_vecScale"
+      ],
+      "source_sha256": "f65de97c32f872f0e05cb5b867b537093be55b180fc1778d12f48dfdaaff8b56"
+    },
+    {
+      "class_name": "C_OP_LockToBone",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_DistanceBetweenTransforms",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "DistanceBetweenTransforms",
+      "source_file": "ValveResourceFormat/Particles/Operators/DistanceBetweenTransforms.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformEnd",
+        "m_TransformStart",
+        "m_bLOS",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flLOSScale",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "b2f3cf65d29b24ccf6d8ee27bebe712e810a5fae9e7a818dd03bf7bcca5bd4c8"
+    },
+    {
+      "class_name": "C_OP_PercentageBetweenTransforms",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PercentageBetweenTransforms",
+      "source_file": "ValveResourceFormat/Particles/Operators/PercentageBetweenTransforms.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformEnd",
+        "m_TransformStart",
+        "m_bActiveRange",
+        "m_bRadialCheck",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "24347528536898564c45a6ab96815b0176a15b7548ff08891e40330b5a0566b5"
+    },
+    {
+      "class_name": "C_OP_PercentageBetweenTransformsVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PercentageBetweenTransformsVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/PercentageBetweenTransformsVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformEnd",
+        "m_TransformStart",
+        "m_bActiveRange",
+        "m_bRadialCheck",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_nFieldOutput",
+        "m_nSetMethod",
+        "m_vecOutputMax",
+        "m_vecOutputMin"
+      ],
+      "source_sha256": "c53dee06554c364bbd83ebfba4da5b09133e9839d6e1681bf06c679a9851690a"
+    },
+    {
+      "class_name": "C_OP_PercentageBetweenTransformLerpCPs",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PercentageBetweenTransformLerpCPs",
+      "source_file": "ValveResourceFormat/Particles/Operators/PercentageBetweenTransformLerpCPs.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformEnd",
+        "m_TransformStart",
+        "m_bActiveRange",
+        "m_bRadialCheck",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_nFieldOutput",
+        "m_nOutputEndCP",
+        "m_nOutputEndField",
+        "m_nOutputStartCP",
+        "m_nOutputStartField",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "9feb457a725884e3543ad2a091ef6e530432b700a9f13671d096aa91eb0aa156"
+    },
+    {
+      "class_name": "C_OP_DistanceToTransform",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "DistanceToTransform",
+      "source_file": "ValveResourceFormat/Particles/Operators/DistanceToTransform.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformStart",
+        "m_bActiveRange",
+        "m_bAdditive",
+        "m_bLOS",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flLOSScale",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput",
+        "m_nSetMethod",
+        "m_vecComponentScale"
+      ],
+      "source_sha256": "aa53d38d709e16b06513877c558817edab1ec0bfb77fb0e326e68af90461c3a1"
+    },
+    {
+      "class_name": "C_OP_SetChildControlPoints",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointsToParticle",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_CPOffsetToPercentageBetweenCPs",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_PlaneCull",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PlaneCull",
+      "source_file": "ValveResourceFormat/Particles/Operators/PlaneCull.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bLocalSpace",
+        "m_flPlaneOffset",
+        "m_nPlaneControlPoint",
+        "m_vecPlaneDirection"
+      ],
+      "source_sha256": "bf26b748e2d95e0dc75b4d10e7070bb51ec5f4905cbcc4aa9c6f371001b72976"
+    },
+    {
+      "class_name": "C_OP_ModelCull",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_Cull",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Cull",
+      "source_file": "ValveResourceFormat/Particles/Operators/Cull.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flCullEnd",
+        "m_flCullExp",
+        "m_flCullPerc",
+        "m_flCullStart"
+      ],
+      "source_sha256": "11a1445ced479e5969d3ac5dd88e104e8430124a6b7b8b3db0afbf823ce8022a"
+    },
+    {
+      "class_name": "C_OP_DistanceCull",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "DistanceCull",
+      "source_file": "ValveResourceFormat/Particles/Operators/DistanceCull.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bCullInside",
+        "m_flDistance",
+        "m_nControlPoint",
+        "m_vecPointOffset"
+      ],
+      "source_sha256": "87e4a1d61d14fc7fef241984e9551d58a2bfcc661e7ad3d7889a702781042429"
+    },
+    {
+      "class_name": "C_OP_ControlpointLight",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Operators.RemapScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bOldCode",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldInput",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "e1d11d89ff9856c52d04c8034fb1359e5b82df5a41356260d91e565457b74a66"
+    },
+    {
+      "class_name": "C_OP_RemapDensityToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_Diffusion",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapSpeed",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapSpeed",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapSpeed.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bIgnoreDelta",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "8b047bb9e51b406128643459336c67acd7569e4d6083a6ecc81869a97f17f024"
+    },
+    {
+      "class_name": "C_OP_Noise",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Noise",
+      "source_file": "ValveResourceFormat/Particles/Operators/Noise.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bAdditive",
+        "m_fl4NoiseScale",
+        "m_flNoiseAnimationTimeScale",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "7651933ed221c5aa52d014487f9f207c5a26732662795c892c72d078e8c9fd16"
+    },
+    {
+      "class_name": "C_OP_VectorNoise",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "VectorNoise",
+      "source_file": "ValveResourceFormat/Particles/Operators/VectorNoise.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bAdditive",
+        "m_fl4NoiseScale",
+        "m_flNoiseAnimationTimeScale",
+        "m_nFieldOutput",
+        "m_vecOutputMax",
+        "m_vecOutputMin"
+      ],
+      "source_sha256": "ae17bebfa6e2f68ee4b73ae79a1e6ec586740f76b8cd6fa75e02cb1765053f76"
+    },
+    {
+      "class_name": "C_OP_VelocityMatchingForce",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_MaxVelocity",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "MaxVelocity",
+      "source_file": "ValveResourceFormat/Particles/Operators/MaxVelocity.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flMaxVelocity",
+        "m_flMinVelocity"
+      ],
+      "source_sha256": "22abaae57f2ce977d867d6118da7793e3713cc96edc55ccb959e8cc916e6f22b"
+    },
+    {
+      "class_name": "C_OP_MaintainSequentialPath",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "MaintainSequentialPath",
+      "source_file": "ValveResourceFormat/Particles/Operators/MaintainSequentialPath.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bLoop",
+        "m_bUseParticleCount",
+        "m_fMaxDistance",
+        "m_flCohesionStrength",
+        "m_flNumToAssign",
+        "m_flTolerance"
+      ],
+      "source_sha256": "535e01296c96788d2aa7183977adffd20c06c9e43ce63781713f89b7f6a5ff4d"
+    },
+    {
+      "class_name": "C_OP_MovementMaintainOffset",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_MovementPlaceOnGround",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetToCP",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetToCP",
+      "source_file": "ValveResourceFormat/Particles/Operators/SetToCP.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bOffsetLocal",
+        "m_nControlPointNumber",
+        "m_vecOffset"
+      ],
+      "source_sha256": "e7a4c2f2967be48c43c837a927e5d7f39955443cd13aeae8d75a6d62ca7b62db"
+    },
+    {
+      "class_name": "C_OP_RemapDotProductToScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapCPtoScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapCPtoScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapCPtoScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flEndTime",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flInterpRate",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_flStartTime",
+        "m_nCPInput",
+        "m_nField",
+        "m_nFieldOutput",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "90e1946d29a7042cdf4f54dcfc955f4208db25247c36e7aeedb4b47481c4e635"
+    },
+    {
+      "class_name": "C_OP_RemapCPtoVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapCPtoVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapCPtoVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bAccelerate",
+        "m_bOffset",
+        "m_flEndTime",
+        "m_flInterpRate",
+        "m_flStartTime",
+        "m_nCPInput",
+        "m_nFieldOutput",
+        "m_nLocalSpaceCP",
+        "m_nSetMethod",
+        "m_vInputMax",
+        "m_vInputMin",
+        "m_vOutputMax",
+        "m_vOutputMin"
+      ],
+      "source_sha256": "fdb2f4d28a7b9a13309cc8852d46b3be6fb9fa434e0e22a98bcf9dbc52fcfb71"
+    },
+    {
+      "class_name": "C_OP_RemapDirectionToCPToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapVelocityToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapVelocityToVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapVelocityToVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bNormalize",
+        "m_flScale",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "a075bf3586c4167c9bc61944765be6854e3312d9fcf4a194f9c4d8d62b38fc50"
+    },
+    {
+      "class_name": "C_OP_RemapCPVelocityToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapControlPointDirectionToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapControlPointDirectionToVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapControlPointDirectionToVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flScale",
+        "m_nControlPointNumber",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "1a7a1bca2312c204d805e62601062db8e7423ae1e8b366842adadf740dc9dcba"
+    },
+    {
+      "class_name": "C_OP_DifferencePreviousParticle",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RampScalarLinear",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RampScalarLinear",
+      "source_file": "ValveResourceFormat/Particles/Operators/RampScalarLinear.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_RateMax",
+        "m_RateMin",
+        "m_bProportionalOp",
+        "m_flEndTime_max",
+        "m_flEndTime_min",
+        "m_flStartTime_max",
+        "m_flStartTime_min",
+        "m_nField"
+      ],
+      "source_sha256": "e5aae8740dbda6ddac493f0d630c8069cc1e59d21e00eb279bf6cc66b2d63f21"
+    },
+    {
+      "class_name": "C_OP_RampScalarSpline",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RampScalarSplineSimple",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RampScalarLinearSimple",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RampScalarLinearSimple",
+      "source_file": "ValveResourceFormat/Particles/Operators/RampScalarLinearSimple.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_Rate",
+        "m_flEndTime",
+        "m_flStartTime",
+        "m_nField"
+      ],
+      "source_sha256": "9c35a7af46cd1bb5544dc227ae705335669c3c1f57be53b60bd456849ab95299"
+    },
+    {
+      "class_name": "C_OP_NormalLock",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "NormalLock",
+      "source_file": "ValveResourceFormat/Particles/Operators/NormalLock.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_nControlPointNumber"
+      ],
+      "source_sha256": "02ee1dcafb0f80c2cd4cb822d57f857cb64caef87684ca388a5b39b2d110e336"
+    },
+    {
+      "class_name": "C_OP_NormalizeVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "NormalizeVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/NormalizeVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flScale",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "5bd9a924d1d2c7405c6643054b900daf79bdca939e13a7ae74cd18de064624ad"
+    },
+    {
+      "class_name": "C_OP_RotateVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RotateVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/RotateVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bNormalize",
+        "m_flRotRateMax",
+        "m_flRotRateMin",
+        "m_flScale",
+        "m_nFieldOutput",
+        "m_vecRotAxisMax",
+        "m_vecRotAxisMin"
+      ],
+      "source_sha256": "aac51ed46d644c2039073c29b1765e50e254ad39da13763ba039117109ed120b"
+    },
+    {
+      "class_name": "C_OP_SetCPOrientationToDirection",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RestartAfterDuration",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RestartAfterDuration",
+      "source_file": "ValveResourceFormat/Particles/Operators/RestartAfterDuration.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bOnlyChildren",
+        "m_flDurationMax",
+        "m_flDurationMin",
+        "m_nCP",
+        "m_nCPField",
+        "m_nChildGroupID"
+      ],
+      "source_sha256": "a81aae54168a50c3d86bfc8cb07cda96060169ef459f2bb37439526ff61969c0"
+    },
+    {
+      "class_name": "C_OP_MoveToHitbox",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ClampScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "ClampScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/ClampScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "48cb7f51badb3117400cac119b6a571379046b11eb6eadf462b8d8f75ad0253c"
+    },
+    {
+      "class_name": "C_OP_ClampVector",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RadiusDecay",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_LockToSavedSequentialPath",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "LockToSavedSequentialPath",
+      "source_file": "ValveResourceFormat/Particles/Operators/LockToSavedSequentialPath.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bCPPairs",
+        "m_flFadeEnd",
+        "m_flFadeStart"
+      ],
+      "source_sha256": "9869a7a626c7812677f015960fb7d656ce137a361e78cf26fff3120880c384d1"
+    },
+    {
+      "class_name": "C_OP_LockToSavedSequentialPathV2",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "LockToSavedSequentialPathV2",
+      "source_file": "ValveResourceFormat/Particles/Operators/LockToSavedSequentialPathV2.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bCPPairs",
+        "m_flFadeEnd",
+        "m_flFadeStart"
+      ],
+      "source_sha256": "5888ff0f3255329890efeb75b96b6189fb1fb0f65b52bcb627824a7ac4a46f94"
+    },
+    {
+      "class_name": "C_OP_SetPerChildControlPoint",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_LerpVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "LerpVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/LerpVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flEndTime",
+        "m_flStartTime",
+        "m_nFieldOutput",
+        "m_nSetMethod",
+        "m_vecOutput"
+      ],
+      "source_sha256": "2dcc5da423f31ee18fbfae3a5eec0464f49b38dc3fa2a997e5d4188f282a0788"
+    },
+    {
+      "class_name": "C_OP_LerpScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "LerpScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/LerpScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flEndTime",
+        "m_flOutput",
+        "m_flStartTime",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "3fd85f1d110f5d8015191cbf131ae20201bd4f347ed47b78939400381f4050ac"
+    },
+    {
+      "class_name": "C_OP_LerpEndCapScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "LerpEndCapScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/LerpEndCapScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flLerpTime",
+        "m_flOutput",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "ba8d354c35ac0ee95efe1a07569fe2cc79cae8b62b1fb0fcec2ac893614b4aab"
+    },
+    {
+      "class_name": "C_OP_LerpEndCapVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "LerpEndCapVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/LerpEndCapVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flLerpTime",
+        "m_nFieldOutput",
+        "m_vecOutput"
+      ],
+      "source_sha256": "704530b886ab97ea0b2aa38b0965bb702823438e2ef82f58e17f3695f726dfd0"
+    },
+    {
+      "class_name": "C_OP_InheritFromParentParticles",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_InheritFromParentParticlesV2",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapVisibilityScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_LagCompensation",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_MovementRotateParticleAroundAxis",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "MovementRotateParticleAroundAxis",
+      "source_file": "ValveResourceFormat/Particles/Operators/MovementRotateParticleAroundAxis.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bLocalSpace",
+        "m_flRotRate",
+        "m_vecRotAxis"
+      ],
+      "source_sha256": "0771f073ab8cc9644e8de7e6120282a7a10591557d0bd562ca9309d5c3f4545e"
+    },
+    {
+      "class_name": "C_OP_ReinitializeScalarEndCap",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "ReinitializeScalarEndCap",
+      "source_file": "ValveResourceFormat/Particles/Operators/ReinitializeScalarEndCap.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "108be12b15917ba878ce6f79cd97c2f1ff7c07d57678af1e9858463f1a23e0b9"
+    },
+    {
+      "class_name": "C_OP_RemapScalarEndCap",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapScalarEndCap",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapScalarEndCap.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldInput",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "6eeb3a5943eb8eeb75d787faf653d777d1a1b558f492d14a93bba3b15d453b94"
+    },
+    {
+      "class_name": "C_OP_RemapScalarOnceTimed",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapNamedModelSequenceOnceTimed",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapNamedModelBodyPartOnceTimed",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapNamedModelMeshGroupOnceTimed",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapNamedModelSequenceEndCap",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapNamedModelBodyPartEndCap",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapNamedModelMeshGroupEndCap",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetCPOrientationToGroundNormal",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapTransformOrientationToYaw",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapTransformOrientationToYaw",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapTransformOrientationToYaw.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_flRotOffset",
+        "m_flSpinStrength",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "ad328b0fb5cc4953f378f86dce7326c4be26f7145158aaa2a2091d127a97bca2"
+    },
+    {
+      "class_name": "C_OP_MovementRigidAttachToCP",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapTransformOrientationToRotations",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Operators.RemapTransformOrientationToRotations",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapTransformOrientationToRotations.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bUseQuat",
+        "m_bWriteNormal",
+        "m_vecRotation"
+      ],
+      "source_sha256": "35308a821e8434fed18f14fc4ddab016211d91fa8d25f25dc2c751b52510e44b"
+    },
+    {
+      "class_name": "C_OP_RemapVectortoCP",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapTransformVisibilityToScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapTransformVisibilityToScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapTransformVisibilityToScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "d3fc6d8be749b66a51099dc9fd324f0731bb2a214968422f8f861719b966c6b2"
+    },
+    {
+      "class_name": "C_OP_RemapTransformVisibilityToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapTransformVisibilityToVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapTransformVisibilityToVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_nFieldOutput",
+        "m_nSetMethod",
+        "m_vecOutputMax",
+        "m_vecOutputMin"
+      ],
+      "source_sha256": "ca0d85c5502a3f16de4f2e47340af4b2b0bb250de9cea743bddbb56317045d74"
+    },
+    {
+      "class_name": "C_OP_SequenceFromModel",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapParticleCountOnScalarEndCap",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapParticleCountOnScalarEndCap",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapParticleCountOnScalarEndCap.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bBackwards",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput",
+        "m_nInputMax",
+        "m_nInputMin",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "1b5d2c69c0205d2cb02e8e40e32477ae9d937589d4b9552dc8dbd5a883a96990"
+    },
+    {
+      "class_name": "C_OP_MovementLoopInsideSphere",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapTransformToVelocity",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapTransformToVelocity",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapTransformToVelocity.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput"
+      ],
+      "source_sha256": "bdfcc77e7bd188453deea1569b26cc52797aa013a007f025b460561d62178b2d"
+    },
+    {
+      "class_name": "C_OP_SnapshotSkinToBones",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SnapshotRigidSkinToBones",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetControlPointsToModelParticles",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetCPtoVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetCPtoVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/SetCPtoVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_nCPInput",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "e3af76a2029c275427e03073a2e6d874c05e38f3bf2d48a80c20f02f123cb58c"
+    },
+    {
+      "class_name": "C_OP_SetFromCPSnapshot",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetFromCPSnapshot",
+      "source_file": "ValveResourceFormat/Particles/Operators/SetFromCPSnapshot.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bPrev",
+        "m_nSnapShotStartPoint"
+      ],
+      "source_sha256": "428068669d2c1ebf6d9df7eaeced585977a53b9bc0ed606f1c97f3a9ac1290ce"
+    },
+    {
+      "class_name": "C_OP_RemapControlPointOrientationToRotation",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_LerpToInitialPosition",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetPerChildControlPointFromAttribute",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapParticleCountToScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "Operators.RemapParticleCountToScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapParticleCountToScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bActiveRange",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput",
+        "m_nInputMax",
+        "m_nInputMin",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "79e0fea211669ba1436693b39a56c1ccdb32b209a75b3be9f1cf8adea6bdc3d4"
+    },
+    {
+      "class_name": "C_OP_LerpToOtherAttribute",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "LerpToOtherAttribute",
+      "source_file": "ValveResourceFormat/Particles/Operators/LerpToOtherAttribute.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flInterpolation",
+        "m_nFieldInput",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "d7b8dcfc50b7317e58c1c52017059a33ede24df7f11b2312e5c2635260f44fda"
+    },
+    {
+      "class_name": "C_OP_SetFloat",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetFloat",
+      "source_file": "ValveResourceFormat/Particles/Operators/SetFloat.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_InputValue",
+        "m_Lerp",
+        "m_nOutputField",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "9d0e9ed48e2122af8aa02235d6d7fedd2dafc83907e470f3b3016f53933c3f53"
+    },
+    {
+      "class_name": "C_OP_SetVec",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetVec",
+      "source_file": "ValveResourceFormat/Particles/Operators/SetVec.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_InputValue",
+        "m_Lerp",
+        "m_bNormalizedOutput",
+        "m_nOutputField",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "eb7a3c35208b31ef1b6da1b838e3c2ac693a160d1c816d048c3752dcca71773c"
+    },
+    {
+      "class_name": "C_OP_SetFloatCollection",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetFloatCollection",
+      "source_file": "ValveResourceFormat/Particles/Operators/SetFloatCollection.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_InputValue",
+        "m_Lerp",
+        "m_nOutputField",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "a16512a637275110bc49d5cc717e7afa503604cfe07381f53a4c0bad41536d6b"
+    },
+    {
+      "class_name": "C_OP_ReadFromNeighboringParticle",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_InheritFromPeerSystem",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapVectorComponentToScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetAttributeToScalarExpression",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "SetAttributeToScalarExpression",
+      "source_file": "ValveResourceFormat/Particles/Operators/SetAttributeToScalarExpression.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flInput1",
+        "m_flInput2",
+        "m_nExpression",
+        "m_nOutputField",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "e591aa321a8d753ec8433c054685b1e6ad5b9f4ab6559a437bd10caa72710dfd"
+    },
+    {
+      "class_name": "C_OP_PinParticleToCP",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_PointVectorAtNextParticle",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PointVectorAtNextParticle",
+      "source_file": "ValveResourceFormat/Particles/Operators/PointVectorAtNextParticle.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bPrevious",
+        "m_flInterpolation",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "757a1c8435e81e98f442f23d457eae66193bc5d06ae2d6743bb31bb5d7a2fc12"
+    },
+    {
+      "class_name": "C_OP_CylindricalDistanceToTransform",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CylindricalDistanceToTransform",
+      "source_file": "ValveResourceFormat/Particles/Operators/CylindricalDistanceToTransform.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformEnd",
+        "m_TransformStart",
+        "m_bActiveRange",
+        "m_bAdditive",
+        "m_bCapsule",
+        "m_flInputMax",
+        "m_flInputMin",
+        "m_flOutputMax",
+        "m_flOutputMin",
+        "m_nFieldOutput",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "1f5dda78d1cd6a3fde228157d2621f7eda3eb1827c65baa58bf6123a388a85eb"
+    },
+    {
+      "class_name": "C_OP_MovementSkinnedPositionFromCPSnapshot",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_QuantizeFloat",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "QuantizeFloat",
+      "source_file": "ValveResourceFormat/Particles/Operators/QuantizeFloat.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_InputValue",
+        "m_nOutputField"
+      ],
+      "source_sha256": "52a1ba251b6a6342e20cbec59aa8377a4163d766f3301e8d4e01d3dd61ab5c26"
+    },
+    {
+      "class_name": "C_OP_MovementMoveAlongSkinnedCPSnapshot",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_EndCapTimedFreeze",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "EndCapTimedFreeze",
+      "source_file": "ValveResourceFormat/Particles/Operators/EndCapTimedFreeze.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flFreezeTime"
+      ],
+      "source_sha256": "ca78ca32d9130f6836331cdde989d5679b7c5452f554efc9f6addc61ab3ab458"
+    },
+    {
+      "class_name": "C_OP_RemapCrossProductOfTwoVectorsToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RemapCrossProductOfTwoVectorsToVector",
+      "source_file": "ValveResourceFormat/Particles/Operators/RemapCrossProductOfTwoVectorsToVector.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_InputVec1",
+        "m_InputVec2",
+        "m_bNormalize",
+        "m_nFieldOutput"
+      ],
+      "source_sha256": "2e730d0712d80aa75db391f4719b7030b790cecac89ea191d6c85f885b2c51e9"
+    },
+    {
+      "class_name": "C_OP_DecayOffscreen",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_DecayClampCount",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ChladniWave",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_DistanceBetweenVecs",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_DirectionBetweenVecsToVec",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RtEnvCull",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetVectorAttributeToVectorExpression",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetFloatAttributeToVectorExpression",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ModelDampenMovement",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_VectorFieldSnapshot",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_DragRelativeToPlane",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SetUserEvent",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapGravityToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_LazyCullCompareFloat",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ScreenSpacePositionOfTarget",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ScreenSpaceDistanceToEdge",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ScreenSpaceRotateTowardTarget",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_PinRopeSegmentParticleToParent",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapVectorToRotations",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_UpdateLightSource",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_CalculateVectorAttribute",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_CycleScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CycleScalar",
+      "source_file": "ValveResourceFormat/Particles/Operators/CycleScalar.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bDoNotRepeatCycle",
+        "m_bSynchronizeParticles",
+        "m_flCycleTime",
+        "m_flEndValue",
+        "m_flStartValue",
+        "m_nCPFieldMax",
+        "m_nCPFieldMin",
+        "m_nCPScale",
+        "m_nDestField",
+        "m_nSetMethod"
+      ],
+      "source_sha256": "161141716d0bd1b678a9e85ba8ba30373c1078b9cd85aab4c602a475dc1f575f"
+    },
+    {
+      "class_name": "C_OP_RemapDistanceToLineSegmentToScalar",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapDistanceToLineSegmentToVector",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_TeleportBeam",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ConnectParentParticleToNearest",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_LockPoints",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ColorAdjustHSL",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RemapDensityGradientToVectorAttribute",
+      "category": 3,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RandomForce",
+      "category": 4,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RandomForce",
+      "source_file": "ValveResourceFormat/Particles/ForceGenerators/RandomForce.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_MaxForce",
+        "m_MinForce"
+      ],
+      "source_sha256": "0099b6622e64b01b017fad56142401e6624552346b7ba22f8ee83db3de3cf680"
+    },
+    {
+      "class_name": "C_OP_TwistAroundAxis",
+      "category": 4,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "TwistAroundAxis",
+      "source_file": "ValveResourceFormat/Particles/ForceGenerators/TwistAroundAxis.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TwistAxis",
+        "m_bLocalSpace",
+        "m_fForceAmount",
+        "m_nControlPointNumber"
+      ],
+      "source_sha256": "d01aa837fbebe8f488f597b116af1db8b27d18ce7d5f2de706510c891358e7c7"
+    },
+    {
+      "class_name": "C_OP_ParentVortices",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_AttractToControlPoint",
+      "category": 4,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "AttractToControlPoint",
+      "source_file": "ValveResourceFormat/Particles/ForceGenerators/AttractToControlPoint.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_TransformInput",
+        "m_bApplyMinForce",
+        "m_fFalloffPower",
+        "m_fForceAmount",
+        "m_fForceAmountMin",
+        "m_vecComponentScale"
+      ],
+      "source_sha256": "a38a1f7fbba10c5ab036c695fbe56e3eba9a75a7b2bd6a835a38f7aab4e850aa"
+    },
+    {
+      "class_name": "C_OP_TimeVaryingForce",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_TurbulenceForce",
+      "category": 4,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "TurbulenceForce",
+      "source_file": "ValveResourceFormat/Particles/ForceGenerators/TurbulenceForce.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flNoiseCoordScale0",
+        "m_flNoiseCoordScale1",
+        "m_flNoiseCoordScale2",
+        "m_flNoiseCoordScale3",
+        "m_vecNoiseAmount0",
+        "m_vecNoiseAmount1",
+        "m_vecNoiseAmount2",
+        "m_vecNoiseAmount3"
+      ],
+      "source_sha256": "f6f983025618b661d112a20d2bf7148824949038dca65f22afe3ae48c6dda15b"
+    },
+    {
+      "class_name": "C_OP_CurlNoiseForce",
+      "category": 4,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "CurlNoiseForce",
+      "source_file": "ValveResourceFormat/Particles/ForceGenerators/CurlNoiseForce.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flWorleyJitter",
+        "m_flWorleySeed",
+        "m_nNoiseType",
+        "m_vecNoiseFreq",
+        "m_vecNoiseScale",
+        "m_vecOffset",
+        "m_vecOffsetRate"
+      ],
+      "source_sha256": "2aea7f81619ca800376ca6339032cec9c6f0b8910c999ce6ac9188c1c8d17adf"
+    },
+    {
+      "class_name": "C_OP_ForceBasedOnDistanceToPlane",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_WindForce",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ExternalWindForce",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_LocalAccelerationForce",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_CPVelocityForce",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_PerParticleForce",
+      "category": 4,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "PerParticleForce",
+      "source_file": "ValveResourceFormat/Particles/ForceGenerators/PerParticleForce.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flForceScale",
+        "m_nCP",
+        "m_vForce"
+      ],
+      "source_sha256": "e4e3dfb25c7c859f5b550baef85620bc9f809ab117445c08b5b97e89e6a6bea7"
+    },
+    {
+      "class_name": "C_OP_ExternalGameImpulseForce",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_DensityForce",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_IntraParticleForce",
+      "category": 4,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ConstrainDistance",
+      "category": 5,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "ConstrainDistance",
+      "source_file": "ValveResourceFormat/Particles/Constraints/ConstrainDistance.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_CenterOffset",
+        "m_bGlobalCenter",
+        "m_fMaxDistance",
+        "m_fMinDistance",
+        "m_nControlPointNumber"
+      ],
+      "source_sha256": "0214e12adea2fa48a02fb41c143956e83daff847224381294255638295affb48"
+    },
+    {
+      "class_name": "C_OP_PlanarConstraint",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_WorldCollideConstraint",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_WorldTraceConstraint",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ConstrainDistanceToPath",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ConstrainDistanceToUserSpecifiedPath",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_BoxConstraint",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ConstrainLineLength",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RopeSpringConstraint",
+      "category": 5,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RopeSpringConstraint",
+      "source_file": "ValveResourceFormat/Particles/Constraints/RopeSpringConstraint.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flAdjustmentScale",
+        "m_flInitialRestingLength",
+        "m_flMaxDistance",
+        "m_flMinDistance",
+        "m_flRestLength"
+      ],
+      "source_sha256": "9d84173c395460802897c8a1d3868df250a8264ed33536b7872e405d012bf44b"
+    },
+    {
+      "class_name": "C_OP_CollideWithParentParticles",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_CollideWithSelf",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_SpringToVectorConstraint",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ShapeMatchingConstraint",
+      "category": 5,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderTrails",
+      "category": 6,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RenderTrails",
+      "source_file": "Renderer/Particles/Renderers/RenderTrails.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bAnimateInFPS",
+        "m_bBlendFramesSeq0",
+        "m_bEnableFadingAndClamping",
+        "m_bIgnoreDT",
+        "m_flAnimationRate",
+        "m_flConstrainRadiusToLengthRatio",
+        "m_flEndFadeDot",
+        "m_flEndFadeSize",
+        "m_flForwardShift",
+        "m_flHeadAlphaScale",
+        "m_flLengthFadeInTime",
+        "m_flLengthScale",
+        "m_flMaxLength",
+        "m_flMaxSize",
+        "m_flMinLength",
+        "m_flMinSize",
+        "m_flRadiusHeadTaper",
+        "m_flRadiusTaper",
+        "m_flStartFadeDot",
+        "m_flStartFadeSize",
+        "m_flTailAlphaScale",
+        "m_nAnimationType",
+        "m_nOrientationType",
+        "m_nOutputBlendMode",
+        "m_nPrevPntSource",
+        "m_vecHeadColorScale",
+        "m_vecTailColorScale"
+      ],
+      "source_sha256": "2a3f3facf1bf28d2a9daab3fa5c7ef150ef842729ddcb178fed718ac4d0bfa80"
+    },
+    {
+      "class_name": "C_OP_RenderSprites",
+      "category": 6,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RenderSprites",
+      "source_file": "Renderer/Particles/Renderers/RenderSprites.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_OutlineColor",
+        "m_bAnimateInFPS",
+        "m_bBlendFramesSeq0",
+        "m_bDistanceAlpha",
+        "m_bOutline",
+        "m_bSoftEdges",
+        "m_flAnimationRate",
+        "m_flEdgeSoftnessEnd",
+        "m_flEdgeSoftnessStart",
+        "m_flEndFadeDot",
+        "m_flEndFadeSize",
+        "m_flMaxSize",
+        "m_flMinSize",
+        "m_flOutlineEnd0",
+        "m_flOutlineEnd1",
+        "m_flOutlineStart0",
+        "m_flOutlineStart1",
+        "m_flStartFadeDot",
+        "m_flStartFadeSize",
+        "m_nAnimationType",
+        "m_nOrientationType",
+        "m_nOutlineAlpha",
+        "m_nOutputBlendMode"
+      ],
+      "source_sha256": "aab00100b43906e798f7a564f7c71dd17b2c2361b6900e281bab7f5246fe0bd9"
+    },
+    {
+      "class_name": "C_OP_RenderRopes",
+      "category": 6,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RenderRopes",
+      "source_file": "Renderer/Particles/Renderers/RenderRopes.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bAnimateInFPS",
+        "m_bBlendFramesSeq0",
+        "m_bClampV",
+        "m_bClosedLoop",
+        "m_bDrawAsOpaque",
+        "m_bEnableFadingAndClamping",
+        "m_bReverseOrder",
+        "m_bUseScalarForTextureCoordinate",
+        "m_flAnimationRate",
+        "m_flEndFadeDot",
+        "m_flEndFadeSize",
+        "m_flMaxSize",
+        "m_flMinSize",
+        "m_flScalarAttributeTextureCoordScale",
+        "m_flScaleVOffsetByControlPointDistance",
+        "m_flScaleVScrollByControlPointDistance",
+        "m_flScaleVSizeByControlPointDistance",
+        "m_flStartFadeDot",
+        "m_flStartFadeSize",
+        "m_flTessScale",
+        "m_flTextureVOffset",
+        "m_flTextureVScrollRate",
+        "m_flTextureVWorldSize",
+        "m_nAnimationType",
+        "m_nMaxTesselation",
+        "m_nMinTesselation",
+        "m_nOrientationType",
+        "m_nOutputBlendMode",
+        "m_nScalarFieldForTextureCoordinate",
+        "m_nScaleCP1",
+        "m_nScaleCP2",
+        "m_nTextureVParamsCP",
+        "m_nVectorFieldForOrientation"
+      ],
+      "source_sha256": "13394d9f942fb7f39cf9978b6721428dc30a66e0137e31bf8f8e4da34c7ea157"
+    },
+    {
+      "class_name": "C_OP_RenderCables",
+      "category": 6,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RenderCables",
+      "source_file": "Renderer/Particles/Renderers/RenderCables.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_flTessScale",
+        "m_flTextureRepeatsCircumference",
+        "m_flTextureRepeatsPerSegment",
+        "m_hMaterial",
+        "m_nMaxTesselation",
+        "m_nMinTesselation",
+        "m_nRoundness",
+        "m_nTextureRepetitionMode"
+      ],
+      "source_sha256": "dd7185f9c717af31429bf89a74fb633ddf7174419285e7233042625ee1d1e420"
+    },
+    {
+      "class_name": "C_OP_RenderLights",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderScreenVelocityRotate",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderModels",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderDeferredLight",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderStandardLight",
+      "category": 6,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RenderStandardLight",
+      "source_file": "Renderer/Particles/Renderers/RenderStandardLight.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bCastShadows",
+        "m_flIntensity",
+        "m_flRadiusMultiplier",
+        "m_flZeroPercentFalloff",
+        "m_vecColorScale"
+      ],
+      "source_sha256": "b75f58234b1d74475130cf7d0f6e5e0ab5172466acd507f1422b12708c498b41"
+    },
+    {
+      "class_name": "C_OP_RenderOmni2Light",
+      "category": 6,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RenderOmni2Light",
+      "source_file": "Renderer/Particles/Renderers/RenderOmni2Light.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bCastShadows",
+        "m_bFog",
+        "m_bSphericalCookie",
+        "m_flBrightnessCandelas",
+        "m_flBrightnessLumens",
+        "m_flFogScale",
+        "m_flInnerConeAngle",
+        "m_flLuminaireRadius",
+        "m_flOuterConeAngle",
+        "m_flRange",
+        "m_flSkirt",
+        "m_hLightCookie",
+        "m_nBrightnessUnit",
+        "m_nColorBlendType",
+        "m_nLightType",
+        "m_vColorBlend"
+      ],
+      "source_sha256": "90f0ac2278fe1cd621f8f23f2daa9675055ccf9f15966aea20181b65ff67e3ee"
+    },
+    {
+      "class_name": "C_OP_RenderLightBeam",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderProjected",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderBlobs",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderGpuImplicit",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderClothForce",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderScreenShake",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderSound",
+      "category": 6,
+      "has_vrf_factory_implementation": true,
+      "implementation_class": "RenderSound",
+      "source_file": "Renderer/Particles/Renderers/RenderSound.cs",
+      "source_file_found": true,
+      "mentioned_parameter_names": [
+        "m_bSuppressStopSoundEvent",
+        "m_flVolumeScale",
+        "m_nCPReference",
+        "m_nVolumeField",
+        "m_pszSoundName"
+      ],
+      "source_sha256": "a0b9e5614cbd26c440e7b134744c50c3a47b1122428454aeb8316a1fa3407859"
+    },
+    {
+      "class_name": "C_OP_RenderStatusEffect",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderStatusEffectCitadel",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderStatusEffectTf",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderFlattenGrass",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderTreeShake",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderText",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_Callback",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderVRHapticEvent",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderPostProcessing",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderMaterialProxy",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderSimpleModelCollection",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_ClientPhysics",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderClientPhysicsImpulse",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_GameDecalRenderer",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_WaterImpulseRenderer",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_GameLiquidSpill",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_CreateParticleSystemRenderer",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    },
+    {
+      "class_name": "C_OP_RenderVolumetricEmitter",
+      "category": 6,
+      "has_vrf_factory_implementation": false
+    }
+  ]
+}

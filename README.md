@@ -85,3 +85,5 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for module boundaries, session ownership,
 structured editing results, and extension rules.
 For the latest live-editor findings and next steps, see
 [CURRENT_STATE.md](CURRENT_STATE.md).
+
+Source-format and behavior references: [Source 2 Viewer](https://s2v.app) ([ValveResourceFormat](https://github.com/ValveResourceFormat/ValveResourceFormat)). Local reference coverage is recorded in [VRF_REFERENCE_NOTES.md](VRF_REFERENCE_NOTES.md).

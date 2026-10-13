@@ -70,3 +70,7 @@
 ## 本轮接续（2026-10-14）
 
 两会话分别读回 CPetSession+0x58 源路径，对照工具已加入该路径核对；集成后的完整实机复测因进程离线待补。55 项测试通过。用户接着要求推进 MET，静态入口及候选布局见 [MET_DLL_OFFSETS.md](MET_DLL_OFFSETS.md)，尚未开放材质写入。旧 met.dll.id0 报损坏，改用本地 met_clean_20261014.dll.i64。
+
+## VRF 本地参考（2026-10-14）
+
+已读取用户提供的 ValveResourceFormat。当前工厂表覆盖 153/376 个粒子函数；源实现及参数引用索引在 VRF_PARTICLE_REFERENCE.json，用法边界与 MET Shader 元数据入口在 VRF_REFERENCE_NOTES.md。源码 VCS 检查接受 59–72，尚未构建或复测旧 CLI 失败素材。继续实时编辑器架构，不把文件解析当作安全写入。
