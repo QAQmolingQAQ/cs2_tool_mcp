@@ -1,6 +1,6 @@
 # CS2/Hammer MCP 当前交接状态
 
-更新：2026-10-13（北京时间）。本文件记录下一轮可直接接续的事实；历史细节在
+更新：2026-10-14（北京时间）。本文件记录下一轮可直接接续的事实；历史细节在
 [`PROGRESS.md`](PROGRESS.md) 和 [`REVERSE_NOTES.md`](REVERSE_NOTES.md)。
 下载目录的角色模型与实机导入记录见 [`DOWNLOAD_MODELS.md`](DOWNLOAD_MODELS.md)。
 后续功能优先级与验收条件见 [`MCP_ROADMAP.md`](MCP_ROADMAP.md)。
@@ -9,7 +9,7 @@
 
 - 主仓库：`C:\codex\cs2_tool_mcp`；IDA/探针副本：`C:\cs2_tool_mcp\ida_db`。
 - ModelDoc 原生按路径打开、单资源编译、粒子目录查询均已推送。最新 `origin/master` 请用 `git log -1` 和 `git ls-remote origin refs/heads/master` 核对，不依赖交接文档中的旧哈希。
-- CS2 以 `-tools -addon test` 运行，桥接 DLL 已注入；源码现有 77 个 MCP 工具（新工具需 MCP 进程重连后显示），最近 53 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
+- 此前 CS2 工具模式在线；2026-10-14 本轮后段实测进程不在线、管道不存在，下一轮先恢复运行环境；源码现有 78 个 MCP 工具（新工具需 MCP 进程重连后显示），最近 55 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
 - Hammer、tier0、scenesystem 的 IDA MCP 端口为 13331/13334/13332；
   `modeldoc_editor.dll.i64` 的本地 IDA 数据库在上述 IDA 副本目录，可用 IDA 9.1 批处理。
 
@@ -47,7 +47,7 @@
 ## 其他编辑器与待办
 
 - Particle Editor 对象链与九组实时列表偏移已反编译并在空白文档只读验证，详见 [`PET_DLL_OFFSETS.md`](PET_DLL_OFFSETS.md)。`CPetSession +0x108 -> CPetDoc +0x80 -> CPetRootNode`；
-  已用非空 `.vpcf` 验证九组计数、六个 `CPetFunctionNode` RTTI、函数类名以及部分参数值；新增 `cs2_particle_editor_open`、只读 `cs2_particle_editor_tree` 和 `cs2_particle_editor_value`。仍需验证未保存变更差分，写入 API 尚未实机验证。`cs2_asset_tree` 只读取保存后的文本 KV3 `.vmdl/.vpcf`，
+  已用非空 `.vpcf` 验证九组计数、六个 `CPetFunctionNode` RTTI、函数类名以及部分参数值；新增 `cs2_particle_editor_open`、只读 `cs2_particle_editor_tree`、`cs2_particle_editor_value` 和 `cs2_particle_editor_compare`。静态追踪到 `CPetKV3PropertyDomain` 的历史前后通知，仍需验证未保存变更差分，写入 API 尚未实机验证。`cs2_asset_tree` 只读取保存后的文本 KV3 `.vmdl/.vpcf`，
   不能代表编辑器未保存改动。
 - ModelDoc 当前可读回文档和根对象，**尚不能可靠枚举实时子节点/属性**。
   找到读取结构后才添加修改 API，要求读回、原生撤销及实机验证。
@@ -66,3 +66,7 @@
 3. 模型编译：`cs2_asset_compile(path, confirm=True)` 对 add-on 源文件运行 CS2
    自带编译器并检查编译产物；`cs2_modeldoc_open(path, confirm=True)` 在实时编辑器打开。
 4. 推送前检查提交差异和敏感信息，确认远端 `master` 哈希与本地 HEAD 一致。
+
+## 本轮接续（2026-10-14）
+
+两会话分别读回 CPetSession+0x58 源路径，对照工具已加入该路径核对；集成后的完整实机复测因进程离线待补。55 项测试通过。用户接着要求推进 MET，静态入口及候选布局见 [MET_DLL_OFFSETS.md](MET_DLL_OFFSETS.md)，尚未开放材质写入。旧 met.dll.id0 报损坏，改用本地 met_clean_20261014.dll.i64。

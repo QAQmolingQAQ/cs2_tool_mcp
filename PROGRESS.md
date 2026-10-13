@@ -713,3 +713,11 @@ IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚
 ### 2026-10-13 本地：Particle Editor 实时参数只读接口
 
 新增 `cs2_particle_editor_value(category,index,field)`，通过当前 Pet 会话/函数节点的内嵌 KV3 查询 Schema 字段及嵌套路径；含 DLL PE 版本校验、容器边界和 RTTI 检查。实机对照测试粒子读回输出字段 7、输入字面值 1.0、控制点向量 [1000,0,0] 和纹理路径；53 项测试通过。没有执行粒子写入，也没有验证未保存改动或 Undo/Redo。功能仅留本地，未推 GitHub。详情在 `PET_DLL_OFFSETS.md`。
+
+### 2026-10-14 本地：粒子实时/保存值对照与属性历史追踪
+
+新增只读 `cs2_particle_editor_compare`，对照 VPCF 同组同索引同类节点的叶属性；随后加入 session+0x58 源路径核对，两会话路径偏移已读回，集成后实机复测因进程离线待补。实机三个值与保存文件一致；55 项测试通过。IDA 确认 `CPetKV3PropertyDomain` 的改动前回调会以 `Set %s` 经 `CPetDoc` 历史对象建立快照，改动后回调另发通知。值设置调用约定尚未确认，未运行任何写入或撤销。仅本地保存，不推送。详见 `PET_DLL_OFFSETS.md`。
+
+### 2026-10-14 本地：MET 材质编辑器静态入口
+
+用户要求接着推进 MET。DLL 与副本 SHA 一致；旧 IDA 数据库报损坏，保留原件另建干净数据库。定位 CQMaterialEditor 当前材质候选指针 +0x238、路径/Shader/开关/变量集合及序列化。MET 全部仅静态分析，CS2 进程不在线，未声称实机读写；详情在 MET_DLL_OFFSETS.md。

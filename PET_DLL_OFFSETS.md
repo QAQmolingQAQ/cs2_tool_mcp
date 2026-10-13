@@ -81,3 +81,9 @@ IDA 基址 `0x180000000`；下表均为相对 `pet.dll` 的 RVA 或对象内偏�
 新增只读 `cs2_particle_editor_value(category,index,field)`：0–6 组、固定索引；空 `field` 枚举该函数 Schema 顶层属性，指定字段可用 `m_InputValue.m_flLiteralValue`、`m_vecTexturesInput[0].m_hTexture` 这种路径。节点由当前会话重新定位，核对 RTTI、函数类名、目录类别、KV3 容量和活动会话；Pet PE 时间戳 `0x6AC7FFFE`、映像大小 `0xA76000` 不匹配时拒绝使用这些偏移。复杂对象只显示键哈希/成员数；数组最多展开 64 项，容器上限 256。它不调用插入/写入 API。
 
 当前打开的 `spotlight_cone_test.vpcf` 实机读回：`C_INIT_InitFloat.m_nOutputField=7`、`m_InputValue.m_flLiteralValue=1.0`；`C_OP_SetControlPointPositions.m_vecCP2Pos=[1000,0,0]`；`C_OP_RenderRopes.m_vecTexturesInput[0].m_hTexture=materials/particles/light_flare/point_spotlight_cone.vtex`。这些值与保存源文件相符。**尚未在 UI 修改但不保存后做差分，也未验证原生 Undo/Redo；当前仅达到“实时内存只读/保存值对照”级别。**外置数组布局仍需另找样本验证。
+
+## 属性面板与撤销入口的静态追踪（2026-10-14）
+
+IDA 在 `pet+0x7464F8` 的虚表附近识别到 `CPetKV3PropertyDomain` RTTI，`pet+0x85BF0` 是其回调。回调从属性路径生成 `Set %s` 历史标签，并调用 `pet+0x11A790(doc, label, 1)`。该文档方法经 `doc+0x88` 的历史对象执行 `pet+0x45D920`（开始标签）和 `pet+0x45D450`（记录文档快照），并发送变更前通知。相邻虚表回调 `pet+0x85BA0` 发送变更后通知。窗口构造函数 `pet+0x83240` 创建此属性域对象，说明这是编辑器本身的属性改动通道。以上为**静态分析**；尚未定位可靠的值设置参数/调用约定，也未实机执行写入或撤销往返。不要把 `pet+0x397D90` 的 KV3 插入式查找或桥接层 `write_value` 当作安全编辑 API。
+
+新增只读 `cs2_particle_editor_compare(path,category,index,field)`，对调用者指定的已保存文本 VPCF 与实时节点的同一叶字段做对照；缺失的源字段可能是默认值，返回不可比较；同一组/索引的 `_class` 不同则拒绝。后续在两会话读到 CPetSession+0x58 的源路径，工具现核对该路径与活动会话；集成后的实机复测因进程离线待补，路径偏移本身已只读验证。测试粒子中三个已保存字段（输入字面值、控制点向量、纹理资源路径）与实时内存一致。未保存修改差分仍未实测。
