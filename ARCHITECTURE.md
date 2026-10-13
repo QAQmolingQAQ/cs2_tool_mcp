@@ -66,3 +66,7 @@ python injector/mcp_smoke.py cs2_entity_create_brush '{"dry_run":true}'
 
 测试覆盖工具契约、mesh 归属、结构化失败结果、会话隔离、缓存失效、无循环依赖、协议验证和写操作不重放。
 需要实机工具时，先加载与当前 Hammer 版本匹配的 DLL。模块接口发现现在可用于任何已加载且导出 `CreateInterface` 的 DLL；非编辑器模块不进入 ToolSystem/热键目录。
+
+## Module MCP profiles
+
+`scopes.py` selects editor-specific inventories and binds generic module arguments. `app.py --scope` creates independent stdio servers; services and the injected bridge remain shared. `operation_lock.py` serializes complete calls across Windows MCP processes. See [MCP_MODULES.md](MCP_MODULES.md).

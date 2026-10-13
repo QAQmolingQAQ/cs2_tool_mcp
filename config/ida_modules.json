@@ -1,0 +1,37 @@
+{
+  "hammer": {
+    "host": "127.0.0.1",
+    "port": 13341,
+    "database": "hammer.dll.i64"
+  },
+  "pet": {
+    "host": "127.0.0.1",
+    "port": 13342,
+    "database": "pet.dll.i64"
+  },
+  "met": {
+    "host": "127.0.0.1",
+    "port": 13343,
+    "database": "met_clean_20261014.dll.i64"
+  },
+  "modeldoc": {
+    "host": "127.0.0.1",
+    "port": 13344,
+    "database": "modeldoc_editor.dll.i64"
+  },
+  "particles": {
+    "host": "127.0.0.1",
+    "port": 13345,
+    "database": "particles.dll.i64"
+  },
+  "scenesystem": {
+    "host": "127.0.0.1",
+    "port": 13346,
+    "database": "scenesystem.dll.i64"
+  },
+  "tier0": {
+    "host": "127.0.0.1",
+    "port": 13347,
+    "database": "tier0.dll.i64"
+  }
+}

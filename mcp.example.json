@@ -1,11 +1,79 @@
 {
   "mcpServers": {
-    "cs2-tool": {
+    "cs2-hammer": {
       "command": "python",
       "args": [
         "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
-        "--stdio"
+        "--stdio",
+        "--scope",
+        "hammer"
       ]
+    },
+    "cs2-particles": {
+      "command": "python",
+      "args": [
+        "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
+        "--stdio",
+        "--scope",
+        "pet"
+      ]
+    },
+    "cs2-materials": {
+      "command": "python",
+      "args": [
+        "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
+        "--stdio",
+        "--scope",
+        "met"
+      ]
+    },
+    "cs2-models": {
+      "command": "python",
+      "args": [
+        "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
+        "--stdio",
+        "--scope",
+        "modeldoc"
+      ]
+    },
+    "cs2-assets": {
+      "command": "python",
+      "args": [
+        "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
+        "--stdio",
+        "--scope",
+        "assets"
+      ]
+    },
+    "cs2-runtime": {
+      "command": "python",
+      "args": [
+        "C:\\path\\to\\cs2_tool_mcp\\mcp_server\\cs2_mcp_server.py",
+        "--stdio",
+        "--scope",
+        "runtime"
+      ]
+    },
+    "ida-pro-mcp-hammer": {
+      "url": "http://127.0.0.1:13341/mcp"
+    },
+    "ida-pro-mcp-pet": {
+      "url": "http://127.0.0.1:13342/mcp"
+    },
+    "ida-pro-mcp-met": {
+      "url": "http://127.0.0.1:13343/mcp"
+    },
+    "ida-pro-mcp-modeldoc": {
+      "url": "http://127.0.0.1:13344/mcp"
+    },
+    "ida-pro-mcp-particles": {
+      "url": "http://127.0.0.1:13345/mcp"
+    },
+    "ida-pro-mcp-scenesystem": {
+      "url": "http://127.0.0.1:13346/mcp"
+    },
+    "ida-pro-mcp-tier0": {
+      "url": "http://127.0.0.1:13347/mcp"
     }
   }
 }
