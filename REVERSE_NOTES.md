@@ -4607,3 +4607,18 @@ modeldoc 的 20 个工具类目标（`Tool_Selection` / `Tool_Picker` / `ModelDo
 动态解析出的链表头必须位于目标模块映像且内存可读，才允许遍历。
 本次只做静态导出/序言验证和 C++ 编译；尚无进程内接口列表读回。
 
+## 2026-10-13 ModelDoc 按路径打开源模型
+
+当前 `modeldoc_editor.dll` 中，`ModelDocEditorApp.FileOpen` 绑定指向 RVA
+`0xB9F500`。该函数在 QFileDialog 返回 UTF-8 路径后，经 App 主虚表
+`+0x90` 调用 `sub_180BA00C0(this, path, 1)`。函数以 `+0x1A3` 的打开中标志
+防止重入，再通过 `sub_180BA0190` 建立会话，并在成功时返回会话指针。
+这是 `cs2_modeldoc_open` 的依据；调用必须在主线程，`path` 用桥接层
+`str:` 参数暂存为目标进程内 UTF-8 C 字符串。
+
+创意工坊 3600074056 的 `live_house_counter.vmdl_c` 经 S2V CLI 20.0 还原
+出 ModelDoc28 文本及二进制 DMX。放入活动 `test` add-on 后原生路径打开
+返回有效会话；窗口标题和 `CModelDoc`/`CModelDocRoot` RTTI 均已核对。
+该根对象 `+0x10` 仍为零，尚不能把虚表 `+0x40` 中出现的子节点数组布局
+推广为通用的实时节点读取方式。
+

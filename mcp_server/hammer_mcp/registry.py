@@ -15,6 +15,7 @@ from .bindings import (
 )
 from .editor_actions import (
     cs2_modeldoc_action,
+    cs2_modeldoc_open,
     cs2_particle_editor_action,
 )
 from .diagnostics import (
@@ -153,6 +154,7 @@ TOOL_FUNCTIONS = (
     cs2_editor_sessions,
     cs2_editor_document,
     cs2_modeldoc_action,
+    cs2_modeldoc_open,
     cs2_particle_editor_action,
     cs2_sel,
     cs2_area_query,

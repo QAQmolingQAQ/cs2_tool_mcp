@@ -673,3 +673,10 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 - ModelDoc 活动会话 `+0x118` 指向 `CModelDoc`，文档 `+0x3C0` 指向 `CModelDocRoot`；Particle Editor 活动会话 `+0x108` 指向 `CPetDoc`，文档 `+0x80` 指向 `CPetRootNode`。两条链路的每级都以所属 DLL 的 MSVC RTTI 实机验证。
 - 新增只读 `cs2_editor_document`，返回活动会话、文档和根对象地址与验证后的类名，能定位未保存文档；尚未声称读取根节点的子元素或属性。
 - 40 项单元测试通过；MCP stdio 对 ModelDoc、Particle Editor 两个活动文档的调用均返回 `ok=true`（70 个工具）。
+
+## 2026-10-13 — 创意工坊模型导入 ModelDoc
+
+- 已安装的创意工坊地图 3600074056 中含 `models/prop_livehouse/live_house_counter.vmdl_c`。本机 Source 2 Viewer CLI 20.0 将它导出为几何 GLB，以及文本 `.vmdl` 与 DMX mesh；后两者已放入当前运行的 `test` add-on 的独立 `models/codex_workshop_probe/workshop_3600074056/` 目录。
+- 逆向 ModelDoc 的 FileOpen 绑定确认：文件对话框选择路径后调用 `CModelDocEditorApp` 虚表 `+0x90`，参数为 UTF-8 路径及标志 `1`。新增 `cs2_modeldoc_open`，对 add-on 路径和文本 KV3 预检，默认预览，明确确认后在主线程调用原生方法并读回活动会话、文档及根对象。
+- 实机打开该 Workshop 模型后，ModelDoc 窗口标题变为 `live_house_counter`，返回会话 `0x4ad31967c00`，文档和 `CModelDocRoot` 的 RTTI 读回成功；42 项单元测试通过。当前根对象 `+0x10` 的子节点计数仍为零，故尚未宣称完成未保存节点枚举或模型编译验证。
+- S2V CLI 20.0 解析该包的 `white_s.vmat_c` 时因当前 CS2 着色器版本 72 超出其 59–71 支持范围而失败。几何已导入，但材质仍需兼容的导出/重建路径。

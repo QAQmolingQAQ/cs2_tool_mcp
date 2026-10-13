@@ -67,6 +67,13 @@ still require an explicit `ctx` address. Calls remain dry runs until
 `cs2_particle_editor_action` expose common native actions by simple names;
 call either with an empty action to see its choices.
 
+`cs2_modeldoc_open(path, confirm=true)` opens an existing text KV3 `.vmdl`
+inside `content/csgo_addons/<addon>` in the running ModelDoc. It uses the
+editor's native path-open method on the main thread and reads back the active
+session, document, and root. Without `confirm=true`, it only previews the path.
+For compiled Workshop `.vmdl_c` files, first use Source 2 Viewer CLI to extract
+the `.vmdl` and its referenced mesh source into the active add-on content tree.
+
 ## Architecture
 
 The Python implementation lives in `mcp_server/hammer_mcp/`. The original
