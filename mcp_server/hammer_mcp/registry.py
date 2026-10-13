@@ -98,6 +98,9 @@ from .particle_editor_open import (
 from .particle_editor_tree import (
     cs2_particle_editor_tree,
 )
+from .particle_editor_value import (
+    cs2_particle_editor_value,
+)
 from .particle_catalog import (
     cs2_particle_functions,
     cs2_particle_function_info,
@@ -181,5 +184,6 @@ TOOL_FUNCTIONS = (
     cs2_particle_functions,
     cs2_particle_function_info,
     cs2_particle_editor_tree,
+    cs2_particle_editor_value,
     cs2_particle_editor_open,
 )

@@ -73,3 +73,11 @@ IDA 基址 `0x180000000`；下表均为相对 `pet.dll` 的 RVA 或对象内偏�
 修改前后计数能反映未保存状态。读工具必须在取元素前检查类别 0–8、计数上限、
 数组指针有效性和对象 RTTI。写入应走 `CPetDoc` 的历史事务与通知链，
 执行后读回并做 Undo/Redo 往返；不能仅向上述向量直接写内存。
+
+## 实时参数 KV3 只读读取（2026-10-13）
+
+`CPetFunctionNode+0x20` 是内嵌的 16 字节 KV3 值；当前样本为类型 9（对象），第二个 QWORD 指向参数表。Pet 的 `+0x26F30` 把字段名小写后计算 MurmurHash2 变体（种子 `len ^ 0x31415926`），表中的键是这个 32 位哈希。对象表 `+0x04` 为容量，`+0x10` 为数量，`+0x15` 指示外置槽，`+0x18` 是内联槽或外置指针；值指针区从 `slots + align8(4*capacity)` 开始。KV3 数组的容量/数量在 `+0x04/+0x08`，当前样本内联值指针在 `+0x10`。当前验证的 KV3 类型：2 布尔、3 有符号整数、5 双精度数、6 字符串、8 数组、9 对象；其他类型只报告原始字节，不猜语义。
+
+新增只读 `cs2_particle_editor_value(category,index,field)`：0–6 组、固定索引；空 `field` 枚举该函数 Schema 顶层属性，指定字段可用 `m_InputValue.m_flLiteralValue`、`m_vecTexturesInput[0].m_hTexture` 这种路径。节点由当前会话重新定位，核对 RTTI、函数类名、目录类别、KV3 容量和活动会话；Pet PE 时间戳 `0x6AC7FFFE`、映像大小 `0xA76000` 不匹配时拒绝使用这些偏移。复杂对象只显示键哈希/成员数；数组最多展开 64 项，容器上限 256。它不调用插入/写入 API。
+
+当前打开的 `spotlight_cone_test.vpcf` 实机读回：`C_INIT_InitFloat.m_nOutputField=7`、`m_InputValue.m_flLiteralValue=1.0`；`C_OP_SetControlPointPositions.m_vecCP2Pos=[1000,0,0]`；`C_OP_RenderRopes.m_vecTexturesInput[0].m_hTexture=materials/particles/light_flare/point_spotlight_cone.vtex`。这些值与保存源文件相符。**尚未在 UI 修改但不保存后做差分，也未验证原生 Undo/Redo；当前仅达到“实时内存只读/保存值对照”级别。**外置数组布局仍需另找样本验证。

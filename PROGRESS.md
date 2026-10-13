@@ -709,3 +709,7 @@ IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚
 ## 2026-10-13 — 完整粒子 API/参数导出
 
 新增可重复生成的 `PARTICLE_API_REFERENCE.json`，将 376 个注册函数逐条展开为内部类名、分组、继承链、Schema 参数名/类型/编辑器标签/注解。共 9,467 条按函数展开的参数记录，其中 376 条带 `MPropertySuppressField` 并单独标记，避免误认为必然可编辑。生成脚本在 `scripts/export_particle_api_reference.py`；50 项测试通过。
+
+### 2026-10-13 本地：Particle Editor 实时参数只读接口
+
+新增 `cs2_particle_editor_value(category,index,field)`，通过当前 Pet 会话/函数节点的内嵌 KV3 查询 Schema 字段及嵌套路径；含 DLL PE 版本校验、容器边界和 RTTI 检查。实机对照测试粒子读回输出字段 7、输入字面值 1.0、控制点向量 [1000,0,0] 和纹理路径；53 项测试通过。没有执行粒子写入，也没有验证未保存改动或 Undo/Redo。功能仅留本地，未推 GitHub。详情在 `PET_DLL_OFFSETS.md`。
