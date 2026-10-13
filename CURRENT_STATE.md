@@ -42,8 +42,8 @@
 
 ## 其他编辑器与待办
 
-- Particle Editor 会话此前在线：`CPetSession +0x108 -> CPetDoc +0x80 -> CPetRootNode`；
-  会话状态应重新验证。`cs2_asset_tree` 只读取保存后的文本 KV3 `.vmdl/.vpcf`，
+- Particle Editor 对象链与九组实时列表偏移已反编译并在空白文档只读验证，详见 [`PET_DLL_OFFSETS.md`](PET_DLL_OFFSETS.md)。`CPetSession +0x108 -> CPetDoc +0x80 -> CPetRootNode`；
+  当前仍需非空 `.vpcf` 验证节点 RTTI/属性，写入 API 尚未实机验证。`cs2_asset_tree` 只读取保存后的文本 KV3 `.vmdl/.vpcf`，
   不能代表编辑器未保存改动。
 - ModelDoc 当前可读回文档和根对象，**尚不能可靠枚举实时子节点/属性**。
   找到读取结构后才添加修改 API，要求读回、原生撤销及实机验证。
