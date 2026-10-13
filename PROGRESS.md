@@ -680,3 +680,9 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 - 逆向 ModelDoc 的 FileOpen 绑定确认：文件对话框选择路径后调用 `CModelDocEditorApp` 虚表 `+0x90`，参数为 UTF-8 路径及标志 `1`。新增 `cs2_modeldoc_open`，对 add-on 路径和文本 KV3 预检，默认预览，明确确认后在主线程调用原生方法并读回活动会话、文档及根对象。
 - 实机打开该 Workshop 模型后，ModelDoc 窗口标题变为 `live_house_counter`，返回会话 `0x4ad31967c00`，文档和 `CModelDocRoot` 的 RTTI 读回成功；42 项单元测试通过。当前根对象 `+0x10` 的子节点计数仍为零，故尚未宣称完成未保存节点枚举或模型编译验证。
 - S2V CLI 20.0 解析该包的 `white_s.vmat_c` 时因当前 CS2 着色器版本 72 超出其 59–71 支持范围而失败。几何已导入，但材质仍需兼容的导出/重建路径。
+
+## 2026-10-13 — ModelDoc 模型编译闭环
+
+- 通过 S2V CLI 的 DATA 块确认缺失材质是 `csgo_complex.vfx`、纯白色颜色贴图和背面/自发光设置；单独提取其 1×1 颜色 PNG，在活动 `test` add-on 内重建最小 `white_s.vmat`。这份本地测试材质并非原材质的完整还原。
+- CS2 自带 `resourcecompiler.exe` 第一次明确报缺失材质；补齐后 `live_house_counter.vmdl` 连同材质/纹理编译成功：1 compiled、0 failed。编译后的 `.vmdl_c` 存在，S2V CLI 读回 Model、MVTX/MIDX/MDAT 块和材质引用。
+- 新增 `cs2_asset_compile`，允许对 add-on 中单个 `.vmdl`、`.vmat`、`.vpcf` 做默认预览、确认编译与产物检查，不执行上传；44 项单元测试和实机已编译模型调用通过。ModelDoc 内部根节点计数仍未验证出实际子节点，继续只读逆向。

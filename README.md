@@ -73,6 +73,9 @@ editor's native path-open method on the main thread and reads back the active
 session, document, and root. Without `confirm=true`, it only previews the path.
 For compiled Workshop `.vmdl_c` files, first use Source 2 Viewer CLI to extract
 the `.vmdl` and its referenced mesh source into the active add-on content tree.
+`cs2_asset_compile(path, confirm=true)` then runs CS2's installed resource
+compiler for one add-on `.vmdl`, `.vmat`, or `.vpcf` and verifies that its
+compiled output exists. It previews paths without `confirm=true`.
 
 ## Architecture
 

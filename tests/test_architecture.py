@@ -21,7 +21,7 @@ class ArchitectureTests(unittest.TestCase):
     def test_existing_tool_contracts_are_unchanged(self):
         expected = json.loads((ROOT / "tests/fixtures/tool_contract.json").read_text(encoding="utf-8"))
         actual = [t.model_dump(mode="json", exclude_none=True) for t in asyncio.run(create_server().list_tools())]
-        new_names = ('cs2_mesh_create_prism', 'cs2_mesh_create_primitive', 'cs2_editor_sessions', 'cs2_editor_document', 'cs2_modeldoc_action', 'cs2_modeldoc_open', 'cs2_particle_editor_action', 'cs2_map_check', 'cs2_asset_tree')
+        new_names = ('cs2_mesh_create_prism', 'cs2_mesh_create_primitive', 'cs2_editor_sessions', 'cs2_editor_document', 'cs2_modeldoc_action', 'cs2_modeldoc_open', 'cs2_particle_editor_action', 'cs2_map_check', 'cs2_asset_tree', 'cs2_asset_compile')
         added = [tool for tool in actual if tool['name'] in new_names]
         self.assertEqual(len(added), len(new_names))
         self.assertEqual([tool for tool in actual if tool['name'] not in new_names], expected)
