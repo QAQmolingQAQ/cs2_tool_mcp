@@ -8,7 +8,7 @@
 
 - 主仓库：`C:\codex\cs2_tool_mcp`；IDA/探针副本：`C:\cs2_tool_mcp\ida_db`。
 - ModelDoc 原生按路径打开、单资源编译、粒子目录查询均已推送。最新 `origin/master` 请用 `git log -1` 和 `git ls-remote origin refs/heads/master` 核对，不依赖交接文档中的旧哈希。
-- CS2 以 `-tools -addon test` 运行，桥接 DLL 已注入；源码现有 76 个 MCP 工具（新工具需 MCP 进程重连后显示），最近 49 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
+- CS2 以 `-tools -addon test` 运行，桥接 DLL 已注入；源码现有 76 个 MCP 工具（新工具需 MCP 进程重连后显示），最近 50 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
 - Hammer、tier0、scenesystem 的 IDA MCP 端口为 13331/13334/13332；
   `modeldoc_editor.dll.i64` 的本地 IDA 数据库在上述 IDA 副本目录，可用 IDA 9.1 批处理。
 
@@ -39,7 +39,7 @@
 
 ## particles.dll 函数目录（2026-10-13）
 
-- 当前 DLL 的 `ParticleSystemMgr003` 实时注册了 376 个粒子函数，七组计数 49/4/98/161/16/13/35；从 `SchemaClassInfo` 解析了 395 个相关类、字段类型、友好名及继承链。完整索引与用法边界见 [`PARTICLE_FUNCTIONS.md`](PARTICLE_FUNCTIONS.md)。
+- 当前 DLL 的 `ParticleSystemMgr003` 实时注册了 376 个粒子函数，七组计数 49/4/98/161/16/13/35；从 `SchemaClassInfo` 解析了 395 个相关类、字段类型、友好名及继承链。完整索引与用法边界见 [`PARTICLE_FUNCTIONS.md`](PARTICLE_FUNCTIONS.md)；按函数展开的完整参数导出见 [`PARTICLE_API_REFERENCE.json`](PARTICLE_API_REFERENCE.json)。
 - 新增只读 `cs2_particle_functions`（分页搜索）与 `cs2_particle_function_info`（类参数及继承）及版本化 JSON 目录。数据取自 DLL SHA-256 `9dc34a2de4311ec811b381611658fd4010861edc26e717496319a3cda72303b0`；游戏更新后重抽。
 - 这能回答全部已注册函数及其可编辑参数；尚不能保证逐函数的人写语义教程，也尚未实现安全的未保存粒子节点属性写入。
 

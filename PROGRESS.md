@@ -705,3 +705,7 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 ## 2026-10-13 — Pet 原生打开与非空实时树
 
 IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚表 `+0x90(path,1)`。原生打开 `test/particles/spotlight_cone_test.vpcf` 后，Pet 会话从 1→2，第二会话的 `CPetDoc`/`CPetRootNode` RTTI 读回成功。实时九组计数 `1/0/2/2/0/0/1/0/0` 与 `.vpcf` 一致，六个函数节点都是 `CPetFunctionNode`，虚表 `+0x90` 类名与源文件顺序一致。新增 `cs2_particle_editor_open` 和 `cs2_particle_editor_tree`；49 项测试通过。继续追踪函数节点属性对象与未保存状态差分，然后验证原生撤销写入。
+
+## 2026-10-13 — 完整粒子 API/参数导出
+
+新增可重复生成的 `PARTICLE_API_REFERENCE.json`，将 376 个注册函数逐条展开为内部类名、分组、继承链、Schema 参数名/类型/编辑器标签/注解。共 9,467 条按函数展开的参数记录，其中 376 条带 `MPropertySuppressField` 并单独标记，避免误认为必然可编辑。生成脚本在 `scripts/export_particle_api_reference.py`；50 项测试通过。

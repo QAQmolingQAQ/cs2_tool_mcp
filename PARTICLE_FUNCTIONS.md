@@ -21,6 +21,14 @@
 - `pet.dll` 管理 Particle Editor 界面和会话；当前 376 条函数的注册表与参数 Schema 来自 `particles.dll`。
 - 已用运行中的 `ParticleSystemMgr003` 逐组核对计数 `49/4/98/161/16/13/35`；本机安装的 DLL SHA-256 与目录相符。
 
+## 直接导出的完整 API/参数 JSON
+
+[`PARTICLE_API_REFERENCE.json`](PARTICLE_API_REFERENCE.json) 按函数展开全部 376 条记录。每条包含分组、编辑器显示名、内部类名、继承链，以及 `parameters` 数组；参数记录包含内部字段名、编辑器标签、类型、对象内偏移、声明它的类和原始 Schema 注解。无需自行合并父类即可查到完整参数。该文件由 [`scripts/export_particle_api_reference.py`](scripts/export_particle_api_reference.py) 从版本化目录生成，可重复运行。
+
+总计 9,467 条按函数展开的参数记录（其中 376 条带 `MPropertySuppressField`，在 JSON 中明确标记 `editor_hidden_by_schema=true`）；其余 9,091 条未被该注解隐藏。重复的父类字段会出现在多个函数下，所以这些是**展开次数**，不是唯一字段数。是否在特定编辑器状态显示或可编辑，还可能受条件、行为版本及输入类型影响。
+
+示例：在 JSON 的 `functions` 中查找 `class_name = "C_OP_ContinuousEmitter"`，会直接得到 `m_flEmitRate`（发射率）等 30 条自有与继承参数；`C_OP_RenderSprites` 有 113 条。使用任何参数前先查看 `editor_hidden_by_schema`、`type` 和 `annotations`，再在目标 `.vpcf` 中验证效果。
+
 ## MCP 查询
 
 1. `cs2_particle_functions(query="Render sprites")` 查询显示名或内部类名；也可传 `category="Emitters"`、`offset`、`limit` 分页。无须打开粒子编辑器。
