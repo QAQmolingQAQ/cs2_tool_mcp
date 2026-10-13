@@ -92,6 +92,10 @@ from .meshes import (
     cs2_mesh_list,
     cs2_mesh_get_geometry,
 )
+from .particle_catalog import (
+    cs2_particle_functions,
+    cs2_particle_function_info,
+)
 from .particles import (
     cs2_particle_set_definition,
 )
@@ -168,4 +172,6 @@ TOOL_FUNCTIONS = (
     cs2_entity_delete,
     cs2_entity_set_classname,
     cs2_particle_set_definition,
+    cs2_particle_functions,
+    cs2_particle_function_info,
 )

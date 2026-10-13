@@ -40,6 +40,12 @@
   `sub_1805EBA60` 虽读取 `+0x10/+0x18`，但不能据此认定它是源 KV3 节点列表。
   下一步追踪 ModelDoc 源树实际容器/属性，验证未保存状态，再设计写入与撤销。
 
+## particles.dll 函数目录（2026-10-13）
+
+- 当前 DLL 的 `ParticleSystemMgr003` 实时注册了 376 个粒子函数，七组计数 49/4/98/161/16/13/35；从 `SchemaClassInfo` 解析了 395 个相关类、字段类型、友好名及继承链。完整索引与用法边界见 [`PARTICLE_FUNCTIONS.md`](PARTICLE_FUNCTIONS.md)。
+- 新增只读 `cs2_particle_functions`（分页搜索）与 `cs2_particle_function_info`（类参数及继承）及版本化 JSON 目录。数据取自 DLL SHA-256 `9dc34a2de4311ec811b381611658fd4010861edc26e717496319a3cda72303b0`；游戏更新后重抽。
+- 这能回答全部已注册函数及其可编辑参数；尚不能保证逐函数的人写语义教程，也尚未实现安全的未保存粒子节点属性写入。
+
 ## 其他编辑器与待办
 
 - Particle Editor 对象链与九组实时列表偏移已反编译并在空白文档只读验证，详见 [`PET_DLL_OFFSETS.md`](PET_DLL_OFFSETS.md)。`CPetSession +0x108 -> CPetDoc +0x80 -> CPetRootNode`；
