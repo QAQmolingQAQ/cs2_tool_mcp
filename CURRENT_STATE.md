@@ -6,8 +6,9 @@
 ## 工作位置与验证基线
 
 - 主仓库：`C:\codex\cs2_tool_mcp`；IDA/探针副本：`C:\cs2_tool_mcp\ida_db`。
-- GitHub `origin/master` 当前已推送至 `5aecfb5`。该提交包含 ModelDoc 原生按路径打开
-  (`cs2_modeldoc_open`) 和单资源编译 (`cs2_asset_compile`)。工作树在本文件编辑前干净。
+- 功能提交 `5aecfb5` 已推送至 GitHub；它包含 ModelDoc 原生按路径打开
+  (`cs2_modeldoc_open`) 和单资源编译 (`cs2_asset_compile`)。最新 `origin/master`
+  请用 `git log -1` 和 `git ls-remote origin refs/heads/master` 核对，避免文档中的哈希过期。
 - CS2 以 `-tools -addon test` 运行，PID 11456；最新桥接 DLL 已注入，MCP 具 72 个工具。
   最近 44 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
 - Hammer、tier0、scenesystem 的 IDA MCP 端口为 13331/13334/13332；
