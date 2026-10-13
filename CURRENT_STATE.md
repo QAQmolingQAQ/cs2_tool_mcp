@@ -7,11 +7,8 @@
 ## 工作位置与验证基线
 
 - 主仓库：`C:\codex\cs2_tool_mcp`；IDA/探针副本：`C:\cs2_tool_mcp\ida_db`。
-- 功能提交 `5aecfb5` 已推送至 GitHub；它包含 ModelDoc 原生按路径打开
-  (`cs2_modeldoc_open`) 和单资源编译 (`cs2_asset_compile`)。最新 `origin/master`
-  请用 `git log -1` 和 `git ls-remote origin refs/heads/master` 核对，避免文档中的哈希过期。
-- CS2 以 `-tools -addon test` 运行，PID 11456；最新桥接 DLL 已注入，MCP 具 72 个工具。
-  最近 44 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
+- ModelDoc 原生按路径打开、单资源编译、粒子目录查询均已推送。最新 `origin/master` 请用 `git log -1` 和 `git ls-remote origin refs/heads/master` 核对，不依赖交接文档中的旧哈希。
+- CS2 以 `-tools -addon test` 运行，桥接 DLL 已注入；源码现有 76 个 MCP 工具（新工具需 MCP 进程重连后显示），最近 49 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
 - Hammer、tier0、scenesystem 的 IDA MCP 端口为 13331/13334/13332；
   `modeldoc_editor.dll.i64` 的本地 IDA 数据库在上述 IDA 副本目录，可用 IDA 9.1 批处理。
 
@@ -49,7 +46,7 @@
 ## 其他编辑器与待办
 
 - Particle Editor 对象链与九组实时列表偏移已反编译并在空白文档只读验证，详见 [`PET_DLL_OFFSETS.md`](PET_DLL_OFFSETS.md)。`CPetSession +0x108 -> CPetDoc +0x80 -> CPetRootNode`；
-  当前仍需非空 `.vpcf` 验证节点 RTTI/属性，写入 API 尚未实机验证。`cs2_asset_tree` 只读取保存后的文本 KV3 `.vmdl/.vpcf`，
+  已用非空 `.vpcf` 验证九组计数、六个 `CPetFunctionNode` RTTI 和函数类名；新增 `cs2_particle_editor_open` 与只读 `cs2_particle_editor_tree`。仍需验证节点属性与未保存变更差分，写入 API 尚未实机验证。`cs2_asset_tree` 只读取保存后的文本 KV3 `.vmdl/.vpcf`，
   不能代表编辑器未保存改动。
 - ModelDoc 当前可读回文档和根对象，**尚不能可靠枚举实时子节点/属性**。
   找到读取结构后才添加修改 API，要求读回、原生撤销及实机验证。

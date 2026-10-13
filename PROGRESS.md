@@ -701,3 +701,7 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 ## 2026-10-13 particles.dll 函数目录
 
 运行时注册表 + Schema 解析确认 376 个函数、395 个类。已接入两个只读 MCP 查询工具，记录全部类别、类名、参数类型、友好名与继承；详见 [`PARTICLE_FUNCTIONS.md`](PARTICLE_FUNCTIONS.md)。测试 47 项通过；实机注册表七组计数一致。下一步逆向 Pet 未保存树的节点属性和原生撤销/写入 API。
+
+## 2026-10-13 — Pet 原生打开与非空实时树
+
+IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚表 `+0x90(path,1)`。原生打开 `test/particles/spotlight_cone_test.vpcf` 后，Pet 会话从 1→2，第二会话的 `CPetDoc`/`CPetRootNode` RTTI 读回成功。实时九组计数 `1/0/2/2/0/0/1/0/0` 与 `.vpcf` 一致，六个函数节点都是 `CPetFunctionNode`，虚表 `+0x90` 类名与源文件顺序一致。新增 `cs2_particle_editor_open` 和 `cs2_particle_editor_tree`；49 项测试通过。继续追踪函数节点属性对象与未保存状态差分，然后验证原生撤销写入。

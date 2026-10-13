@@ -92,6 +92,12 @@ from .meshes import (
     cs2_mesh_list,
     cs2_mesh_get_geometry,
 )
+from .particle_editor_open import (
+    cs2_particle_editor_open,
+)
+from .particle_editor_tree import (
+    cs2_particle_editor_tree,
+)
 from .particle_catalog import (
     cs2_particle_functions,
     cs2_particle_function_info,
@@ -174,4 +180,6 @@ TOOL_FUNCTIONS = (
     cs2_particle_set_definition,
     cs2_particle_functions,
     cs2_particle_function_info,
+    cs2_particle_editor_tree,
+    cs2_particle_editor_open,
 )
