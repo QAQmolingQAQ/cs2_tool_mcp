@@ -691,3 +691,9 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 
 - 用户亲自关闭 ModelDoc 后，MCP 读到 `sessions: 0`。重新用已验证的 `cs2_modeldoc_open` 打开编译成功的 Workshop 测试模型，获得新会话、`CModelDoc` 和 `CModelDocRoot`；新根对象 `+0x10` 低 32 位仍为零、`+0x18` 为零。这排除了旧会话未刷新作为零计数的原因，但并未找到真实实时子节点容器。
 - 新增 `CURRENT_STATE.md`，集中记录仓库/工具入口、实机验证、局限和下轮步骤，以免上下文压缩后重复调查或误把源文件树当成未保存的实时树。
+
+## 2026-10-13 — 下载目录角色模型检查
+
+- 检查 `character_template.zip`、EarthGovSol 和 Neco Arc 的源码/编译包；五个 ZIP CRC 通过、无路径穿越项。源码 `.vmdl` 均为 ModelDoc41；各包的内部 `agents/...` 引用按 Windows 大小写规则可在包内找到。
+- 将 Neco Arc 与 EarthGovSol 源文件仅复制到本地 `test` add-on，两个主模型经 CS2 编译器强制编译均返回 1 compiled、0 failed；用 MCP 原生路径打开后读回有效 ModelDoc 文档与根对象。源树分别有 14/16 个根子项，而实时根对象 `+0x10/+0x18` 仍为零，进一步说明这里不是源节点容器。
+- 详细包清单、路径和验证边界已写入 `DOWNLOAD_MODELS.md`；第三方模型文件未提交到仓库。
