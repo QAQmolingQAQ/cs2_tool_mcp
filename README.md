@@ -83,3 +83,5 @@ The Python implementation lives in `mcp_server/hammer_mcp/`. The original
 `mcp_server/cs2_mcp_server.py` remains the compatible script/import entry point.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for module boundaries, session ownership,
 structured editing results, and extension rules.
+For the latest live-editor findings and next steps, see
+[CURRENT_STATE.md](CURRENT_STATE.md).

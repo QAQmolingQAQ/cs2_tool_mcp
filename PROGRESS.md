@@ -686,3 +686,8 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 - 通过 S2V CLI 的 DATA 块确认缺失材质是 `csgo_complex.vfx`、纯白色颜色贴图和背面/自发光设置；单独提取其 1×1 颜色 PNG，在活动 `test` add-on 内重建最小 `white_s.vmat`。这份本地测试材质并非原材质的完整还原。
 - CS2 自带 `resourcecompiler.exe` 第一次明确报缺失材质；补齐后 `live_house_counter.vmdl` 连同材质/纹理编译成功：1 compiled、0 failed。编译后的 `.vmdl_c` 存在，S2V CLI 读回 Model、MVTX/MIDX/MDAT 块和材质引用。
 - 新增 `cs2_asset_compile`，允许对 add-on 中单个 `.vmdl`、`.vmat`、`.vpcf` 做默认预览、确认编译与产物检查，不执行上传；44 项单元测试和实机已编译模型调用通过。ModelDoc 内部根节点计数仍未验证出实际子节点，继续只读逆向。
+
+## 2026-10-13 — ModelDoc 新会话复验与交接文档
+
+- 用户亲自关闭 ModelDoc 后，MCP 读到 `sessions: 0`。重新用已验证的 `cs2_modeldoc_open` 打开编译成功的 Workshop 测试模型，获得新会话、`CModelDoc` 和 `CModelDocRoot`；新根对象 `+0x10` 低 32 位仍为零、`+0x18` 为零。这排除了旧会话未刷新作为零计数的原因，但并未找到真实实时子节点容器。
+- 新增 `CURRENT_STATE.md`，集中记录仓库/工具入口、实机验证、局限和下轮步骤，以免上下文压缩后重复调查或误把源文件树当成未保存的实时树。
