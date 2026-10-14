@@ -3,12 +3,12 @@
 划分依据是目标 DLL、文档对象与原生入口的归属，不能根据“粒子/模型/材质”功能名称分组。
 每个现有工具的主归属明确登记在
 `mcp_server/hammer_mcp/data/tool_ownership.json`；新增工具未登记或重复登记会报错。
-原 `all` 保留 78 个工具契约。
+原all保留旧工具契约，当前共有79个工具。
 
 | 客户端名称 | 目标 DLL / scope | 当前工具数 |
 | --- | --- | ---: |
 | cs2-hammer | hammer.dll / hammer | 49 |
-| cs2-pet | pet.dll / pet | 17 |
+| cs2-pet | pet.dll / pet | 18 |
 | cs2-particles | particles.dll / particles | 7 |
 | cs2-met | met.dll / met | 10 |
 | cs2-modeldoc-editor | modeldoc_editor.dll / modeldoc_editor | 14 |
@@ -51,3 +51,5 @@ configure 只能对未打开的数据库执行。
 ## 源码目录与 Codex 配置
 
 当前 hammer_mcp 是共享实现的历史包名；已按 DLL 分服务和工具清单，但未按 DLL 重排物理源码目录。配置入口与缺口清单见 [CODEX_SETUP.md](CODEX_SETUP.md)，公开 TOML 模板见 [config/codex.example.toml](config/codex.example.toml)。真实项目 .codex/config.toml 已被忽略。
+
+本轮新增cs2_particle_editor_root_value归pet.dll；62项测试和八组stdio验证通过，已对独立测试粒子实机读取Base Properties。参数写入仍未开放。

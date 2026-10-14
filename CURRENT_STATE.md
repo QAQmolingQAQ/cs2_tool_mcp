@@ -9,7 +9,7 @@
 
 - 主仓库：`C:\codex\cs2_tool_mcp`；IDA/探针副本：`C:\cs2_tool_mcp\ida_db`。
 - ModelDoc 原生按路径打开、单资源编译、粒子目录查询均已推送。最新 `origin/master` 请用 `git log -1` 和 `git ls-remote origin refs/heads/master` 核对，不依赖交接文档中的旧哈希。
-- 此前 CS2 工具模式在线；2026-10-14 本轮后段实测进程不在线、管道不存在，下一轮先恢复运行环境；源码现有 78 个 MCP 工具（新工具需 MCP 进程重连后显示），最近 59 项 Python 测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
+- 2026-10-14 本轮恢复CS2工具模式桥接，Pet目前两个会话（含原有未保存会话和独立测试粒子）；源码现有79个MCP工具，新工具需MCP服务重载后显示，最近62项Python测试通过。下轮开始先验证进程/PID/桥接状态，不要复用旧绝对地址。
 - IDA MCP 固定端口为 Hammer 13341、Pet 13342、MET 13343、ModelDoc 13344、particles 13345、scenesystem 13346、tier0 13347，详见 MCP_MODULES.md；
   `modeldoc_editor.dll.i64` 的本地 IDA 数据库在上述 IDA 副本目录，可用 IDA 9.1 批处理。
 
@@ -94,3 +94,7 @@
 ## 2026-10-14 Codex 配置与自动任务
 
 补充两个工作目录的 .codex/config.toml，规范全局八组CS2服务路径与工作目录并保留无关设置，实际配置启动验证通过。公开模板 config/codex.example.toml，私人配置已忽略。目录历史命名与功能缺口见 CODEX_SETUP.md；未把共享源码包误称为物理DLL目录重构。Pet/MET IDA在线且身份正确，其余按需启动。用户要求后恢复 cs2-mcp-10-14 每两小时任务，截止北京时间今晚23:59；后续自动改动仅保留本地。
+
+## 2026-10-14 粒子 Base Properties
+
+新增 pet.dll 只读 cs2_particle_editor_root_value，实际MCP读取最大粒子数8、半径106、颜色[237,57,57,255]和包围盒[-32,-32,-32]。当前79工具、Pet18工具、62项测试、八组stdio通过。原生属性设置候选及40/48字节上下文见PET_DLL_OFFSETS.md，尚未执行属性写入或Undo/Redo。computer-use初始化路径错误，既有Qt桥接可用；用户原有未保存会话保持打开。

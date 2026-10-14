@@ -87,3 +87,21 @@ IDA 基址 `0x180000000`；下表均为相对 `pet.dll` 的 RVA 或对象内偏�
 IDA 在 `pet+0x7464F8` 的虚表附近识别到 `CPetKV3PropertyDomain` RTTI，`pet+0x85BF0` 是其回调。回调从属性路径生成 `Set %s` 历史标签，并调用 `pet+0x11A790(doc, label, 1)`。该文档方法经 `doc+0x88` 的历史对象执行 `pet+0x45D920`（开始标签）和 `pet+0x45D450`（记录文档快照），并发送变更前通知。相邻虚表回调 `pet+0x85BA0` 发送变更后通知。窗口构造函数 `pet+0x83240` 创建此属性域对象，说明这是编辑器本身的属性改动通道。以上为**静态分析**；尚未定位可靠的值设置参数/调用约定，也未实机执行写入或撤销往返。不要把 `pet+0x397D90` 的 KV3 插入式查找或桥接层 `write_value` 当作安全编辑 API。
 
 新增只读 `cs2_particle_editor_compare(path,category,index,field)`，对调用者指定的已保存文本 VPCF 与实时节点的同一叶字段做对照；缺失的源字段可能是默认值，返回不可比较；同一组/索引的 `_class` 不同则拒绝。后续在两会话读到 CPetSession+0x58 的源路径，工具现核对该路径与活动会话；集成后的实机复测因进程离线待补，路径偏移本身已只读验证。测试粒子中三个已保存字段（输入字面值、控制点向量、纹理资源路径）与实时内存一致。未保存修改差分仍未实测。
+
+## Base Properties 实时查询与属性通道续查（2026-10-14）
+
+本轮重新确认 CS2 以 -tools -insecure -addon test 运行，注入当前 build_vs18/Release 桥接。用户原有 untitled_particle_1 会话保持打开；另打开 spotlight_cone_test.vpcf，得到第二个会话。集成后的 cs2_particle_editor_compare 已实机验证活动源路径匹配、C_INIT_InitFloat 字面值1.0与保存文件相等。
+
+新增只读 cs2_particle_editor_root_value(field)：CPetRootNode+0x20 的内嵌 KV3 对象对应 Base Properties，_class 读回 CParticleSystemDefinition。支持有界命名路径及数组索引，复用现有容器校验；核对 Pet PE 版本、根对象 RTTI、定义类，并在返回前重新核对会话与根。空字段列出14个已核对名称和所有键哈希，不宣称完整根 Schema。
+
+实际 MCP stdio 验证：m_nMaxParticles=8；m_flConstantRadius=106.0；m_ConstantColor=[237,57,57,255]；m_BoundingBoxMin=[-32,-32,-32]；m_ConstantColor[0]=237。根对象当前57个键，另有默认值m_flConstantLifespan=1.0、m_bShouldSort=true。上述达到实时只读/保存源值对应，尚未验证未保存修改差分。源码79个工具，Pet18个，62项测试及八组stdio验证通过。
+
+### 原生属性通道的新依据
+
+- CQPetMainWnd+0x168 指向 CPetKV3PropertyDomain，+0x170 指向 CQPetPropertyWidget。属性域+0x08 指向自身+0x38的变更回调接口；+0x50 指向当前CPetSession。本轮RTTI和会话指针读回吻合。
+- pet+0x11C050(doc,node,record_history) 是原生选择入口：扫描九组节点验证归属，更新doc+0x68的选择并发送事件。本轮只对独立测试函数调用record_history=0，成功刷新选择，没有更改参数或保存文件。
+- pet+0x855F0 通过doc选择取得节点，为属性编辑器构造40字节 CBaseKV3DataWithFGDClass 上下文；随后属性适配器会形成包含字段描述的48字节上下文。不能直接把40字节源上下文当最终属性句柄。
+- 属性域主虚表+0x38（pet+0x432180）分派变更前回调；+0x48（pet+0x4344D0）是字符串设置候选，接收域、属性上下文、索引路径、CUtlString指针、flags。它查找具体字段接口、调用其字符串写入方法，之后可能触发域刷新和变更后回调。完整flags语义、字段上下文生成、值类型约束尚未确认，未调用该设置方法。
+- pet+0x4343D0 从48字节属性上下文的字段描述和索引路径解析子字段；属性域+0x58（pet+0x432EE0）可格式化属性值字符串。
+
+computer-use运行时初始化报“failed to write kernel assets: 系统找不到指定的路径”，未能执行界面输入，已改用既有Qt桥接与IDA静态分析。没有执行裸内存属性写入、未保存属性修改、Undo/Redo或新素材编译。下一步解决属性上下文与变更前/设置/变更后的完整原生调用链，再做隔离会话读回和Undo/Redo。

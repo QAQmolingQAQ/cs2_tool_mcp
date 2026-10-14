@@ -8,7 +8,7 @@
 
 八组 CS2 服务都指向主仓库 mcp_server/cs2_mcp_server.py，明确使用 Python 3.14、工作目录、--scope，启动超时30秒、工具超时120秒。原有全局配置中的无关设置已校验保持一致。旧 cs2-tool 聚合项保持禁用。
 
-按配置里的真实命令逐个启动并列出工具：hammer49、pet17、particles7、met10、modeldoc_editor14、scenesystem5、tier0 5、bridge30。工具包含共享接口，计数不可相加。此验证证明服务能启动，不代表注入桥接或游戏会话在线。
+按配置里的真实命令逐个启动并列出工具：hammer49、pet18、particles7、met10、modeldoc_editor14、scenesystem5、tier0 5、bridge30。工具包含共享接口，计数不可相加。此验证证明服务能启动，不代表注入桥接或游戏会话在线。
 
 Codex 支持全局配置及受信任项目的 .codex/config.toml；设置变动后客户端需要重新加载。项目的信任设置未被本轮改动；即使项目级配置未被采用，同样的全局 CS2 配置仍在。依据：[官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。
 
@@ -27,7 +27,7 @@ mcp_server/hammer_mcp 是早期仅做 Hammer 时留下的 Python 包名，现已
 | 模块 | 已确认能力 | 尚缺或未完成验证 |
 | --- | --- | --- |
 | hammer.dll | 实体、几何、mesh绑定、地图粒子实体设置等 | UV与各几何原型的完整实机回归，地图检查内容验证及构建测试闭环 |
-| pet.dll | 会话、节点树、实时属性查询、保存值对照 | 未保存差分验收，可靠属性设置、节点增删与原生Undo/Redo往返 |
+| pet.dll | 会话、节点树、实时函数/基础属性查询、保存值对照 | 未保存差分验收，可靠属性设置、节点增删与原生Undo/Redo往返 |
 | particles.dll | 376个函数目录及Schema参数查询 | 全量枚举/默认值/动态条件和逐函数经验证用法；运行时效果采样 |
 | modeldoc_editor.dll | 原生路径打开、文档根对象识别 | 可靠实时子节点/属性，节点编辑与原生撤销验证 |
 | met.dll | 通用绑定/接口检查、静态入口分析 | 材质实时读取与安全写入，变量类型和Shader对应实机验证 |

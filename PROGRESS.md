@@ -749,3 +749,7 @@ IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚
 ## 2026-10-14 Codex 配置与自动任务
 
 补充两个工作目录的 .codex/config.toml，规范全局八组CS2服务路径与工作目录并保留无关设置，实际配置启动验证通过。公开模板 config/codex.example.toml，私人配置已忽略。目录历史命名与功能缺口见 CODEX_SETUP.md；未把共享源码包误称为物理DLL目录重构。Pet/MET IDA在线且身份正确，其余按需启动。用户要求后恢复 cs2-mcp-10-14 每两小时任务，截止北京时间今晚23:59；后续自动改动仅保留本地。
+
+### 2026-10-14 粒子基础属性只读工具
+
+恢复工具模式桥接，保留原有未保存会话，在独立测试粒子中验证源路径对照。新增cs2_particle_editor_root_value，读取最大粒子数、半径、颜色、边界及有界数组路径。62项测试、八组stdio和真实MCP调用通过，工具归pet.dll。属性域原生设置候选与上下文约束已记录到PET_DLL_OFFSETS.md，未执行写入或Undo/Redo，仅本地保存。

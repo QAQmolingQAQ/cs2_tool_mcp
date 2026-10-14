@@ -55,7 +55,8 @@
       "cs2_particle_editor_tree",
       "cs2_particle_editor_value",
       "cs2_particle_editor_compare",
-      "cs2_particle_editor_open"
+      "cs2_particle_editor_open",
+      "cs2_particle_editor_root_value"
     ],
     "particles": [
       "cs2_particle_functions",
