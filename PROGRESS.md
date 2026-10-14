@@ -733,3 +733,11 @@ IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚
 ### 2026-10-14 修正为 DLL 归属
 
 用户指出 Hammer 本身含粒子功能，不能按功能分组。新增显式工具主归属清单，拆为 hammer/pet/particles/met/modeldoc_editor/scenesystem/tier0 和辅助 bridge。Hammer 粒子实体设置保留，Pet 文档与 particles.dll 目录分开。移除功能式客户端别名，保留私人备份及原 IDA 端口。59 项测试、八组实际 stdio 验证通过，未推送。
+
+## 2026-10-14 本地：Soundevent 单文件参考
+
+新增 [SOUNDEVENT_REFERENCE.md](SOUNDEVENT_REFERENCE.md)：208 份 core/csgo 声音资源全部解析，VPK CRC、KV3 缓冲与类型流校验通过，0 失败；251 个声音栈、138 种实际出现的操作函数、1393 条按栈展开的 public 参数。包含写法示例、声明类型、默认值、编辑条件、底层函数字段与资源指纹。底层完整注册签名、未出现字段和输出类型仍需 soundsystem.dll 反射；尚未编译或播放。生成脚本与原始分析数据在 C:\cs2_tool_mcp，仅保存在本地。目录与 Markdown 结构核对通过，敏感信息模式扫描 0 命中。
+
+## 2026-10-14 GitHub 上传准备
+
+用户要求检查并准备上传。本轮 59 项测试、八组 stdio 验证、受控文件及此前 6 个未推送提交敏感模式扫描通过，无第三方资产或私人配置候选；已整理本地提交。详情见 [GITHUB_UPLOAD_CHECK.md](GITHUB_UPLOAD_CHECK.md)。本轮未执行 push；实际上传前需重新核对远端状态。自动化保持暂停。

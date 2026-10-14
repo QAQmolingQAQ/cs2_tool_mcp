@@ -78,3 +78,11 @@
 ## 按 DLL 拆分 MCP（2026-10-14）
 
 用户纠正划分依据：按目标 DLL，不按功能。现有 hammer/pet/particles/met/modeldoc_editor/scenesystem/tier0 七组 DLL 服务，另有共享 bridge 辅助服务。Hammer 粒子实体设置仍属 hammer.dll，Pet 文档属 pet.dll，函数目录与 Schema 属 particles.dll。所有 78 个工具有显式主归属，登记在 mcp_server/hammer_mcp/data/tool_ownership.json；不再根据 Python 文件名或功能名称猜归属。59 项测试及八组 stdio 验证通过，客户端配置已同步，IDA 端口不变。详情见 MCP_MODULES.md。
+
+## 2026-10-14 本地：Soundevent 单文件参考
+
+新增 [SOUNDEVENT_REFERENCE.md](SOUNDEVENT_REFERENCE.md)：208 份 core/csgo 声音资源全部解析，VPK CRC、KV3 缓冲与类型流校验通过，0 失败；251 个声音栈、138 种实际出现的操作函数、1393 条按栈展开的 public 参数。包含写法示例、声明类型、默认值、编辑条件、底层函数字段与资源指纹。底层完整注册签名、未出现字段和输出类型仍需 soundsystem.dll 反射；尚未编译或播放。生成脚本与原始分析数据在 C:\cs2_tool_mcp，仅保存在本地。目录与 Markdown 结构核对通过，敏感信息模式扫描 0 命中。
+
+## 2026-10-14 GitHub 上传准备
+
+用户要求检查并准备上传。本轮 59 项测试、八组 stdio 验证、受控文件及此前 6 个未推送提交敏感模式扫描通过，无第三方资产或私人配置候选；已整理本地提交。详情见 [GITHUB_UPLOAD_CHECK.md](GITHUB_UPLOAD_CHECK.md)。本轮未执行 push；实际上传前需重新核对远端状态。自动化保持暂停。

@@ -89,3 +89,7 @@ For the latest live-editor findings and next steps, see
 Source-format and behavior references: [Source 2 Viewer](https://s2v.app) ([ValveResourceFormat](https://github.com/ValveResourceFormat/ValveResourceFormat)). Local reference coverage is recorded in [VRF_REFERENCE_NOTES.md](VRF_REFERENCE_NOTES.md).
 
 按 DLL 拆分的 MCP 配置与固定 IDA 端口见 [MCP_MODULES.md](MCP_MODULES.md)。默认兼容入口仍可用，客户端已改为独立模块组。
+
+## Soundevent 参考
+
+[Soundevent 写法、函数与参数](SOUNDEVENT_REFERENCE.md) 包含本地 CS2 声音栈的公开参数声明及底层操作样本；完整注册 API 与未验证部分在文档中单独标明。
