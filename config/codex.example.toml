@@ -1,0 +1,107 @@
+# Local CS2 DLL MCP configuration; do not commit machine paths.
+
+[mcp_servers.cs2-hammer]
+command = "python"
+args = ["C:/path/to/cs2_tool_mcp/mcp_server/cs2_mcp_server.py", "--stdio", "--scope", "hammer"]
+cwd = "C:/path/to/cs2_tool_mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.cs2-pet]
+command = "python"
+args = ["C:/path/to/cs2_tool_mcp/mcp_server/cs2_mcp_server.py", "--stdio", "--scope", "pet"]
+cwd = "C:/path/to/cs2_tool_mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.cs2-particles]
+command = "python"
+args = ["C:/path/to/cs2_tool_mcp/mcp_server/cs2_mcp_server.py", "--stdio", "--scope", "particles"]
+cwd = "C:/path/to/cs2_tool_mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.cs2-met]
+command = "python"
+args = ["C:/path/to/cs2_tool_mcp/mcp_server/cs2_mcp_server.py", "--stdio", "--scope", "met"]
+cwd = "C:/path/to/cs2_tool_mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.cs2-modeldoc-editor]
+command = "python"
+args = ["C:/path/to/cs2_tool_mcp/mcp_server/cs2_mcp_server.py", "--stdio", "--scope", "modeldoc_editor"]
+cwd = "C:/path/to/cs2_tool_mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.cs2-scenesystem]
+command = "python"
+args = ["C:/path/to/cs2_tool_mcp/mcp_server/cs2_mcp_server.py", "--stdio", "--scope", "scenesystem"]
+cwd = "C:/path/to/cs2_tool_mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.cs2-tier0]
+command = "python"
+args = ["C:/path/to/cs2_tool_mcp/mcp_server/cs2_mcp_server.py", "--stdio", "--scope", "tier0"]
+cwd = "C:/path/to/cs2_tool_mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.cs2-bridge]
+command = "python"
+args = ["C:/path/to/cs2_tool_mcp/mcp_server/cs2_mcp_server.py", "--stdio", "--scope", "bridge"]
+cwd = "C:/path/to/cs2_tool_mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+
+[mcp_servers.ida-pro-mcp-hammer]
+url = "http://127.0.0.1:13341/mcp"
+enabled = true
+required = false
+startup_timeout_sec = 10
+
+[mcp_servers.ida-pro-mcp-pet]
+url = "http://127.0.0.1:13342/mcp"
+enabled = true
+required = false
+startup_timeout_sec = 10
+
+[mcp_servers.ida-pro-mcp-met]
+url = "http://127.0.0.1:13343/mcp"
+enabled = true
+required = false
+startup_timeout_sec = 10
+
+[mcp_servers.ida-pro-mcp-modeldoc]
+url = "http://127.0.0.1:13344/mcp"
+enabled = true
+required = false
+startup_timeout_sec = 10
+
+[mcp_servers.ida-pro-mcp-particles]
+url = "http://127.0.0.1:13345/mcp"
+enabled = true
+required = false
+startup_timeout_sec = 10
+
+[mcp_servers.ida-pro-mcp-scenesystem]
+url = "http://127.0.0.1:13346/mcp"
+enabled = true
+required = false
+startup_timeout_sec = 10
+
+[mcp_servers.ida-pro-mcp-tier0]
+url = "http://127.0.0.1:13347/mcp"
+enabled = true
+required = false
+startup_timeout_sec = 10

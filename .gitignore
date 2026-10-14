@@ -46,3 +46,7 @@ injected_dll/build*/
 
 # Per-machine MCP client configuration (may contain private paths or credentials)
 mcp.json
+
+# Per-machine Codex project configuration
+/.codex/config.toml
+/.codex/*.bak

@@ -93,3 +93,5 @@ Source-format and behavior references: [Source 2 Viewer](https://s2v.app) ([Valv
 ## Soundevent 参考
 
 [Soundevent 写法、函数与参数](SOUNDEVENT_REFERENCE.md) 包含本地 CS2 声音栈的公开参数声明及底层操作样本；完整注册 API 与未验证部分在文档中单独标明。
+
+Codex 客户端配置见 [CODEX_SETUP.md](CODEX_SETUP.md)；可复制模板为 [config/codex.example.toml](config/codex.example.toml)。

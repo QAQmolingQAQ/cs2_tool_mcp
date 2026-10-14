@@ -47,3 +47,7 @@ CS2 MCP 使用 stdio，不占 TCP 端口。Codex、Trae 和本地配置已同步
 configure 只能对未打开的数据库执行。
 
 59 项测试通过，八个 stdio 服务验证通过。此次未操作 CS2，未新增未经验证的粒子/MET 写入；仅留本地。
+
+## 源码目录与 Codex 配置
+
+当前 hammer_mcp 是共享实现的历史包名；已按 DLL 分服务和工具清单，但未按 DLL 重排物理源码目录。配置入口与缺口清单见 [CODEX_SETUP.md](CODEX_SETUP.md)，公开 TOML 模板见 [config/codex.example.toml](config/codex.example.toml)。真实项目 .codex/config.toml 已被忽略。
