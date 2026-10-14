@@ -741,3 +741,7 @@ IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚
 ## 2026-10-14 GitHub 上传准备
 
 用户要求检查并准备上传。本轮 59 项测试、八组 stdio 验证、受控文件及此前 6 个未推送提交敏感模式扫描通过，无第三方资产或私人配置候选；已整理本地提交。详情见 [GITHUB_UPLOAD_CHECK.md](GITHUB_UPLOAD_CHECK.md)。本轮未执行 push；实际上传前需重新核对远端状态。自动化保持暂停。
+
+### 2026-10-14 GitHub 上传完成
+
+用户指示继续后 fetch 无远端新增，7 个本地提交通过普通 push 成功，ls-remote 确认 master 为 77673ae6c727d01c597762caa62ade89dc18b0fd。没有上传第三方资产或私人配置；上传结果已记录到交接与检查文档。
