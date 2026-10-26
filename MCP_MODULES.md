@@ -3,18 +3,18 @@
 划分依据是目标 DLL、文档对象与原生入口的归属，不能根据“粒子/模型/材质”功能名称分组。
 每个现有工具的主归属明确登记在
 `mcp_server/hammer_mcp/data/tool_ownership.json`；新增工具未登记或重复登记会报错。
-原all保留旧工具契约，当前共有79个工具。
+原all保留旧工具契约，当前共有93个工具（2026-10-26）。版本未通过复核时原生写入/调用会拒绝，不能把工具数量视为当前全部可写。
 
 | 客户端名称 | 目标 DLL / scope | 当前工具数 |
 | --- | --- | ---: |
-| cs2-hammer | hammer.dll / hammer | 49 |
+| cs2-hammer | hammer.dll / hammer | 54 |
 | cs2-pet | pet.dll / pet | 18 |
 | cs2-particles | particles.dll / particles | 7 |
 | cs2-met | met.dll / met | 10 |
 | cs2-modeldoc-editor | modeldoc_editor.dll / modeldoc_editor | 14 |
 | cs2-scenesystem | scenesystem.dll / scenesystem | 5 |
 | cs2-tier0 | tier0.dll / tier0 | 5 |
-| cs2-bridge | 共享桥接与辅助服务 / bridge | 30 |
+| cs2-bridge | 共享桥接与辅助服务 / bridge | 39 |
 
 通用接口检查被绑定到相应 DLL，连接诊断会重复出现，各组工具数不能相加当作新增工具数。
 依赖其他 DLL 不自动改变工具的主归属；目前还没有独立高层操作的 DLL 组仅提供接口/加载信息，

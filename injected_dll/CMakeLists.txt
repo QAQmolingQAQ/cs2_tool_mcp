@@ -11,6 +11,7 @@ add_library(cs2_tool_injector SHARED
     dllmain.cpp
     ipc_pipe.cpp
     hammer_bridge.cpp
+    qt_snapshot.cpp
     protocol.cpp
 )
 
@@ -33,6 +34,7 @@ target_compile_definitions(cs2_tool_injector PRIVATE
 target_link_libraries(cs2_tool_injector PRIVATE
     kernel32
     user32
+    shell32
     advapi32
 )
 
@@ -46,3 +48,24 @@ set_target_properties(cs2_tool_injector PROPERTIES
     OUTPUT_NAME "cs2_tool"
     PREFIX ""
 )
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(dispatch_test tests/dispatch_test.cpp protocol.cpp)
+    target_compile_definitions(dispatch_test PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(dispatch_test PRIVATE /utf-8)
+    target_link_libraries(dispatch_test PRIVATE kernel32 user32 psapi)
+    add_test(NAME dispatch_lifetime COMMAND dispatch_test)
+    set_tests_properties(dispatch_lifetime PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+    add_library(bootstrap_fake_hammer SHARED tests/fake_hammer.cpp)
+    set_target_properties(bootstrap_fake_hammer PROPERTIES OUTPUT_NAME "hammer" PREFIX "" RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bootstrap_fixture")
+    add_executable(bootstrap_test tests/bootstrap_test.cpp ipc_pipe.cpp hammer_bridge.cpp qt_snapshot.cpp protocol.cpp)
+    target_compile_definitions(bootstrap_test PRIVATE CS2_TOOL_BOOTSTRAP_TEST UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(bootstrap_test PRIVATE /utf-8)
+    target_link_libraries(bootstrap_test PRIVATE kernel32 user32 shell32 advapi32 psapi)
+    add_test(NAME diagnostic_bootstrap COMMAND bootstrap_test $<TARGET_FILE:bootstrap_fake_hammer>)
+    set_tests_properties(diagnostic_bootstrap PROPERTIES TIMEOUT 15)
+endif()

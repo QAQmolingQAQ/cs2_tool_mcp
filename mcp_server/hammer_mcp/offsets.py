@@ -63,10 +63,13 @@ NODE_IFACE_OFFSET = 0xC8                # CDmElement -> 内嵌的 CMapNode 接�
 
 MAIN_THREAD_STATUS_NAMES = {
     0: "成功",
-    1: "等待超时（目标函数未返回，可能卡住）",
-    2: "未找到主线程",
+    1: "排队超时，已取消且未执行",
+    2: "未找到唯一可信窗口线程（缺失或歧义）",
     3: "SetWindowsHookEx 失败",
-    4: "调用中触发异常（已由 SEH 捕获，宿主进程未受影响）",
+    4: "调用中触发异常（SEH捕获；需检查目标状态）",
+    5: "先前调用仍在执行，本次未派发",
+    6: "执行中超时，结果未知，禁止自动重试",
+    7: "等待失败，已取消且未执行",
 }
 
 MAX_READ_CHUNK = 8192  # DLL 侧 read_memory 单次上限（injected_dll/ipc_pipe.cpp kMaxReadSize）

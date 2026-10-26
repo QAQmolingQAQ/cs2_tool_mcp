@@ -105,6 +105,10 @@ class Cs2Pipe:
 
     # -- 协议 API ------------------------------------------------------
 
+    def _authorize(self, method: str, params: dict[str, Any] | None):
+        from .versioning import guard_native_request
+        return guard_native_request(self, method, params)
+
     def call(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Serialize one round trip. Never replay an ambiguously completed request."""
         with self._lock:
@@ -112,6 +116,11 @@ class Cs2Pipe:
             frame = encode_request(request_id, method, params)
             if self._handle is None:
                 self._open()
+            # A rejection here precedes all writes of this request and is not
+            # an ambiguous execution failure. Read-only inspection can recurse.
+            attestation = self._authorize(method, params)
+            if attestation is not None:
+                frame = encode_request(request_id, method, {**(params or {}), 'native_attestation': attestation})
             try:
                 self._write_all(frame)
                 length = response_length(self._read_exact(HEADER_SIZE))

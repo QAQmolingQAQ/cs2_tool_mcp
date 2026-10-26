@@ -7,7 +7,11 @@
 namespace cs2tool {
 
 // Pipe name
+#ifdef CS2_TOOL_BOOTSTRAP_TEST
+constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\CS2ToolMCP_BootstrapTest";
+#else
 constexpr const wchar_t* kPipeName = L"\\\\.\\pipe\\CS2ToolMCP";
+#endif
 
 // Max message size
 constexpr size_t kMaxMsgSize = 1024 * 1024;

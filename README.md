@@ -2,6 +2,27 @@
 
 Project root: `C:\codex\cs2_tool_mcp`.
 
+## Workflow status
+
+The MCP now provides durable `cs2_build_start/status/cancel`, quick/full build
+profiles, VPK entry/resource validation, project configuration and live version
+selfchecks. Copy [config/project.example.json](config/project.example.json) to
+the ignored `config/project.local.json` and select an existing addon/map.
+See [BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) and [VERSION_SELFCHECK.md](VERSION_SELFCHECK.md).
+
+Hammer also provides read-only edit baselines, per-property batch previews and
+typed saved-map snapshot comparisons. These expose conflicts without granting
+permission to apply changes. Native editor offsets require an exact verified
+compatibility profile; the shipped profile list is intentionally empty.
+Fixed Qt UI adapters use a separate checked Qt ABI path.
+
+An isolated map completed edit/Undo/Redo/save tests and a quick build with
+validated VIS. Complete rollback, full lighting and game-load validation remain
+unfinished. See [EDIT_PREFLIGHT.md](EDIT_PREFLIGHT.md),
+[EDIT_CYCLE_VERIFICATION.md](EDIT_CYCLE_VERIFICATION.md) and
+[WORKFLOW_GOAL.md](WORKFLOW_GOAL.md). Local evidence paths and historical process
+IDs in these reports are examples of recorded runs, not reusable live handles.
+
 ## Build
 
 Requires Windows x64, Visual Studio C++ Build Tools with CMake, and Python.

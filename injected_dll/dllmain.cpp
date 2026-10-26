@@ -3,6 +3,7 @@
 #include <thread>
 #include "ipc_pipe.h"
 #include "hammer_bridge.h"
+#include "bridge_version.h"
 #include <atomic>
 
 namespace {
@@ -10,9 +11,8 @@ std::atomic<bool> g_initialized{false};
 }
 
 static DWORD WINAPI InitThread(LPVOID) {
-    if (!cs2tool::HammerBridge::Instance().IsInitialized()) {
-        cs2tool::HammerBridge::Instance().Initialize();
-    }
+    // Start diagnostics only. Offset-dependent initialization requires the
+    // Python client's live version gate and an explicit initialize request.
     cs2tool::IpcPipeServer::Instance().Start();
     g_initialized.store(true);
     return 0;
@@ -41,7 +41,6 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpRes
 
 extern "C" __declspec(dllexport) int Cs2Tool_Init() {
     if (!cs2tool::IpcPipeServer::Instance().IsRunning()) {
-        cs2tool::HammerBridge::Instance().Initialize();
         cs2tool::IpcPipeServer::Instance().Start();
         return 1;
     }
@@ -55,5 +54,5 @@ extern "C" __declspec(dllexport) int Cs2Tool_Shutdown() {
 }
 
 extern "C" __declspec(dllexport) const char* Cs2Tool_Version() {
-    return "cs2_tool_injector v0.1.0";
+    return cs2tool::kBridgeVersion;
 }

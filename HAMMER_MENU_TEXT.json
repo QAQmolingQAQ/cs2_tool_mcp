@@ -1,0 +1,1517 @@
+{
+  "role": "historical_menu_reference_not_current_ui",
+  "snapshot_pid": 27972,
+  "capture_sha256": "9bf1ef3aabd472604a129696913eb7738a766031449e8714a9962a21f385391c",
+  "snapshot_file": "qt_hammer_menu_actions.json",
+  "actions": [
+    {
+      "menu": "File",
+      "raw_text": "&New\tCtrl+N",
+      "label": "New",
+      "shortcut": "Ctrl+N",
+      "matching_qt_capture_records": 17,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "New From Template\t",
+      "label": "New From Template",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "&Open\tCtrl+O",
+      "label": "Open",
+      "shortcut": "Ctrl+O",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "&Reload From Disk\tCtrl+Shift+F12",
+      "label": "Reload From Disk",
+      "shortcut": "Ctrl+Shift+F12",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "&Recent Files",
+      "label": "Recent Files",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "&Save\tCtrl+S",
+      "label": "Save",
+      "shortcut": "Ctrl+S",
+      "matching_qt_capture_records": 14,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "Save &As...\tCtrl+Shift+S",
+      "label": "Save As...",
+      "shortcut": "Ctrl+Shift+S",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "Save Copy As Text...\t",
+      "label": "Save Copy As Text...",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "Save Active Prefab\tShift+Alt+S",
+      "label": "Save Active Prefab",
+      "shortcut": "Shift+Alt+S",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "&Close\t",
+      "label": "Close",
+      "shortcut": "",
+      "matching_qt_capture_records": 18,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setAccessibleName",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "Import File...\t",
+      "label": "Import File...",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "Export File...\t",
+      "label": "Export File...",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "Export Selected...\t",
+      "label": "Export Selected...",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "Reload .FGD Files\t",
+      "label": "Reload .FGD Files",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "&Build map...\tF9",
+      "label": "Build map...",
+      "shortcut": "F9",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "File",
+      "raw_text": "E&xit",
+      "label": "Exit",
+      "shortcut": "",
+      "matching_qt_capture_records": 5,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "&Undo\t",
+      "label": "Undo",
+      "shortcut": "",
+      "matching_qt_capture_records": 34,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "QStandardItem(QString)",
+        "drawItemText",
+        "setText",
+        "setToolTip",
+        "setWindowTitle"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "&Redo\t",
+      "label": "Redo",
+      "shortcut": "",
+      "matching_qt_capture_records": 24,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "QStandardItem(QString)",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Disable Undo/Redo\t",
+      "label": "Disable Undo/Redo",
+      "shortcut": "",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Repeat Command\t",
+      "label": "Repeat Command",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Find entities...\t",
+      "label": "Find entities...",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Replace...\t",
+      "label": "Replace...",
+      "shortcut": "",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Cu&t\t",
+      "label": "Cut",
+      "shortcut": "",
+      "matching_qt_capture_records": 25,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "QStandardItem(QString)",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "&Copy\t",
+      "label": "Copy",
+      "shortcut": "",
+      "matching_qt_capture_records": 30,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "QStandardItem(QString)",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "&Paste\t",
+      "label": "Paste",
+      "shortcut": "",
+      "matching_qt_capture_records": 30,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "QStandardItem(QString)",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Paste &Special...\t",
+      "label": "Paste Special...",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "&Delete Selected\t",
+      "label": "Delete Selected",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Move Props to &World\t",
+      "label": "Move Props to World",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Insert New Image Plane\t",
+      "label": "Insert New Image Plane",
+      "shortcut": "",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Clea&r Selection\t",
+      "label": "Clear Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Select &All\t",
+      "label": "Select All",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Invert Selection\t",
+      "label": "Invert Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Edit",
+      "raw_text": "Select Parent\t",
+      "label": "Select Parent",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Entity Galler&y\t",
+      "label": "Entity Gallery",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Check Map For &Problems\t",
+      "label": "Check Map For Problems",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Map &Information\t",
+      "label": "Map Information",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Map Properties\tCtrl+Shift+P",
+      "label": "Map Properties",
+      "shortcut": "Ctrl+Shift+P",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip",
+        "setWindowTitle"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Map &Variables\tCtrl+Shift+M",
+      "label": "Map Variables",
+      "shortcut": "Ctrl+Shift+M",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Map Relays\t",
+      "label": "Map Relays",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Entity Report\tCtrl+Alt+R",
+      "label": "Entity Report",
+      "shortcut": "Ctrl+Alt+R",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Map Manifest\tCtrl+Alt+M",
+      "label": "Map Manifest",
+      "shortcut": "Ctrl+Alt+M",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Load Compiled Vis Data\t",
+      "label": "Load Compiled Vis Data",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Clear Compiled Vis Data\t",
+      "label": "Clear Compiled Vis Data",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Map",
+      "raw_text": "Load Map In Engine\t",
+      "label": "Load Map In Engine",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Toolbars",
+      "label": "Toolbars",
+      "shortcut": "",
+      "matching_qt_capture_records": 5,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show 2D Grid\t",
+      "label": "Show 2D Grid",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show 3D Grid\t",
+      "label": "Show 3D Grid",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Smaller Grid\t",
+      "label": "Smaller Grid",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Bigger Grid\t",
+      "label": "Bigger Grid",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Center Views on Selection\t",
+      "label": "Center Views on Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Center 2D Views on Selection\t",
+      "label": "Center 2D Views on Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Frame All Views on Selection\t",
+      "label": "Frame All Views on Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Align Active View to Selection\t",
+      "label": "Align Active View to Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Align Selection to Active View\t",
+      "label": "Align Selection to Active View",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Re-orient camera to workplane\t",
+      "label": "Re-orient camera to workplane",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Reset camera to world orientation\t",
+      "label": "Reset camera to world orientation",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Create Saved Camera\t",
+      "label": "Create Saved Camera",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Go to Coordinates\t",
+      "label": "Go to Coordinates",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show Entity Names\t",
+      "label": "Show Entity Names",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show Editor Only Objects\tShift+O",
+      "label": "Show Editor Only Objects",
+      "shortcut": "Shift+O",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show Vis Contributors Only\t",
+      "label": "Show Vis Contributors Only",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show Tools Materials\tCtrl+Shift+F2",
+      "label": "Show Tools Materials",
+      "shortcut": "Ctrl+Shift+F2",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show Collision Models\t",
+      "label": "Show Collision Models",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show LPV Sample Vis\t",
+      "label": "Show LPV Sample Vis",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Show Light Overlap\t",
+      "label": "Show Light Overlap",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Quick &Hide Selection\t",
+      "label": "Quick Hide Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Quick Hide &Unselected Objects\t",
+      "label": "Quick Hide Unselected Objects",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "&Show Quick-Hide Objects\t",
+      "label": "Show Quick-Hide Objects",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Selection set from quick hide\t",
+      "label": "Selection set from quick hide",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Create selection set\t",
+      "label": "Create selection set",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Hide unselected\t",
+      "label": "Hide unselected",
+      "shortcut": "",
+      "matching_qt_capture_records": 11,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "View",
+      "raw_text": "Take Large Screenshot...\t",
+      "label": "Take Large Screenshot...",
+      "shortcut": "",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Group\t",
+      "label": "Group",
+      "shortcut": "",
+      "matching_qt_capture_records": 20,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "drawItemText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Ungroup\t",
+      "label": "Ungroup",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Ungroup All\t",
+      "label": "Ungroup All",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Parent\t",
+      "label": "Parent",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Un-parent\t",
+      "label": "Un-parent",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Create World Layer\t",
+      "label": "Create World Layer",
+      "shortcut": "",
+      "matching_qt_capture_records": 10,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Create Lattice Deformer\t",
+      "label": "Create Lattice Deformer",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Create Simple Deformer\t",
+      "label": "Create Simple Deformer",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Create Path Deformer\t",
+      "label": "Create Path Deformer",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Deformer Creation Axis",
+      "label": "Deformer Creation Axis",
+      "shortcut": "",
+      "matching_qt_capture_records": 4,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Create Instance\t",
+      "label": "Create Instance",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Collapse Instance\t",
+      "label": "Collapse Instance",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Tie To Entity\t",
+      "label": "Tie To Entity",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Untie From Entity\t",
+      "label": "Untie From Entity",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Snap Selected To Grid\t",
+      "label": "Snap Selected To Grid",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Snap Selected To Grid Individually\t",
+      "label": "Snap Selected To Grid Individually",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Flip Selection Horizontally\t",
+      "label": "Flip Selection Horizontally",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Flip Selection Vertically\t",
+      "label": "Flip Selection Vertically",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Create Mesh Around Selection\t",
+      "label": "Create Mesh Around Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 13,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "Remap Blend Data\t",
+      "label": "Remap Blend Data",
+      "shortcut": "",
+      "matching_qt_capture_records": 10,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Tools",
+      "raw_text": "&Options...",
+      "label": "Options...",
+      "shortcut": "",
+      "matching_qt_capture_records": 4,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText"
+      ]
+    },
+    {
+      "menu": "Prefabs",
+      "raw_text": "Import Prefab\t",
+      "label": "Import Prefab",
+      "shortcut": "",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Prefabs",
+      "raw_text": "New Prefab From Selection (Maintain World Offset)\t",
+      "label": "New Prefab From Selection (Maintain World Offset)",
+      "shortcut": "",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Prefabs",
+      "raw_text": "New Prefab From Selection (Center On Origin)\t",
+      "label": "New Prefab From Selection (Center On Origin)",
+      "shortcut": "",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Prefabs",
+      "raw_text": "Collapse prefabs",
+      "label": "Collapse prefabs",
+      "shortcut": "",
+      "matching_qt_capture_records": 4,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText"
+      ]
+    },
+    {
+      "menu": "Prefabs",
+      "raw_text": "Display Prefabs\t",
+      "label": "Display Prefabs",
+      "shortcut": "",
+      "matching_qt_capture_records": 8,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Preview Baked Lighting",
+      "raw_text": "Bake All Lighting\t",
+      "label": "Bake All Lighting",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Preview Baked Lighting",
+      "raw_text": "Bake All Cubemaps\t",
+      "label": "Bake All Cubemaps",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Preview Baked Lighting",
+      "raw_text": "Bake Fog Indirect Lighting\t",
+      "label": "Bake Fog Indirect Lighting",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Preview Baked Lighting",
+      "raw_text": "Clear All Lighting\t",
+      "label": "Clear All Lighting",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Preview Baked Lighting",
+      "raw_text": "Bake Lighting On Selection\t",
+      "label": "Bake Lighting On Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 12,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Preview Baked Lighting",
+      "raw_text": "Bake Selected Cubemaps\t",
+      "label": "Bake Selected Cubemaps",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Preview Baked Lighting",
+      "raw_text": "Clear Lighting On Selection\t",
+      "label": "Clear Lighting On Selection",
+      "shortcut": "",
+      "matching_qt_capture_records": 9,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Preview Scene\t",
+      "label": "Preview Scene",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Export Scene to OBJ...\t",
+      "label": "Export Scene to OBJ...",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Create Probe Generation Volume\t",
+      "label": "Create Probe Generation Volume",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Create Probe Exclusion Volume\t",
+      "label": "Create Probe Exclusion Volume",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Generate Probes...\t",
+      "label": "Generate Probes...",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Generate Single Probe\t",
+      "label": "Generate Single Probe",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Toggle Probe Visualization\t",
+      "label": "Toggle Probe Visualization",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Change Settings...\t",
+      "label": "Change Settings...",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "Steam Audio",
+      "raw_text": "Bake Data...\t",
+      "label": "Bake Data...",
+      "shortcut": "",
+      "matching_qt_capture_records": 7,
+      "capture_functions": [
+        "QPainter::drawText",
+        "setText",
+        "setToolTip"
+      ]
+    },
+    {
+      "menu": "窗户",
+      "raw_text": "Toolbars",
+      "label": "Toolbars",
+      "shortcut": "",
+      "matching_qt_capture_records": 5,
+      "capture_functions": [
+        "QCoreApplication::translate",
+        "QPainter::drawText",
+        "setText"
+      ]
+    },
+    {
+      "menu": "Help",
+      "raw_text": "Show &Key Bindings...",
+      "label": "Show Key Bindings...",
+      "shortcut": "",
+      "matching_qt_capture_records": 1,
+      "capture_functions": [
+        "QCoreApplication::translate"
+      ]
+    },
+    {
+      "menu": "Help",
+      "raw_text": "&Help...",
+      "label": "Help...",
+      "shortcut": "",
+      "matching_qt_capture_records": 2,
+      "capture_functions": [
+        "QCoreApplication::translate"
+      ]
+    },
+    {
+      "menu": "Help",
+      "raw_text": "About &Qt",
+      "label": "About Qt",
+      "shortcut": "",
+      "matching_qt_capture_records": 2,
+      "capture_functions": [
+        "QCoreApplication::translate"
+      ]
+    },
+    {
+      "menu": "Help",
+      "raw_text": "&About",
+      "label": "About",
+      "shortcut": "",
+      "matching_qt_capture_records": 2,
+      "capture_functions": [
+        "QCoreApplication::translate"
+      ]
+    }
+  ],
+  "menu_count": 10,
+  "snapshot_actions_including_separators": 148,
+  "menu_items_excluding_separators": 119,
+  "items_with_text_match": 119
+}

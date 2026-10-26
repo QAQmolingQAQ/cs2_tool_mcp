@@ -1,8 +1,23 @@
 # CS2/Hammer MCP 当前交接状态
 
-更新：2026-10-14（北京时间）。本文件记录下一轮可直接接续的事实；历史细节在
+更新：2026-10-26（北京时间）。本文件记录下一轮可直接接续的事实；历史细节在
 [`PROGRESS.md`](PROGRESS.md) 和 [`REVERSE_NOTES.md`](REVERSE_NOTES.md)。
 下载目录的角色模型与实机导入记录见 [`DOWNLOAD_MODELS.md`](DOWNLOAD_MODELS.md)。
+
+## 当前持续目标：构建与产物验证
+
+- 完整目标见 `WORKFLOW_GOAL.md`；旧 `cs2-mcp-10-14` 自动任务保持暂停。
+- 新增工程/构建五工具、`cs2_session_selfcheck`及Hammer的 `cs2_map_io_check`，共86工具（Hammer50/bridge36）；最新88项测试通过。测试需统一TEMP/TMP为 `C:\CS2_Temp`，否则两项既有测试因盘符大小写字符串比较失败。
+- VPK检查所有条目CRC、资源块边界、地图/世界资源、VXVS及识别的光照贴图集合。真实MCP检查 `cs_script_demo.vpk`（66条目）通过；原 `untitled_2.vpk`（12条目）有VIS但缺光照，完整模式拒绝。新构建仅写隔离副本，不替换原地图。
+- `artifact_complete`仅代表包内证据；`release_ready`保持false，尚未完成游戏实测/依赖完整性验证。CRC与SHA已改为1MiB流式扫描，覆盖分卷、预加载与扫描取消，检测存储文件变化；513MiB测试通过且该例峰值分配低于16MiB。保留目录/块表元数据上限，详情BUILD_WORKFLOW.md。
+- 配置模板 `config/project.example.json`，私人配置已忽略且指向test/maps/untitled_2.vmap；状态 `C:\CS2_Temp\mcp_build_jobs`。持久worker独立于MCP客户端Job；编译器使用创建时绑定的Job管理后代，取消与worker崩溃清理均测试通过。细节/复现见 `BUILD_WORKFLOW.md`。
+- 真实MCP启动后关闭客户端，任务 `b2b99f92cbd24f468749a8d356df641d` 仍成功完成，退出0、VIS/11条目CRC通过；新客户端取消 `ae91ed8aece14954b32ff64560b99b0c`，确认cancelled、退出1223、进程树已退出。
+- 完整构建 `a216dcaaae564ac891a9556d939f306e` 退出1：VMware GPU不支持VRAD3 ray tracing，未生成VPK。此硬件限制尚未解决，不能宣称完整编译/光照闭环已完成。
+- 已安装游戏为Oct22版本；新增版本自检与传输层写入校验，实机stdio拒绝写入通过。桥接v0.2.0只启动IPC，不自动初始化旧偏移；桥接另要求新客户端attestation，保护未重载的旧服务。没有已验证profile，当前所有原生写入/调用保持禁用，详情 `VERSION_SELFCHECK.md`。
+- 已自行打开test addon的工具模式做只读校验；未修改编辑文档，未提交或推送。旧偏移复核、活动地图/脏状态、批量冲突检测及后续I/O、运行诊断、发布检查仍未完成。
+- 最终自检报告保存在本地 `C:\CS2_Temp\mcp_version_stdio_report.json`；本轮独立测试进程历史PID7328，当前Asset Browser、无地图，桥接initialized=false。下一轮重新核对进程身份；新客户端发送前拒绝与应用已运行旧客户端的桥接端拒绝均实测通过。不要通过采集当前哈希自动批准兼容profile。
+- 用户建议后，以 `-allow_third_party_software` 重启了无编辑文档的测试实例，历史PID22936；CE MCP已连接并成功注入桥接，自检报告已刷新。截图仍超时，未宣称恢复捕获。新Hammer的静态dirty/关联文档与App候选分析见 `HAMMER_DIRTY_ANALYSIS.md`，尚未开放批量写入。
+- 新增保存后地图FGD/I/O检查：真实stdio检查21实体/2连接，7份FGD/469类，0错误/2条未声明警告；支持目标/过滤器/已知参数类型与maker模板覆盖。脚本入口/类型、prefab展开、运行目标及未保存状态仍未覆盖，coverage_complete/release_ready=false。细节及报告路径见 `MAP_IO_CHECK.md`。
 后续功能优先级与验收条件见 [`MCP_ROADMAP.md`](MCP_ROADMAP.md)。
 
 ## 工作位置与验证基线
@@ -98,3 +113,46 @@
 ## 2026-10-14 粒子 Base Properties
 
 新增 pet.dll 只读 cs2_particle_editor_root_value，实际MCP读取最大粒子数8、半径106、颜色[237,57,57,255]和包围盒[-32,-32,-32]。当前79工具、Pet18工具、62项测试、八组stdio通过。原生属性设置候选及40/48字节上下文见PET_DLL_OFFSETS.md，尚未执行属性写入或Undo/Redo。computer-use初始化路径错误，既有Qt桥接可用；用户原有未保存会话保持打开。
+
+## 2026-10-26 Qt hook 接续
+用户报告CE崩溃；待决CE工具已返回连接失败，CS2只读检查仍响应。用户允许Qt hook。已审查现有WH_GETMESSAGE派发，发现Qt线程选择未验证及超时请求生命周期竞态；尚未修改或实机验证。实施顺序与边界见QT_HOOK_NOTES.md，不重放结果未知的调用。
+
+主线程派发生命周期源码已修复（共享请求、RPC字符串持有、排队取消/在途未知、忙拒绝）；独立Windows hook测试及88项Python测试通过。VS18编译成功，根目录DLL被旧实例锁定，未部署新桥接。Qt线程身份/专用点击尚待实现，见QT_HOOK_NOTES.md。
+
+桥接build.ps1已改为SHA产物留存及原子文件替换，锁冲突返回deployment_pending；实际文件锁/篡改等PowerShell测试通过。磁盘DLL已原子替换，但运行中模块未更新；真实MCP仍连接且写入拒绝验证通过，报告C:\CS2_Temp\mcp_after_atomic_deploy.json。详见BUILD_WORKFLOW.md。
+
+Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源码要求唯一Qt候选，歧义/Qt模块存在但无候选时拒绝，删除任意首线程回退。独立原生测试覆盖双线程候选拒绝及恢复，构建通过；尚未游戏内运行新桥接或实现Qt点击。见QT_HOOK_NOTES.md。
+
+新桥接已在确认无编辑器模块后重启隔离CS2并注入，历史PID25944；加载PE与磁盘一致。固定内部main_thread_selftest实机跨线程返回正确，白名单仅此无害自检，不开放任意调用。89项Python测试通过；一次候选发现status2暂时失败后固定自检复测通过，原因未定。报告C:\CS2_Temp\mcp_qt_dispatch_live.json，重查身份后再用；Qt控件点击未完成。
+
+新增只读bridge工具cs2_qt_widgets，87工具/bridge37，91项Python及原生测试通过。当前隔离历史PID20952运行新桥接，实际stdio读回Asset Browser337控件，含Hammer/Particle/ModelDoc按钮文字；主线程自检及写入拒绝复测通过。尚无点击功能，地址短期且分页顺序不稳定；状态与证据详见QT_HOOK_NOTES.md，报告C:\CS2_Temp\qt_widgets_mcp_page*.json。
+
+新增cs2_qt_open_editor归bridge固定Qt UI通道（非只读），88工具/bridge38、93项Python及原生测试通过。当前历史PID22360已实际通过Qt点击启动Hammer，模块加载/1844控件读回确认；重复请求already_loaded_no_click，尚无地图。只读核对App候选+0x677E450虚表匹配+0x1DF2E90，旧App地址为空；dirty manager解释仍不明确，不开放原生写入。报告及细节见QT_HOOK_NOTES.md/HAMMER_DIRTY_ANALYSIS.md。
+
+用户提供cs2-tools-trans-cn，已只读克隆并核对MIT/提交；离线文本对照读取out/hammer.json/common.json，保留原始文字、歧义与文件SHA。真实快照10个按钮获得翻译参考；发现部分译法不准确及两个采集导出名与本机不符，未注入外部DLL。95项Python测试通过，MCP仍88工具。见QT_TEXT_REFERENCE.md。此前Ctrl+O后UI观察为空、截图超时，未输入地图路径。
+
+新增Hammer只读cs2_hammer_layout_observe，89工具/Hammer51/bridge38，98项Python测试通过。真实stdio校验模块SHA/App虚表后读回空会话和空dirty分组，重复读取一致；全局dirty指针解引用后布局与静态分析相符。输出始终dirty_state=unknown/safe_to_write=false，不将空值或重复读取当作已保存/原子状态。非空地图实测尚待完成，报告C:\CS2_Temp\hammer_layout_mcp_observation.json，见HAMMER_DIRTY_ANALYSIS.md。
+
+已审查用户discover_out：227126记录、201800不同文本、325粒子名称均被记录；13163条Hook ID与functions元数据不符，按记录fn/mod归组，禁止复用历史地址或声称完整API。新增可复现离线分析及混合ID回归测试，99项测试通过；报告C:\CS2_Temp\discover_out_verified_analysis.json，详见QT_DISCOVERY_REVIEW.md。
+
+新增cs2_qt_menu_actions，90工具/Hammer51/bridge39，100项Python及原生测试通过。当前隔离历史PID27972实际读回Hammer10菜单/148动作；Open文字含tab+Ctrl+O，已在磁盘新构建修正匹配归一化，运行模块仍为修正前版本。QAction enabled不等于命令就绪。固定排队Open对话框实验IPC尚未执行，不算已实现MCP动作；报告与下一步见QT_HOOK_NOTES.md。
+
+排队Qt File/Open已实机验证：当前隔离历史PID26192出现原生Open对话框（在Hammer辅助功能子树中），管道/主线程自检与写入拒绝均通过。已生成隔离地图及独立工程配置，UUID f61a8859b90241378cb9120ea21675fe，原/副本SHA不变；地图尚未打开。电脑操控设值/点击失败且焦点未转移，未输入路径，Open模态仍保留；下一步Qt原生文件选择接口，见QT_HOOK_NOTES.md。
+
+重要更新：当前历史PID26192已打开cs_script_demo.vmap，部署前只读检查发现非空后取消重启。Session→Wrapper→Doc主虚表/RTTI及+0x6A0路径实机验证，selfcheck现在返回实际地图，配置默认仍untitled_2；多文档不猜活动项，dirty仍unknown/禁止写入。103项Python/原生测试通过。新QtFileDialogMap仅磁盘源码实验，未部署实测；保留当前文档，报告C:\CS2_Temp\mcp_nonempty_document_selfcheck.json。
+
+启动安全修正：审查发现ServerThread仍有未受版本校验的Initialize，已移除并升v0.2.1。新增真实独立管道+预加载fake hammer工厂计数测试，ping/拒绝initialize后工厂调用0；原生派发及103项Python测试通过。当前游戏仍v0.2.0且保留cs_script_demo文档，未部署/卸载；Stop的detach语义不构成热卸载屏障。详见BRIDGE_BOOTSTRAP.md，MCP仍90工具。
+
+已按用户新目录C:\codex\cs2_tool_trans\collect\discover\out\discover_out交叉整理菜单文字，calls哈希与此前副本一致。历史Hammer快照10菜单/148动作中119非空项均有Qt采集文本命中，已输出HAMMER_MENU_TEXT.md/.json（含原文、快捷键、来源函数；仅一层非动态菜单）。当前管道WaitNamedPipe err2未连接，没有为读取菜单重启或注入。复现脚本extract_menu_reference.py；未推送。
+
+新增只读 cs2_edit_preflight，按工程持久化文件/版本/会话证据并重查基线，始终safe_to_write=false。106项Python测试通过；实际Hammer stdio记录成功，当前管道err2离线，未执行编辑或回滚。见EDIT_PREFLIGHT.md；91个唯一工具，未推送。
+
+新增cs2_edit_preview：已有实体字符串属性的逐项before/expected/after清单，冲突/重复/无效目标明示，转换前后复查预检及副本/转换器哈希。108项测试通过，实际MCP转换并预览真实地图，原SHA不变；92个工具。桥接离线，执行/dirty语义/回滚未完成，见EDIT_PREFLIGHT.md。
+
+实机更新：新启动test addon并加载v0.2.1桥接，早期Qt未就绪后自检/写入拒绝通过。当前本轮PID10268在线，Hammer零文档/Open模态；Qt文件选择setDirectory已实测导航正确，selectFile仍填C:/完整路径导致原生文件名无效，未成功打开地图。新DLL SHA2f2cb2a0c20f7bf7cbc19607c82e8ba376e194f560efa77105b9e6544233d24c；108项Python与两原生测试通过，原/副本SHA不变。见QT_HOOK_NOTES.md，未推送。
+
+关键实机进展：Windows原生文件名适配器解决Qt完整路径失败，当前本轮PID2064已打开隔离地图f61a8859b90241378cb9120ea21675fe/untitled_2.vmap，实际MCP主虚表/RTTI/路径及自检/写入拒绝通过。最新桥接SHAe00f79e6fbe7df47b10200cc219674d2802697a05300419fb5b8c6d5e01bfe9a。原/副本SHA未变，隔离工程预检连续两次matched；dirty世代1/1不作为clean证据。原生嵌套控件/歧义/禁用测试通过，详见QT_HOOK_NOTES.md。本地manifest已更新editor_opened，后续保留此文档做编辑/Undo/保存验证；未推送。
+
+隔离编辑实测：本轮PID8408/桥接SHA c719b44fce384116eff603cdf80ec789fa2b35fcf2f06af2db3792168c464ef7。固定实验Qt菜单动作完成SelectAll/Delete/Undo/Redo/Save，世代1→24→47→70→93，保存同步70/70及93/93。磁盘21实体→0→21；按nodeID属性/I/O一致，但顺序反转及部分内部DMX GUID重建，完整回滚未证明；实体自身GUID本次稳定。原图SHA不变，副本新SHA bb3ded8d5bc9994b170bcaded0d7bd70964cee7dded5eb81d26259c7a1b647ed。109测试和原生测试通过。详见EDIT_CYCLE_VERIFICATION.md；当前仍保留隔离文档，未推送。
+
+新增Hammer cs2_map_snapshot_compare，严格保留类型/children顺序/变换/网格，实际MCP核验25节点无缺失新增，唯一节点差异world.children；metadata仍不同，完整回滚false。114测试通过，93工具。同一编辑后隔离工程MCP快速构建任务759ba3afef6846bab69efa5590c1679d成功，VPK11项/VIS有效/无光照；source未变。详见EDIT_CYCLE_VERIFICATION.md，仍缺完整光照和实机加载；未推送。

@@ -10,6 +10,11 @@
   },
   "owners": {
     "hammer": [
+      "cs2_map_snapshot_compare",
+      "cs2_edit_preview",
+      "cs2_edit_preflight",
+      "cs2_hammer_layout_observe",
+      "cs2_map_io_check",
       "cs2_hammer_status",
       "cs2_undo",
       "cs2_redo",
@@ -70,6 +75,15 @@
     "scenesystem": [],
     "tier0": [],
     "bridge": [
+      "cs2_qt_menu_actions",
+      "cs2_qt_open_editor",
+      "cs2_qt_widgets",
+      "cs2_session_selfcheck",
+      "cs2_build_start",
+      "cs2_build_status",
+      "cs2_build_cancel",
+      "cs2_build_artifact_check",
+      "cs2_project_info",
       "cs2_asset_compile",
       "cs2_asset_tree",
       "cs2_pipe_ping",

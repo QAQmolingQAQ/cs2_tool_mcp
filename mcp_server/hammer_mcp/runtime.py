@@ -161,7 +161,7 @@ def _invoke_main(fn: int, args: list[int], timeout: int = 10000) -> int:
     res = resp["result"]
     st = res.get("main_thread_status", 0)
     if st != 0:
-        raise RuntimeError(f"主线程调用失败 status={st} (1=超时 2=无主线程 3=钩子失败 4=异常)")
+        raise RuntimeError(f"主线程调用失败 status={st}: {MAIN_THREAD_STATUS_NAMES.get(st, '未知')}")
     return int(res["ret_hex"], 16)
 
 

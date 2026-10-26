@@ -1,6 +1,9 @@
 // ipc_pipe.cpp - Named pipe IPC server implementation
 #include "ipc_pipe.h"
 #include "hammer_bridge.h"
+#include "bridge_version.h"
+#include "qt_snapshot.h"
+#include <shellapi.h>
 #include <vector>
 #include <cctype>
 #include <cstdio>
@@ -157,8 +160,8 @@ void IpcPipeServer::ServerThread() {
     // Save thread handle for CancelSynchronousIo during shutdown
     server_thread_handle_ = OpenThread(SYNCHRONIZE | THREAD_QUERY_INFORMATION, FALSE, GetCurrentThreadId());
 
-    HammerBridge::Instance().Initialize();
-
+    // Diagnostic startup must never invoke editor factories or offset-based initialization.
+    // initialize is handled only as an explicitly attested native request.
     while (running_.load()) {
         HANDLE hPipe = CreateNamedPipeW(
             kPipeName,
@@ -319,12 +322,59 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         return JsonMakeObject(fields);
     };
 
+    // Old, already-running MCP clients have no Python version gate. Require
+    // per-request attestation from a current client before native operations.
+    // This is a compatibility handshake, not a security/authentication boundary.
+    const char* diagnostic_methods[] = {
+        "ping", "list_tools", "get_status", "list_modules", "get_module",
+        "read_memory", "read_qword", "read_value", "read_string", "read_ptr_chain",
+        "find_pattern", "scan_heap", "list_interfaces", "module_interfaces", "main_thread_selftest", "qt_widgets_snapshot", "qt_menu_actions"
+    };
+    bool diagnostic = false;
+    for (auto name : diagnostic_methods) if (method == name) diagnostic = true;
+    const bool stable_ui = (method == "qt_open_editor" || method == "qt_hammer_open_dialog" || method == "qt_file_dialog_map" || method == "qt_hammer_probe_action"); // fixed Qt ABI adapter, no editor RVAs
+    if (!diagnostic && !stable_ui) {
+        const auto* attestation = params ? params->Get("native_attestation") : nullptr;
+        if (!attestation || attestation->GetString("profile").empty() ||
+            attestation->GetInt("pid", 0) != GetCurrentProcessId() ||
+            attestation->GetInt("bridge_api_version", 0) != kBridgeApiVersion ||
+            attestation->GetString("implementation_sha256").size() != 64) {
+            return error("native request blocked: current client version attestation required; run cs2_session_selfcheck");
+        }
+    }
+
     auto& bridge = HammerBridge::Instance();
 
     if (method == "ping") {
+        std::string addon, launch_map;
+        int argc = 0;
+        auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        if (argv) {
+            auto utf8 = [](const wchar_t* value) {
+                int size = WideCharToMultiByte(CP_UTF8, 0, value, -1, nullptr, 0, nullptr, nullptr);
+                std::string text(size, '\0');
+                if (size > 0) {
+                    WideCharToMultiByte(CP_UTF8, 0, value, -1, text.data(), size, nullptr, nullptr);
+                    text.pop_back();
+                }
+                return text;
+            };
+            for (int i = 1; i + 1 < argc; ++i) {
+                if (!_wcsicmp(argv[i], L"-addon")) addon = utf8(argv[i + 1]);
+                if (!_wcsicmp(argv[i], L"+map")) launch_map = utf8(argv[i + 1]);
+            }
+            LocalFree(argv);
+        }
         return success(JsonMakeObject({
             {"status", JsonMakeString("ok")},
-            {"initialized", JsonMakeBool(bridge.IsInitialized())}
+            {"initialized", JsonMakeBool(bridge.IsInitialized())},
+            {"bridge_version", JsonMakeString(kBridgeVersion)},
+            {"bridge_api_version", JsonMakeInt(kBridgeApiVersion)},
+            {"native_attestation_required", JsonMakeBool(true)},
+            {"protocol_version", JsonMakeInt(kMsgVersion)},
+            {"pid", JsonMakeInt(GetCurrentProcessId())},
+            {"addon", JsonMakeString(addon)},
+            {"launch_map", JsonMakeString(launch_map)}
         }));
     }
     if (method == "get_status") {
@@ -670,14 +720,20 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         std::vector<FnArg> args;
         std::vector<void*> str_allocs;   // "str:" 参数的本进程分配，调用后释放
         ParseCallArgs(params->Get("args"), bridge, args, str_allocs);
+        auto argument_owner = std::shared_ptr<void>(
+            new std::vector<void*>(std::move(str_allocs)), [](void* p) {
+                auto* allocations = static_cast<std::vector<void*>*>(p);
+                FreeCallArgs(*allocations);
+                delete allocations;
+            });
         // on_main_thread=true 时在目标进程主线程执行（文档/UI 相关操作必需，
         // 否则函数可能永不返回并让历史留在 busy 状态）
         const bool on_main = params->GetBool("on_main_thread", false);
         const DWORD timeout_ms = (DWORD)params->GetInt("timeout_ms", 5000);
         const uint64_t ret = on_main
-            ? bridge.CallFunctionOnMainThread(fn, args, timeout_ms)
+            ? bridge.CallFunctionOnMainThread(fn, args, timeout_ms, argument_owner)
             : bridge.CallFunction(fn, args);
-        FreeCallArgs(str_allocs);
+
         return success(JsonMakeObject({
             {"address", JsonMakeString(Hex(fn))},
             {"on_main_thread", JsonMakeBool(on_main)},
@@ -686,6 +742,31 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
             {"ret", JsonMakeInt((int64_t)ret)},
             {"ret_hex", JsonMakeString(Hex(ret))}
         }));
+    }
+    if (method == "qt_file_dialog_map") {
+        if (!params) return error("missing params");
+        return success(QtFileDialogMap(params->GetString("path"),params->GetBool("confirm",false)));
+    }
+    if (method == "qt_hammer_probe_action") {
+        if (!params) return error("missing params");
+        return success(QtHammerProbeAction(params->GetString("action"),params->GetString("expected_title"),params->GetBool("confirm",false)));
+    }
+    if (method == "qt_menu_actions") {
+        if (!params) return error("missing params");
+        return success(QtMenuActions(params->GetString("window_object_name")));
+    }
+    if (method == "qt_hammer_open_dialog" || method == "qt_file_dialog_map") {
+        return success(QtHammerOpenDialog(params ? params->GetBool("confirm",false) : false));
+    }
+    if (method == "qt_open_editor") {
+        if (!params) return error("missing params");
+        return success(QtOpenEditor(params->GetString("editor"), params->GetBool("confirm", false)));
+    }
+    if (method == "qt_widgets_snapshot") {
+        const int64_t offset = params ? params->GetInt("offset", 0) : 0;
+        const int64_t limit = params ? params->GetInt("limit", 128) : 128;
+        if (offset < 0 || offset > 20000 || limit < 1 || limit > 128) return error("invalid Qt snapshot bounds");
+        return success(QtWidgetsSnapshot(static_cast<int>(offset), static_cast<int>(limit)));
     }
     if (method == "main_thread_selftest") {
         // 不触碰 Hammer 代码：只对 DLL 内部函数做一次主线程调用，验证派发链路
@@ -712,11 +793,17 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         std::vector<FnArg> args;
         std::vector<void*> str_allocs;
         ParseCallArgs(params->Get("args"), bridge, args, str_allocs);
+        auto argument_owner = std::shared_ptr<void>(
+            new std::vector<void*>(std::move(str_allocs)), [](void* p) {
+                auto* allocations = static_cast<std::vector<void*>*>(p);
+                FreeCallArgs(*allocations);
+                delete allocations;
+            });
         // 与 call_function 一致：文档/UI 相关的虚函数必须走主线程
         const bool on_main = params->GetBool("on_main_thread", false);
         const DWORD timeout_ms = (DWORD)params->GetInt("timeout_ms", 5000);
-        uint64_t ret = bridge.CallVirtual(this_ptr, vtable_offset, args, on_main, timeout_ms);
-        FreeCallArgs(str_allocs);
+        uint64_t ret = bridge.CallVirtual(this_ptr, vtable_offset, args, on_main, timeout_ms, argument_owner);
+
         return success(JsonMakeObject({
             {"this", JsonMakeString(Hex(this_ptr))},
             {"vtable_offset", JsonMakeInt((int64_t)vtable_offset)},
@@ -791,6 +878,11 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
             JsonMakeString("call_function"),
             JsonMakeString("call_virtual"),
             JsonMakeString("main_thread_selftest"),
+            JsonMakeString("qt_widgets_snapshot"),
+            JsonMakeString("qt_open_editor"),
+            JsonMakeString("qt_menu_actions"),
+            JsonMakeString("qt_hammer_open_dialog"),
+            JsonMakeString("qt_file_dialog_map"),
             JsonMakeString("map_list_docs"),
             JsonMakeString("get_hammer_app"),
             JsonMakeString("initialize"),

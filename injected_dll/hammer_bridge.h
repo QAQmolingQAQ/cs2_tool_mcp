@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <string>
 #include <vector>
+#include <memory>
 #include <cstdint>
 #include <cstring>
 
@@ -161,15 +162,17 @@ public:
     uint64_t CallFunction(uintptr_t fn, const std::vector<FnArg>& args);
     // on_main_thread=true 时在目标进程主线程上执行（会改文档/UI 的虚函数必需）
     uint64_t CallVirtual(uintptr_t this_ptr, size_t index, const std::vector<FnArg>& args,
-                         bool on_main_thread = false, DWORD timeout_ms = 5000);
+                         bool on_main_thread = false, DWORD timeout_ms = 5000,
+                         std::shared_ptr<void> argument_owner = {});
 
     // 在目标进程的**主线程**上调用 fn（多线程亲和的操作必须走这里）。
     // 实现：向主线程挂一个临时 WH_GETMESSAGE 钩子，钩子过程里执行 fn 并唤醒调用方。
     // 返回 fn 的返回值；超时或失败返回 0。
     uint64_t CallFunctionOnMainThread(uintptr_t fn, const std::vector<FnArg>& args,
-                                      DWORD timeout_ms = 5000);
+                                      DWORD timeout_ms = 5000,
+                                      std::shared_ptr<void> argument_owner = {});
 
-    // 取目标进程主线程 ID（0 表示未找到）
+    // 优先取唯一Qt原生窗口线程；Qt存在时不回退猜测，0表示缺失/歧义。
     static DWORD GetMainThreadId();
 
     // 主线程派发的自检：对 **DLL 内部**的无害函数做一次主线程调用。
@@ -177,7 +180,9 @@ public:
     uint64_t SelfTestOnMainThread(DWORD timeout_ms = 3000);
 
     // 最近一次主线程派发的状态：
-    //   0=成功 1=等待超时 2=未找到主线程 3=SetWindowsHookEx 失败 4=调用中触发异常
+    //   0=成功 1=排队超时且取消 2=无唯一候选线程 3=hook/event失败 4=调用异常
+    //   5=先前调用仍在执行（本次未派发）6=执行中超时，结果未知，禁止自动重试
+    //   7=等待失败且尚未执行（已取消）
     int LastMainThreadStatus() const;
 
     // --- hammer map docs ------------------------------------------------

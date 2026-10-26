@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "game_root": "C:/Program Files (x86)/Steam/steamapps/common/Counter-Strike Global Offensive",
+  "active_profile": "test",
+  "profiles": {
+    "test": {"addon": "test", "map": "maps/example.vmap", "release": false},
+    "release": {"addon": "my_release_addon", "map": "maps/example.vmap", "release": true}
+  }
+}

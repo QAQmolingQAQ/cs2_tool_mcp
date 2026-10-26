@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstring>
 #include <mutex>
+#include <memory>
 
 #pragma comment(lib, "psapi.lib")
 
@@ -949,42 +950,78 @@ struct MainThreadCall {
     uint64_t result = 0;
     HANDLE done = nullptr;
     bool faulted = false;
+    std::shared_ptr<void> argument_owner;
+    bool running = false; // guarded by g_pending_mutex
+    ~MainThreadCall() { if (done) CloseHandle(done); }
 };
 
-MainThreadCall* g_pending_call = nullptr;   // 同一时刻只允许一个在途
-HHOOK g_main_thread_hook = nullptr;
+std::mutex g_pending_mutex;
+std::shared_ptr<MainThreadCall> g_pending_call;
 HMODULE g_bridge_module = nullptr;
-int g_last_dispatch_status = 0;            // 见 LastMainThreadStatus 注释
+thread_local int g_last_dispatch_status = 0;
 
-// 该过程会在**目标主线程**上下文中被调用（GetMessage/PeekMessage 取得消息后）
-LRESULT CALLBACK MainThreadHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode == HC_ACTION && g_pending_call) {
-        MainThreadCall* call = g_pending_call;
-        g_pending_call = nullptr;           // 只执行一次
-        // 用 SEH 兜住目标函数可能触发的异常，避免把宿主进程一起带走
-        __try {
-            call->result = InvokeStub(call->fn, call->args);
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-            call->faulted = true;
-            call->result = 0;
-        }
-        if (call->done) SetEvent(call->done);
+// Keep SEH separate from the shared_ptr-owning frame (MSVC C2712).
+void ExecutePendingCall(MainThreadCall* call) {
+    __try {
+        call->result = InvokeStub(call->fn, call->args);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        call->faulted = true;
+        call->result = 0;
     }
-    return CallNextHookEx(g_main_thread_hook, nCode, wParam, lParam);
+}
+
+LRESULT CALLBACK MainThreadHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    std::shared_ptr<MainThreadCall> call;
+    if (nCode == HC_ACTION) {
+        std::lock_guard<std::mutex> lock(g_pending_mutex);
+        if (g_pending_call && !g_pending_call->running) {
+            call = g_pending_call;
+            call->running = true;
+        }
+    }
+    if (call) {
+        ExecutePendingCall(call.get());
+        // Publish completion and remove the in-flight slot atomically to observers.
+        std::lock_guard<std::mutex> lock(g_pending_mutex);
+        SetEvent(call->done);
+        if (g_pending_call == call) g_pending_call.reset();
+    }
+    return CallNextHookEx(nullptr, nCode, wParam, lParam);
 }
 
 struct FindMainWindowCtx {
     DWORD pid = 0;
-    DWORD thread_id = 0;
+    DWORD qt_thread = 0;
+    DWORD visible_thread = 0;
+    bool qt_ambiguous = false;
+    bool visible_ambiguous = false;
 };
+
+bool IsQtWindowClass(const wchar_t* name) {
+    if (wcsncmp(name, L"Qt", 2) != 0) return false;
+    const wchar_t* p = name + 2;
+    if (*p < L'0' || *p > L'9') return false;
+    while (*p >= L'0' && *p <= L'9') ++p;
+    return wcsncmp(p, L"QWindow", 7) == 0;
+}
+
+void AddThreadCandidate(DWORD tid, DWORD& candidate, bool& ambiguous) {
+    if (candidate && candidate != tid) ambiguous = true;
+    else candidate = tid;
+}
 
 BOOL CALLBACK FindMainWindowProc(HWND hwnd, LPARAM lp) {
     auto* ctx = reinterpret_cast<FindMainWindowCtx*>(lp);
     DWORD pid = 0;
     const DWORD tid = GetWindowThreadProcessId(hwnd, &pid);
-    if (pid == ctx->pid && IsWindowVisible(hwnd) && GetWindow(hwnd, GW_OWNER) == nullptr) {
-        ctx->thread_id = tid;
-        return FALSE;
+    if (pid != ctx->pid || !tid) return TRUE;
+    wchar_t name[256]{};
+    if (GetClassNameW(hwnd, name, 256) && IsQtWindowClass(name)) {
+        // Hidden/popup Qt windows are useful too; do not depend on z-order.
+        AddThreadCandidate(tid, ctx->qt_thread, ctx->qt_ambiguous);
+    }
+    if (IsWindowVisible(hwnd) && GetWindow(hwnd, GW_OWNER) == nullptr) {
+        AddThreadCandidate(tid, ctx->visible_thread, ctx->visible_ambiguous);
     }
     return TRUE;
 }
@@ -994,26 +1031,15 @@ BOOL CALLBACK FindMainWindowProc(HWND hwnd, LPARAM lp) {
 void SetBridgeModuleHandle(HMODULE mod) { g_bridge_module = mod; }
 
 DWORD HammerBridge::GetMainThreadId() {
-    FindMainWindowCtx ctx{GetCurrentProcessId(), 0};
-    EnumWindows(FindMainWindowProc, reinterpret_cast<LPARAM>(&ctx));
-    if (ctx.thread_id) return ctx.thread_id;
-
-    // 退化方案：取进程内最早创建的线程
-    const HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-    if (snap == INVALID_HANDLE_VALUE) return 0;
-    THREADENTRY32 te{};
-    te.dwSize = sizeof(te);
-    DWORD first = 0;
-    if (Thread32First(snap, &te)) {
-        do {
-            if (te.th32OwnerProcessID == GetCurrentProcessId()) {
-                first = te.th32ThreadID;
-                break;
-            }
-        } while (Thread32Next(snap, &te));
-    }
-    CloseHandle(snap);
-    return first;
+    FindMainWindowCtx ctx{};
+    ctx.pid = GetCurrentProcessId();
+    if (!EnumWindows(FindMainWindowProc, reinterpret_cast<LPARAM>(&ctx))) return 0;
+    if (ctx.qt_ambiguous) return 0;
+    if (ctx.qt_thread) return ctx.qt_thread;
+    // Qt present but no supported native Qt window: do not guess another thread.
+    if (GetModuleHandleW(L"Qt5Widgets.dll")) return 0;
+    // Non-Qt hosts (including the independent test) must have one visible thread.
+    return ctx.visible_ambiguous ? 0 : ctx.visible_thread;
 }
 
 uint64_t HammerBridge::CallFunction(uintptr_t fn, const std::vector<FnArg>& args) {
@@ -1021,7 +1047,7 @@ uint64_t HammerBridge::CallFunction(uintptr_t fn, const std::vector<FnArg>& args
 }
 
 uint64_t HammerBridge::CallFunctionOnMainThread(uintptr_t fn, const std::vector<FnArg>& args,
-                                                DWORD timeout_ms) {
+                                                DWORD timeout_ms, std::shared_ptr<void> argument_owner) {
     if (!fn || !IsRangeReadable(fn, 1)) return 0;
 
     const DWORD tid = GetMainThreadId();
@@ -1031,33 +1057,45 @@ uint64_t HammerBridge::CallFunctionOnMainThread(uintptr_t fn, const std::vector<
     static std::mutex s_dispatch_mutex;   // 串行化，避免并发派发互相覆盖
     std::lock_guard<std::mutex> guard(s_dispatch_mutex);
 
-    MainThreadCall call;
-    call.fn = fn;
-    call.args = args;
-    call.done = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    if (!call.done) { g_last_dispatch_status = 3; return 0; }
+    auto call = std::make_shared<MainThreadCall>();
+    call->fn = fn;
+    call->args = args;
+    call->argument_owner = std::move(argument_owner);
+    call->done = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!call->done) { g_last_dispatch_status = 3; return 0; }
 
-    g_pending_call = &call;
-    g_main_thread_hook = SetWindowsHookExW(WH_GETMESSAGE, MainThreadHookProc, g_bridge_module, tid);
-    if (!g_main_thread_hook) {
-        g_pending_call = nullptr;
-        CloseHandle(call.done);
+    {
+        std::lock_guard<std::mutex> lock(g_pending_mutex);
+        // A timed-out callback may still be executing. Never overwrite it.
+        if (g_pending_call) { g_last_dispatch_status = 5; return 0; }
+        g_pending_call = call;
+    }
+    HHOOK hook = SetWindowsHookExW(WH_GETMESSAGE, MainThreadHookProc, g_bridge_module, tid);
+    if (!hook) {
+        std::lock_guard<std::mutex> lock(g_pending_mutex);
+        if (g_pending_call == call) g_pending_call.reset();
         g_last_dispatch_status = 3;
         return 0;
     }
 
-    PostThreadMessageW(tid, WM_NULL, 0, 0);   // 踢一下目标线程的消息循环
-
-    const DWORD wr = WaitForSingleObject(call.done, timeout_ms);
-
-    g_pending_call = nullptr;
-    UnhookWindowsHookEx(g_main_thread_hook);
-    g_main_thread_hook = nullptr;
-    CloseHandle(call.done);
-
-    if (wr != WAIT_OBJECT_0) { g_last_dispatch_status = 1; return 0; }
-    g_last_dispatch_status = call.faulted ? 4 : 0;
-    return call.result;
+    PostThreadMessageW(tid, WM_NULL, 0, 0);
+    const DWORD wr = WaitForSingleObject(call->done, timeout_ms);
+    int status;
+    {
+        std::lock_guard<std::mutex> lock(g_pending_mutex);
+        // Recheck under the same lock as completion: timeout can race SetEvent.
+        if (WaitForSingleObject(call->done, 0) == WAIT_OBJECT_0) {
+            status = call->faulted ? 4 : 0;
+        } else if (call->running) {
+            status = 6; // outcome unknown; callback owns request until completion
+        } else {
+            if (g_pending_call == call) g_pending_call.reset();
+            status = wr == WAIT_TIMEOUT ? 1 : 7; // cancelled before execution
+        }
+    }
+    UnhookWindowsHookEx(hook);
+    g_last_dispatch_status = status;
+    return status == 0 ? call->result : 0;
 }
 
 uint64_t HammerBridge::SelfTestOnMainThread(DWORD timeout_ms) {
@@ -1068,7 +1106,7 @@ int HammerBridge::LastMainThreadStatus() const { return g_last_dispatch_status; 
 
 uint64_t HammerBridge::CallVirtual(uintptr_t this_ptr, size_t vtable_offset,
                                    const std::vector<FnArg>& args,
-                                   bool on_main_thread, DWORD timeout_ms) {
+                                   bool on_main_thread, DWORD timeout_ms, std::shared_ptr<void> argument_owner) {
     if (!IsRangeReadable(this_ptr, 8)) return 0;
     const uintptr_t vtable = *(uintptr_t*)this_ptr;
     if (!IsRangeReadable(vtable + vtable_offset, 8)) return 0;
@@ -1079,7 +1117,7 @@ uint64_t HammerBridge::CallVirtual(uintptr_t this_ptr, size_t vtable_offset,
     full.push_back(FnArg(this_ptr));
     for (const auto& v : args) full.push_back(v);
     // 与 call_function 同理：会改文档/UI 的虚函数必须走主线程
-    if (on_main_thread) return CallFunctionOnMainThread(fn, full, timeout_ms);
+    if (on_main_thread) return CallFunctionOnMainThread(fn, full, timeout_ms, std::move(argument_owner));
     return CallFunction(fn, full);
 }
 

@@ -19,5 +19,9 @@ if ($LASTEXITCODE -ne 0) { throw "CMake configure failed." }
 & $cmake --build $build --config $Configuration --parallel
 if ($LASTEXITCODE -ne 0) { throw "C++ build failed." }
 $dll = Join-Path $build "$Configuration\cs2_tool.dll"
-Copy-Item -LiteralPath $dll -Destination (Join-Path $repo "cs2_tool.dll") -Force
-Write-Host "Built: $dll"
+. (Join-Path $repo "scripts/publish_bridge_artifact.ps1")
+$result = Publish-BridgeArtifact -Source $dll -Destination (Join-Path $repo "cs2_tool.dll") -ArtifactRoot (Join-Path $build "artifacts")
+$result | ConvertTo-Json -Depth 3
+if ($result.status -eq 'deployment_pending') {
+    Write-Warning "Build succeeded; verified artifact staged. Existing DLL is locked; deployment is pending."
+}

@@ -1,4 +1,14 @@
+from .map_compare import cs2_map_snapshot_compare
+from .edit_preview import cs2_edit_preview
+from .edit_preflight import cs2_edit_preflight
 """Explicit MCP tool inventory. Services do not import the MCP framework."""
+from .build_artifact import cs2_build_artifact_check
+from .project import cs2_project_info
+from .build_jobs import cs2_build_start, cs2_build_status, cs2_build_cancel
+from .session_check import cs2_session_selfcheck
+from .map_io_check import cs2_map_io_check
+from .hammer_layout import cs2_hammer_layout_observe
+from .qt_diagnostics import cs2_qt_widgets, cs2_qt_open_editor, cs2_qt_menu_actions
 from .automation import (
     cs2_entity_create_brush,
 )
@@ -115,6 +125,20 @@ from .particles import (
     cs2_particle_set_definition,
 )
 TOOL_FUNCTIONS = (
+    cs2_map_snapshot_compare,
+    cs2_edit_preview,
+    cs2_edit_preflight,
+    cs2_hammer_layout_observe,
+    cs2_qt_widgets,
+    cs2_qt_open_editor,
+    cs2_qt_menu_actions,
+    cs2_map_io_check,
+    cs2_session_selfcheck,
+    cs2_build_start,
+    cs2_build_status,
+    cs2_build_cancel,
+    cs2_build_artifact_check,
+    cs2_project_info,
     cs2_asset_compile,
     cs2_asset_tree,
     cs2_pipe_ping,

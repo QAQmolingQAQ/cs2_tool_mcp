@@ -7,6 +7,8 @@ injected_dll/build_vs18/
 *.exp
 *.lib
 *.dll
+# Windows File.Replace may retain an old mapped image under this temporary name.
+/cs2_tool.dll~RF*.TMP
 *.exe
 
 # ---- 外部依赖 / 分析产物（体积大，不入库）----
@@ -50,3 +52,7 @@ mcp.json
 # Per-machine Codex project configuration
 /.codex/config.toml
 /.codex/*.bak
+
+# Per-machine project scope and durable workflow state
+/config/project.local.json
+/.cs2_mcp_state/

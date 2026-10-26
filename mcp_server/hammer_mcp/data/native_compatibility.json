@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "profiles": [],
+  "note": "No current installation has completed native write/readback/Undo/Redo revalidation. Never generate approval from observed hashes alone."
+}

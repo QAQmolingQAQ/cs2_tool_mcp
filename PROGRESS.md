@@ -169,8 +169,8 @@
 | 项                 | 值                                                                                                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | CS2 tools 目录     | `D:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\tools`                                       |
-| IDA 安装           | `C:\Users\<user>\Downloads\IDA Professional 9.1`                                                                               |
-| ida-pro-mcp 源码   | `C:\Users\<user>\Downloads\IDA Professional 9.1\mcp\ida-pro-mcp-main`                                                          |
+| IDA 安装           | `%USERPROFILE%\Downloads\IDA Professional 9.1`                                                                               |
+| ida-pro-mcp 源码   | `%USERPROFILE%\Downloads\IDA Professional 9.1\mcp\ida-pro-mcp-main`                                                          |
 | **IDA MCP 端口**   | **动态分配**，以 `instances/*.json` 为准。当前 hammer.dll → **13331**（PID 34476）                                            |
 | **hammer.dll.i64** | `D:\SteamLibrary\...\game\bin\win64\tools\hammer.dll.i64`（**87.7 MB**，含完整分析）                                          |
 | IDA 实例注册文件   | `%APPDATA%\Hex-Rays\IDA Pro\mcp\instances\instance_<port>.json`                                                               |
@@ -186,7 +186,7 @@
 IDA 实例关掉后 `instances/*.json` 会残留（PID 已死），直接查端口会「积极拒绝」。重新拉起：
 
 ```powershell
-Start-Process -FilePath "C:\Users\<user>\Downloads\IDA Professional 9.1\ida.exe" `
+Start-Process -FilePath "%USERPROFILE%\Downloads\IDA Professional 9.1\ida.exe" `
   -ArgumentList '"D:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\tools\hammer.dll.i64"'
 # 约 40s 后插件 autostart 会自行起 MCP 并注册实例，端口看 instances/*.json
 Get-ChildItem "$env:APPDATA\Hex-Rays\IDA Pro\mcp\instances" -Filter *.json |
@@ -230,7 +230,7 @@ VM 里也装了 CS2，因此把**整条链路**（DLL + 注入器 + 管道客户
 | **SSH 助手**       | `injector/vm_ssh.py`（paramiko；`--ps64` 用 `-EncodedCommand` 免引号转义；支持 `--upload/--download`）                                                                                                    |
 | **管道客户端**     | `injector/vm_pipe.py`（stub 掉 `mcp` 包复用 `cs2_mcp_server.py`；子命令：`ping`/`map-info`/`map-undo`/`map-redo`/`call-main`/`main_thread_selftest`/`module <名>`/`enumerate [类名] [flags]`/`entities`） |
 | **UI 自动化**      | `injector/vm_ui.py` + `vm_screen.ps1` + `vm_input.ps1`（走 `schtasks /IT` 投到 Session 1；支持 `setup/shot/click/dblclick/drag/wheel/key/type/activate`）                                                 |
-| **调试图省事副本** | `C:\Users\<user>\cs2mcp\`（只放 `injector\` + `mcp_server\`，跑 `vm_pipe.py`/`probe_entities.py` 用；DLL 仍从 `C:\cs2_tool_mcp\...` 加载）                                                                  |
+| **调试图省事副本** | `%USERPROFILE%\cs2mcp\`（只放 `injector\` + `mcp_server\`，跑 `vm_pipe.py`/`probe_entities.py` 用；DLL 仍从 `C:\cs2_tool_mcp\...` 加载）                                                                  |
 
 复制链路的命令（在仓库根）：
 
@@ -279,8 +279,8 @@ Get-Process cs2 | Select-Object Id,SessionId,Responding
 
 | 项       | 值                                                                                                                                                                                                          |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| IDA 安装 | `C:\Users\<user>\Desktop\IDA Professional 9.1`（内置 `python311`）                                                                                                                                            |
-| 插件位置 | `C:\Users\<user>\AppData\Roaming\Hex-Rays\IDA Pro\plugins\`（`ida_mcp.py` + `ida_mcp\`）                                                                                                                      |
+| IDA 安装 | `%USERPROFILE%\Desktop\IDA Professional 9.1`（内置 `python311`）                                                                                                                                            |
+| 插件位置 | `%USERPROFILE%\AppData\Roaming\Hex-Rays\IDA Pro\plugins\`（`ida_mcp.py` + `ida_mcp\`）                                                                                                                      |
 | 安装方式 | 从实体机 `%APPDATA%\Hex-Rays\IDA Pro\plugins` 打包（去 `__pycache__`/`tests`）后解压过去                                                                                                                    |
 | **备注** | VM 的 IDA **没有** `hammer.dll.i64`（87.7 MB 分析库在实体机）。若要用 VM 做 RE，需把 `hammer.dll` + `hammer.dll.i64` 一起拷过去（IDB 与输入文件路径绑定，跨机打开会提示"数据库由其它文件创建"，选继续即可） |
 
@@ -382,11 +382,11 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
 1. **测实体属性读写**（当前地图已有实体，`info_player_start` = `0x378df29e000`）：
 
    ```powershell
-   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py entities'
-   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py attr <实体地址> targetname'
-   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py setattr <实体地址> targetname ai_test'
-   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py dm-info'   # 看 DMX 撤销栈
-   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py dm-undo'   # 撤销属性修改
+   python injector\vm_ssh.py --ps64 'cd %USERPROFILE%\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py entities'
+   python injector\vm_ssh.py --ps64 'cd %USERPROFILE%\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py attr <实体地址> targetname'
+   python injector\vm_ssh.py --ps64 'cd %USERPROFILE%\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py setattr <实体地址> targetname ai_test'
+   python injector\vm_ssh.py --ps64 'cd %USERPROFILE%\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py dm-info'   # 看 DMX 撤销栈
+   python injector\vm_ssh.py --ps64 'cd %USERPROFILE%\cs2mcp\injector; $env:CS2_HAMMER_BASE="0x7ffe7f950000"; python vm_pipe.py dm-undo'   # 撤销属性修改
    ```
 
    > ⚠️ `enumerate <类名>` 恒为 0：类名过滤参数是**驻留符号指针**，不是 C 字符串 → 只能用 `enumerate` 全枚举后本地过滤。
@@ -396,7 +396,7 @@ python vm_pipe.py qt-trigger <action>      # 触发菜单项，如 &New
    ```powershell
    python injector\vm_ssh.py --ps64 'Get-Process cs2 | Select-Object Id,Responding'
    python injector\vm_ssh.py --ps64 'cd C:\cs2_tool_mcp\injector; python inject_dll.py <pid>'
-   python injector\vm_ssh.py --ps64 'cd C:\Users\<user>\cs2mcp\injector; python vm_pipe.py module hammer.dll'
+   python injector\vm_ssh.py --ps64 'cd %USERPROFILE%\cs2mcp\injector; python vm_pipe.py module hammer.dll'
    ```
    > 部署新 DLL：先 `Stop-Process cs2`，把新 dll 覆盖到
    > `C:\cs2_tool_mcp\injected_dll\build_msvc\Release\cs2_tool.dll`（运行中会被占用），
@@ -753,3 +753,76 @@ IDA 确认 `PetApp.FileOpen` 回调 `pet+0x4203B0` 在选择文件后走 App 虚
 ### 2026-10-14 粒子基础属性只读工具
 
 恢复工具模式桥接，保留原有未保存会话，在独立测试粒子中验证源路径对照。新增cs2_particle_editor_root_value，读取最大粒子数、半径、颜色、边界及有界数组路径。62项测试、八组stdio和真实MCP调用通过，工具归pet.dll。属性域原生设置候选与上下文约束已记录到PET_DLL_OFFSETS.md，未执行写入或Undo/Redo，仅本地保存。
+
+## 2026-10-26 持久构建与产物校验（本地）
+
+新增工程配置、VPK产物校验及build start/status/cancel共五个bridge工具；现84工具、72项测试通过，八组stdio通过。真实快速构建、启动客户端退出后的持续执行/重连查询、真实取消及进程树退出均已验证。初版worker继承MCP父Job导致中断，已修复并加回归测试。源码哈希冲突、安装输入哈希、退出0缺产物及完整模式缺光照均阻止成功判定。完整构建实测因VMware显卡不支持VRAD3光线追踪失败，未将快速构建冒充完整验收。详细使用、任务ID、证据与边界见BUILD_WORKFLOW.md；完整目标见WORKFLOW_GOAL.md。旧自动任务保持暂停，私人配置已忽略，没有提交或推送。
+
+### 2026-10-26 版本/会话自检与原生调用校验
+
+新增cs2_session_selfcheck，源码85工具、bridge36；77项测试及八组stdio通过，VS18 x64 Release桥接编译通过。桥接v0.2.0加载时仅启动IPC，不自动初始化旧偏移；ping增加版本/API/协议/PID/addon/启动地图，未暴露完整命令行。Python按命名管道服务端身份枚举加载模块路径、磁盘SHA及加载PE头，版本/代码/模块/evidence不匹配时在发送原生请求前拒绝。桥接另要求每请求兼容attestation，实测应用中未重载的旧MCP写工具也被桥接拒绝。独立工具模式实例只读验证成功，最终报告C:\CS2_Temp\mcp_version_stdio_report.json。没有兼容profile，不自动批准当前哈希；当前原生写入仍不可用，活动地图/脏状态和允许版本往返写入验证尚待完成。详见VERSION_SELFCHECK.md；未提交或推送。
+
+### 2026-10-26 流式VPK检查
+
+去除整包载荷常驻内存及旧256/512MiB载荷上限，CRC和SHA按1MiB扫描；分卷/预加载全部校验，存储文件变化拒绝，worker在校验阶段可取消。真实地图测试发现并修正CS2新签名头长度与合法空DATA地图根的误拒绝，未将结构解析冒充RSA验签。513MiB样例峰值分配低于16MiB；82项测试通过。真实stdio复测有光照包与快速无光照包，release_ready仍false。详情BUILD_WORKFLOW.md；未推送。
+
+### 2026-10-26 保存后地图FGD/I/O检查
+
+新增cs2_map_io_check归Hammer，使用独立磁盘副本、安装版dmxconvert及FGD include/继承，检查静态目标/过滤器、已知输入类型、连接时序与maker的info_target模板覆盖工程策略。真实stdio读取21实体/2连接、7份FGD/469类，0错误/2个未声明警告；源文件未变化。脚本回调/参数语义、prefab展开、运行目标及未保存状态明确未覆盖，coverage_complete/release_ready保持false。88项测试、八组stdio通过；86工具（Hammer50/bridge36）。UI截图及键盘菜单后的文本观察仍不可靠，未冒用静态dirty候选开启写入。详见MAP_IO_CHECK.md；未提交、未推送。
+
+### 2026-10-26 Qt hook 审查
+用户报告CE崩溃并允许直接hook Qt；待决工具均返回连接失败。检查现有主线程派发，记录窗口线程选择和超时栈请求生命周期风险，未将风险认定为CE崩溃原因。QT_HOOK_NOTES.md记录后续实现和验证顺序；本轮仅文档更新，无编辑文档修改、重启或推送。
+
+### 2026-10-26 派发超时生命周期修复
+修复栈请求/event和RPC字符串在超时回调期间提前释放风险；在途请求不会被覆盖，执行结果未知禁止重试。增加实际WH_GETMESSAGE独立原生测试，排队取消、运行超时、忙拒绝、延迟释放及后续自检通过；88项Python测试通过。DLL编译成功但复制因旧DLL被CS2锁定失败，未部署、未宣称游戏内验证；Qt线程识别仍待完成。
+
+### 2026-10-26 桥接产物原子部署
+移除构建后直接覆盖DLL，改为哈希校验产物留存与同目录原子替换，仅锁冲突标记等待部署。真实锁定文件保留旧内容、解锁替换、首次安装、篡改拒绝与临时文件清理测试通过。实际构建部署磁盘文件成功，未更新运行模块；MCP连接与写入拒绝复测通过。地图依赖发布和Qt点击仍待完成；未推送。
+
+### 2026-10-26 Qt窗口线程候选验证
+只读枚举实际CS2原生窗口，确认Qt5152QWindow类及独立watchdog线程。派发改为唯一Qt窗口线程，歧义或已加载Qt但无候选时拒绝；非Qt宿主也不再随意选首线程。真实Win32测试以模拟Qt类名覆盖唯一/歧义/恢复，生命周期测试继续通过。Release构建/磁盘部署成功，运行桥接未更新，控件点击仍未完成。
+
+### 2026-10-26 新派发游戏内验证
+核对旧隔离实例身份和无编辑器模块后重启并普通注入新桥接；加载PE与磁盘一致。内部固定自检成为诊断白名单，跨线程返回值实机通过，写入拒绝也通过；89项Python测试通过。新增--verify-dispatch复现参数。中间一次候选发现status2，未执行目标，随后固定自检复测通过，未掩盖暂时失败；详见QT_HOOK_NOTES.md。未推送。
+
+### 2026-10-26 Qt控件只读MCP
+新增cs2_qt_widgets归bridge，固定导出适配器在Qt线程枚举、读取objectName与按钮文字，校验支持的Qt ABI并管理QString/QList释放及超时上下文。实际stdio读取337控件，定位Hammer (Map Editor)文本；启动早期无Qt窗口返回status2，未猜测线程。87工具/bridge37，91项Python、原生清理/派发测试与Release构建通过；尚无点击/编辑。详见QT_HOOK_NOTES.md，未推送。
+
+### 2026-10-26 Qt点击启动Hammer
+新增固定Qt编辑器启动工具，默认预览、唯一完整文字匹配、可见/启用校验、同线程立即点击、模块已加载不重复点击。实际stdio启动Hammer并独立读回模块/控件变化；原生写入拒绝保持有效。88工具/bridge38，93项Python、原生测试与Release构建通过。只读证实当前CHammerApp存储候选及旧地址无效，但非空会话/dirty仍未验证。未打开地图，未推送；详见QT_HOOK_NOTES.md。
+
+### 2026-10-26 外部Qt文本参考
+读取用户指定翻译仓库，新增离线flat/rich文本表加载、双向精确候选与快照注释；不修改观测文字或定位地址，保存表SHA和来源。实测10个按钮有候选；保留重复翻译及语义不准确边界。导出审计发现itemize/translate两个采集点在本机不匹配，未安装或注入外部代码。95项测试通过，MCP工具数不变，详情QT_TEXT_REFERENCE.md；未推送。
+
+### 2026-10-26 Hammer只读布局观察
+核对被中断探针的实际输出，确认dirty全局指针应先解引用；新增SHA/加载PE/App虚表校验、有界候选结构解析和重复读取比对。真实stdio返回空会话/空dirty分组，状态保持unknown且禁止写入，不宣称非空文档/原子快照验证。89工具/Hammer51，98项测试通过；未推送，详见HAMMER_DIRTY_ANALYSIS.md。
+
+### 2026-10-26 discover_out采集审查
+逐行分析用户58MB采集，发现Hook ID与元数据有13163条冲突，修正初步按ID归属造成的误标风险。新增按记录fn/mod归组的离线分析器，保留冲突/输入SHA及采集边界；325个粒子名字均有文本观察，未误称完整参数API。99项测试通过，89个MCP工具不变；未注入、未推送，见QT_DISCOVERY_REVIEW.md。
+
+### 2026-10-26 Qt菜单查询
+新增只读Qt主窗口菜单查询，真实stdio读回Hammer148个动作，发现Open文字包含快捷键tab后缀，已修正匹配归一化并通过原生测试。90工具/bridge39，100项Python测试及Release构建通过。排队Open实验代码尚未执行，最新归一化构建未加载，未打开地图。QAction enabled不能作为命令可用证据；详见QT_HOOK_NOTES.md，未推送。
+
+### 2026-10-26 排队Open及隔离编辑副本
+加载新桥接后固定Qt排队File/Open，辅助功能实际观察到原生文件对话框，管道在模态期间仍可自检。新增按工程配置创建唯一隔离地图/项目配置脚本，实际复制hash验证通过。电脑操控路径设置/点击失败，未输入/提交路径，尚无非空文档；实验IPC未冒称公开MCP或地图打开能力。保留模态，后续Qt选择接口；未推送。
+
+### 2026-10-26 实际地图路径与非空文档校验
+部署前检测到cs_script_demo非空文档，取消重启并保留窗口。新增Session/Wrapper/Doc主虚表+RTTI与路径读取，selfcheck独立返回实际地图，与配置默认分离；保持dirty未知和写入拒绝。真实stdio与窗口标题吻合，103项测试及原生测试通过。Qt原生文件选择实验已编译并测清理，尚未加载或实测；不得误称地图自动打开成功。详见HAMMER_DIRTY_ANALYSIS.md/QT_HOOK_NOTES.md，未推送。
+
+### 2026-10-26 修复服务器线程自动初始化遗漏
+ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1。以预加载fake hammer+真实独立管道验证启动/ping/无凭据initialize拒绝后工厂调用始终0；原生派发、103项Python测试和Release构建通过。发现Stop无静默屏障，不以其返回为热卸载依据；保留当前游戏v0.2.0及文档，未部署新版本。此前默认启动纯诊断的描述已在BRIDGE_BOOTSTRAP.md纠正；未推送。
+
+### 2026-10-26 用户新采集目录的菜单文字
+读取cs2_tool_trans/collect/discover/out/discover_out，确认主calls与旧副本SHA相同。以历史结构化菜单快照交叉匹配，输出10菜单119非空项的MD/JSON及快捷键/采集函数；全部有相同Qt文本，但不把命中当作控件上下文或动作授权。当前管道不在线，保留离线/历史标签；新增提取脚本实际运行及语法检查通过，未改动游戏、未推送。
+
+2026-10-26：新增编辑预检持久基线和领域差异报告，检查配置/源码读取竞争及期望哈希；106测试通过，实际MCP离线失败路径验证。批量执行/dirty语义/回滚仍未完成，详见EDIT_PREFLIGHT.md。
+
+2026-10-26：批量属性预览进入Hammer MCP；实际地图targetname变更只生成计划，executed_count=0。转换前后预检、原图哈希和持久报告验证通过，108测试。实时修改与撤销仍待后续证据。
+
+2026-10-26：v0.2.1启动修复实机部署验证；隔离地图打开失败具体定位到原生文件名字段，目录导航修正已实测，但selectedFiles仍失败。保留明确失败而不绕过读回，详细证据QT_HOOK_NOTES.md。
+
+2026-10-26：修复Windows原生选择器嵌套文件名控件与路径写入，隔离地图首次经自动打开并通过真实MCP路径/RTTI验证；同一工程两次预检matched，原始文件不变。原生相关测试通过。批量写入与撤销验证未完成。
+
+2026-10-26：隔离地图删除/Undo/Redo/保存往返与磁盘内容实测；旧哈希MCP预览明确拒绝。dirty新增直接文档正向变化证据，空列表不证明clean。完整回滚比较仍失败/待证，详见EDIT_CYCLE_VERIFICATION.md。
+
+2026-10-26：编辑往返后类型化节点/网格比较接入MCP，并用同一隔离地图完成快速构建/打包/产物验证。children顺序和metadata差异仍明确阻断完整回滚，114测试通过。

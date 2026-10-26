@@ -22,6 +22,11 @@ class FakePipe(Cs2Pipe):
         self._handle = 1
         self._on_reset()
 
+    def _authorize(self, method, params):
+        # Protocol tests simulate an already-attested connection. Real gate
+        # dispatch/rejection is exercised separately in test_versioning.
+        pass
+
     def _close(self):
         self._handle = None
         self._on_reset()
