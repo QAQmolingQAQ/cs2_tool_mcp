@@ -34,6 +34,8 @@ def summarize(lines: list[str]) -> dict:
     for line in lines:
         match=re.search(r'loaded spawngroup\([^)]*\)\s*:\s*SV:\s*\[\d+:\s*([^|]+)\|\s*main lump\s*\|\s*mapload\]',line)
         if match:maps.append(match[1].strip())
+        match=re.fullmatch(r'\s*SV:\s*\[\d+:\s*([^|]+)\|\s*main lump\s*\|\s*mapload\]\s*\(ACTIVE\)\s*',line)
+        if match:maps.append(match[1].strip())
         match=re.fullmatch(r'\s*setpos ([+-]?[\d.]+) ([+-]?[\d.]+) ([+-]?[\d.]+);setang ([+-]?[\d.]+) ([+-]?[\d.]+) ([+-]?[\d.]+)\s*',line)
         if match:
             values=[float(v) for v in match.groups()]
@@ -84,7 +86,7 @@ def cs2_runtime_diagnostics(config: str = '', profile: str = '', job_id: str = '
             first=reader.frame()
             if first['type']!='AINF' or first['version']!=212:raise ValueError('unsupported VConsole handshake')
             report.update(server_pid=pid,server_created=created,protocol='vconsole2',dispatch_started=True)
-            stream.sendall(encode_command('echo '+marker+'; status; getpos; sv_cheats; meta version; css_plugins list; echo '+marker+'_END',212))
+            stream.sendall(encode_command('echo '+marker+'; status; groups; getpos; sv_cheats; meta version; css_plugins list; echo '+marker+'_END',212))
             report['command_sent']=True
             lines=_diagnostic_lines(reader,marker)
         if (process_identity(pid)!=created or sha256(Path(project['source']))!=source_hash
@@ -95,7 +97,7 @@ def cs2_runtime_diagnostics(config: str = '', profile: str = '', job_id: str = '
         report.update(ok=True,diagnostic_batch_completed=True,**summary,observation_scope='shared_console_stream_not_atomic',
                       diagnostic_output_sanitized=True,job_id=job_id or None,expected_map=expected_map,
                       artifact_sha256=expected_hash,verification_scope='loaded map name and retained disk artifact hash; not memory-image or quality certification')
-        report['runtime_map_verified']=bool(expected_map and expected_map in summary['observed_maps'] and summary['client_connected'])
+        report['runtime_map_verified']=bool(expected_map and summary['observed_maps']==[expected_map] and summary['client_connected'])
     except (OSError,ValueError,KeyError,TypeError,EOFError) as exc:
         report.update(error=str(exc),outcome='unknown_do_not_replay' if report.get('dispatch_started') else 'no_command_sent')
     return report

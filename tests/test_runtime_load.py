@@ -66,6 +66,31 @@ class RuntimeLoadTests(unittest.TestCase):
         self.mocks[2].side_effect=[self.before,{**self.before,'observed_maps':['changed']}]
         with patch.object(rl,'_send') as send:
             self.assertFalse(self.start()['ok']);send.assert_not_called()
+    def test_unidentified_local_runtime_requires_explicit_preview_token(self):
+        self.mocks[2].return_value={**self.before,'observed_maps':[]}
+        with patch.object(rl,'_send') as send:
+            preview=self.start(confirm=False)
+            self.assertEqual(preview['current_map'],rl.UNIDENTIFIED_LOCAL_MAP)
+            self.assertFalse(preview['current_map_identified'])
+            self.assertFalse(self.start(expected_current_map='')['ok'])
+            self.assertFalse(self.start()['ok']);send.assert_not_called()
+            result=self.start(expected_current_map=preview['current_map'])
+            self.assertTrue(result['ok']);self.assertEqual(send.call_count,1)
+            self.assertEqual(result['previous_map'],rl.UNIDENTIFIED_LOCAL_MAP)
+            self.assertFalse(result['runtime_map_verified'])
+    def test_unidentified_to_identified_or_disconnected_never_dispatches(self):
+        unidentified={**self.before,'observed_maps':[]}
+        for fresh in (self.before,{**unidentified,'client_connected':False}):
+            self.mocks[2].side_effect=[unidentified,fresh]
+            with patch.object(rl,'_send') as send:
+                self.assertFalse(self.start(expected_current_map=rl.UNIDENTIFIED_LOCAL_MAP)['ok'])
+                send.assert_not_called()
+    def test_conflicting_maps_and_nonlocal_clients_refused(self):
+        for state in ({**self.before,'observed_maps':['a','b']},
+                      {**self.before,'observed_maps':[],'client_connected':False}):
+            self.mocks[2].return_value=state
+            with patch.object(rl,'_send') as send:
+                self.assertFalse(self.start(confirm=False)['ok']);send.assert_not_called()
     def test_exact_wire_load_ack_and_pre_send_record(self):
         marker='CS2_MCP_LOAD_test';body=bytes(28)+marker.encode()+b'\0'
         data=HEADER.pack(b'AINF',212,12,0)+HEADER.pack(b'PRNT',212,12+len(body),0)+body

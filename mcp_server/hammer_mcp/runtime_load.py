@@ -17,6 +17,7 @@ from .windows_tcp import server_pid
 
 
 PENDING = {'preparing', 'dispatching', 'requested', 'unknown'}
+UNIDENTIFIED_LOCAL_MAP = '<unidentified-local-map>'
 
 
 def _folder(project):
@@ -64,6 +65,8 @@ def cs2_runtime_load_start(job_id: str, config: str = '', profile: str = '',
     """Preview/request one successful build's absolute-path load on a local test runtime.
 
     Confirmation requires artifact hash and exact current map from preview.
+    A connected local test runtime without map-name evidence uses the explicit
+    <unidentified-local-map> confirmation token; this never means idle/empty.
     Creates a durable record before dispatch. Unknown outcomes are never retried;
     use load_status. Already loaded maps are observed without issuing another map.
     """
@@ -77,11 +80,13 @@ def cs2_runtime_load_start(job_id: str, config: str = '', profile: str = '',
         if not observation.get('ok') or not observation.get('client_connected'):
             raise ValueError('verified local loopback runtime required')
         maps=observation['observed_maps']
-        if len(maps)!=1:raise ValueError('one unambiguous current runtime map required')
-        current=maps[0]
+        if len(maps)>1:raise ValueError('conflicting current runtime maps; load refused')
+        current=maps[0] if maps else UNIDENTIFIED_LOCAL_MAP
         preview={'ok':True,'preview':not confirm,'job_id':job_id,'map_name':plan['map_name'],
                  'artifact_sha256':plan['artifact_sha256'],'artifact':plan['source'],
-                 'current_map':current,'pid':observation['server_pid'],
+                 'current_map':current,'current_map_identified':bool(maps),
+                 'current_map_scope':'observed_name' if maps else 'unidentified_local_runtime_not_idle',
+                 'pid':observation['server_pid'],
                  'created':observation['server_created'],'release_ready':False}
         if not confirm:return preview
         if expected_artifact_hash!=plan['artifact_sha256']:
@@ -117,6 +122,7 @@ def cs2_runtime_load_start(job_id: str, config: str = '', profile: str = '',
                     'ack_marker':'CS2_MCP_LOAD_'+identifier,'do_not_replay':True}
             record.pop('ok',None)
             record['previous_map']=record.pop('current_map')
+            record['previous_map_identified']=record['current_map_identified']
             record['current_map']=None
             atomic_json(path,record)
             atomic_json(active,{'load_id':identifier})
@@ -155,6 +161,8 @@ def cs2_runtime_load_status(load_id: str, config: str = '', profile: str = '') -
                 maps=observation.get('observed_maps',[])
                 record.update(observation=observation,runtime_map_verified=verified,updated_at=now())
                 record['current_map']=maps[0] if len(maps)==1 else None
+                record['current_map_identified']=bool(same and observation.get('ok') and len(maps)==1)
+                record['current_map_scope']='observed_name' if record['current_map_identified'] else 'not_currently_identified'
                 if verified:record['status']='loaded'
                 elif observation.get('ok') and not same:record['status']='process_changed'
                 elif record['status']=='loaded':record['status']='no_longer_verified'

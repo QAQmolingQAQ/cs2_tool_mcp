@@ -202,3 +202,7 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 诊断须同时收到起始/结束echo标记才成功，部分输出超时不再误报。159测试（158通过/1权限跳过），源码函数实机验证完整返回；PID7132当前loopback连接但地图名列表为空，仍非地图加载证明。详见RUNTIME_VALIDATION.md；下一步调查无地图名状态，不放宽加载器条件。本轮仅本地。
 
 2026-10-27：属性往返保存后的6614源图已由实际MCP快速构建任务16a7b0c6556a49b4931c61d599b12799编译成功，VPK SHA5e3e025d…、11条目CRC/VIS通过，无光照；19资源28引用声明闭合通过。当前状态Current game而无地图名，真实加载预览拒绝，未切图；详见EDIT_CYCLE_VERIFICATION.md。保持本地。
+
+2026-10-27 最新接续：已查明status不报告出生组，固定groups查询读到目标ACTIVE主地图。加载任务28319a143ebc4b1b90746c2620ce52c1（构建16a7b0c6556a49b4931c61d599b12799/源6614/产物5e3e）经新stdio只读status确认loaded/runtime_map_verified=true，未重发map。明确支持确认“未识别本地地图”token，不等同空闲；冲突/断连/锁内变化仍拒绝。下一步通用批量属性身份/逐项结果与回滚、运行父子关系/声音、完整光照与发布检查；全目标未完成。详见RUNTIME_VALIDATION.md、EDIT_CYCLE_VERIFICATION.md。保持本地。
+
+本轮验证：163项Python测试，162通过/1符号链接权限跳过；真实MCP加载任务独立status已验证。

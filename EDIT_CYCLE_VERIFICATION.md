@@ -119,3 +119,13 @@ hammer_property_probe_accessibility.txt、property_probe_menus.json；
 当前源码依赖查询覆盖19资源/28条RERL引用，0问题、声明引用闭合通过；不覆盖动态引用或发布完整性。报告C:\CS2_Temp\edit_cycle_saved_build_verification.json；构建request/state/compiler.log保存在状态目录的任务ID下。未新增功能源码，本轮不重复无变化的测试。
 
 另以当前源码完整标记诊断核对PID7132：状态为Server Running、Client Connected loopback、Current game，没有loaded spawngroup地图名行。原始输出仅留本地runtime_status_format_private.json，不从缺失地图行推断空闲安全。加载器真实预览返回one unambiguous current runtime map required，未发map命令。这一步证明编辑往返保存后的构建与声明依赖，尚未完成这一产物的游戏加载；下一步需可靠区分工具默认世界/已加载地图状态，或从原生会话取得可交叉核对的运行地图身份。
+
+## 2026-10-27：当前隔离产物已完成运行加载确认
+
+重要纠正：此前observed_maps为空不是已证明没有运行地图。引擎help/find查询证实status仅报告连接/loop模式，groups才报告服务器出生组。groups实际输出SV: [1: mcp_16a7b0c6556a49b4931c61d5 | main lump | mapload] (ACTIVE)。诊断现加入固定只读groups查询，仅接受ACTIVE服务器main lump行，排除客户端/加载中/子lump和带玩家名的行；验证要求唯一地图名等于目标，不接受多图中仅包含目标。
+
+加载预览支持明确的<unidentified-local-map>状态，绝不推断idle/empty。只有已验证loopback本地客户端、测试非release工程、期望产物哈希与显式未知状态token一致，锁内再核对进程创建时间/地图观察/输入哈希后才可请求加载；多图冲突、断连及观察变化仍拒绝。任务事先持久化、未知不重放。
+
+实际新stdio MCP preview/start生成load_id28319a143ebc4b1b90746c2620ce52c1，针对构建16a7b0c6556a49b4931c61d599b12799仅发一次绝对路径map。首次status观察在加载中，保留requested；没有重发。独立新stdio status在groups接入后确认loaded/runtime_map_verified=true、目标唯一地图、loopback连接、PID7132/创建时间134375068170658822、磁盘产物SHA5e3e025d74b7d3c262616c613546a6bedc2836300a7b07fea4cfa9337494c3b7。报告C:\CS2_Temp\saved_cycle_runtime_preview.json、saved_cycle_runtime_start.json、saved_cycle_runtime_status.json；原始命令发现与groups证据仅在本地runtime_status_help.json、runtime_status_variants_private.json、runtime_groups_probe.json。
+
+这完成该隔离地图的属性往返/保存→快速编译→VPK检查→运行地图加载身份验证，不代表完整目标或视觉质量验收。缺少光照、截图、通用批量属性回滚、父子/局部坐标、声音生命周期与发布完整依赖；游戏日志仍有雷达/截图图标缺失。继续保持release_ready=false，不自动推送。

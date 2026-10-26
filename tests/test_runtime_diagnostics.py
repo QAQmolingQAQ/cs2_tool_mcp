@@ -7,6 +7,15 @@ from hammer_mcp.runtime_diagnostics import _diagnostic_lines
 
 
 class RuntimeDiagnosticsTests(unittest.TestCase):
+    def test_groups_only_accepts_active_server_main_map(self):
+        d=summarize(['SV:  [1: mcp_test | main lump | mapload] (ACTIVE)\n',
+                     'SV:  [1: mcp_test | main lump | mapload]: client private-name fully loaded\n',
+                     'SV:  [2: stale | main lump | mapload] (LOADING)\n',
+                     'CL:  [3: clientonly | main lump | mapload] (ACTIVE)\n',
+                     'SV:  [4: other | child lump | mapload] (ACTIVE)\n'])
+        self.assertEqual(d['observed_maps'],['mcp_test'])
+        self.assertNotIn('private-name',str(d))
+
     def test_completion_marker_bounds_observation(self):
         reader=Mock()
         with patch('hammer_mcp.runtime_diagnostics.print_text',side_effect=[
