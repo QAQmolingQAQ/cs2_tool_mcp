@@ -13,7 +13,7 @@ from .build_jobs import cs2_build_start, cs2_build_status, cs2_build_cancel
 from .session_check import cs2_session_selfcheck
 from .map_io_check import cs2_map_io_check
 from .hammer_layout import cs2_hammer_layout_observe
-from .qt_diagnostics import cs2_qt_widgets, cs2_qt_open_editor, cs2_qt_menu_actions
+from .qt_diagnostics import cs2_qt_widgets, cs2_qt_open_editor, cs2_qt_menu_actions, cs2_qt_hammer_outliner
 from .automation import (
     cs2_entity_create_brush,
 )
@@ -141,6 +141,7 @@ TOOL_FUNCTIONS = (
     cs2_edit_preflight,
     cs2_hammer_layout_observe,
     cs2_qt_widgets,
+    cs2_qt_hammer_outliner,
     cs2_qt_open_editor,
     cs2_qt_menu_actions,
     cs2_map_io_check,

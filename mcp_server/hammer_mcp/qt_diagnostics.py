@@ -2,6 +2,17 @@
 from .runtime import _call
 
 
+def cs2_qt_hammer_outliner() -> str:
+    """Read the current visible Hammer Outliner Qt display models.
+
+    Returns each visible tree separately with row paths and DisplayRole text.
+    Up to four views, 256 rows per view and eight levels; truncation is explicit.
+    Paths are observation-local, not persistent node IDs or entity addresses.
+    Does not select, edit, save or certify an atomic document snapshot.
+    """
+    return _call('qt_hammer_outliner', {})
+
+
 def cs2_qt_widgets(offset: int = 0, limit: int = 128) -> str:
     """在Qt窗口线程读取控件类型、对象名、父级路径、可见状态及有界显示文本。
 

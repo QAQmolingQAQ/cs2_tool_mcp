@@ -26,6 +26,7 @@ class ArchitectureTests(unittest.TestCase):
         new_names += ('cs2_build_start', 'cs2_build_status', 'cs2_build_cancel')
         new_names += ('cs2_session_selfcheck', 'cs2_hammer_layout_observe')
         new_names += ('cs2_map_io_check', 'cs2_qt_widgets', 'cs2_qt_open_editor', 'cs2_qt_menu_actions')
+        new_names += ('cs2_qt_hammer_outliner',)
         added = [tool for tool in actual if tool['name'] in new_names]
         self.assertEqual(len(added), len(new_names))
         self.assertEqual([tool for tool in actual if tool['name'] not in new_names], expected)

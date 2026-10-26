@@ -26,6 +26,36 @@ void FakeListDispose(void*) { ++disposed_lists; }
 struct FakeWidget { FakeWidget* parent=nullptr; };
 void* FakeParent(void* widget) { return static_cast<FakeWidget*>(widget)->parent; }
 bool FakeInherits(void*, const char*) { return false; }
+struct FakeModel { void** table; int roots=2; bool recursive=false, bad_index=false; };
+int variant_destroyed=0, model_data_calls=0;
+bool FakeModelInherits(void*,const char* name) {return !strcmp(name,"QAbstractItemModel");}
+int FakeModelCount(void* object,const cs2tool::ModelIndex* parent) {
+    auto* model=static_cast<FakeModel*>(object);return parent->model && !model->recursive ? 0 : model->roots;
+}
+void* FakeModelIndex(void* object,cs2tool::ModelIndex* result,int row,int column,const cs2tool::ModelIndex*) {
+    auto* model=static_cast<FakeModel*>(object);*result={row,column,0,model->bad_index?nullptr:object};return result;
+}
+void* FakeModelData(void*,void* value,const cs2tool::ModelIndex*,int role) {
+    if(role!=0)throw std::runtime_error("unexpected role");++model_data_calls;return value;
+}
+void FakeVariantDestroy(void*) {++variant_destroyed;}
+int CheckQtModels() {
+    void* table[18]{};table[11]=reinterpret_cast<void*>(FakeModelIndex);
+    table[14]=reinterpret_cast<void*>(FakeModelCount);table[17]=reinterpret_cast<void*>(FakeModelData);
+    FakeModel model{table};cs2tool::Api api{};api.inherits=FakeModelInherits;
+    api.variant_to_string=FakeStringGetter;api.destroy_variant=FakeVariantDestroy;api.destroy_string=FakeStringDestructor;
+    auto result=cs2tool::ModelRows(&model,api);
+    if(result.find("\"traversal_complete\":true")==std::string::npos || model_data_calls!=2 || variant_destroyed!=2)return 60;
+    model.roots=300;model_data_calls=variant_destroyed=0;result=cs2tool::ModelRows(&model,api);
+    if(result.find("\"traversal_complete\":false")==std::string::npos || model_data_calls!=256 || variant_destroyed!=256)return 61;
+    model.roots=1;model.recursive=true;model_data_calls=variant_destroyed=0;result=cs2tool::ModelRows(&model,api);
+    if(result.find("\"traversal_complete\":false")==std::string::npos || model_data_calls!=8 || variant_destroyed!=8)return 62;
+    model.bad_index=true;
+    try {cs2tool::ModelRows(&model,api);return 63;}catch(const std::runtime_error&){}
+    model.bad_index=false;model.roots=100001;
+    try {cs2tool::ModelRows(&model,api);return 64;}catch(const std::runtime_error&){}
+    return 0;
+}
 int CheckQtCleanup() {
     auto* size = reinterpret_cast<int*>(string_data + 4);
     *size = 2;
@@ -112,6 +142,8 @@ int CheckNativeFilename(HWND owner) {
 }
 int main() {
     const int cleanup = CheckQtCleanup();
+    const int models = CheckQtModels();
+    if (models) {std::cerr<<"model test failure="<<models<<std::endl;return models;}
     if (cleanup) return cleanup;
     const wchar_t* cls = L"Qt5152QWindowIcon";
     WNDCLASSW wc{}; wc.lpfnWndProc = DefWindowProcW;

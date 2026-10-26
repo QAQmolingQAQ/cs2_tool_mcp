@@ -308,3 +308,34 @@ dispatch_test及bootstrap_test通过，Release构建通过。未用真实密码�
 当前实例身份以C:\CS2_Temp\qt_ancestry_session.json为准；旧PID15744已退出，勿复用地址。
 
 此次只有只读控件能力实机完成，实体属性选择、写入与Undo/Redo仍需继续；保持本地，未推送。
+
+## 2026-10-26：Outliner模型的实际行读取
+
+新增Hammer工具cs2_qt_hammer_outliner()，唯一工具100个、Hammer55个。
+读取当前可见、父级属于CQBaseEditorWnd/HammerMapOutlineDockWidget的QTreeView模型；
+不选择、修改或保存，不接受对象/函数地址。每个树独立返回path和DisplayRole文本，
+路径是当前观察的行号，不是持久nodeID/GUID。最多4树、每树256行/8层，截断显式报告。
+原生QModelIndex大小24字节，index/rowCount/data虚表槽来自安装版Qt5Core的
+sibling/hasIndex/itemData导出汇编核对；仍限已支持Qt ABI身份，没有批准Hammer原生写入profile。
+QVariant/QString按Qt析构，模型索引必须属于同一模型且行列匹配。
+
+当前Outliner两棵可见树父级路径相同；未任选第一棵。新查询在实际进程读出两份相同显示树：
+每份24行，21实体、2网格、1地图根，遍历完整，selection_changed=false。
+这不证明两视图底层model/selectionModel指针相同，也未验证改变名称后的未保存差分。
+下一步应读取选择模型/当前索引并核对镜像视图，再设计带预期标签和文档身份的固定选择动作。
+尚未实现实体属性写入或通用批量回滚，不把显示行数当作结构回滚证明。
+
+原生测试覆盖正常行遍历、256行截断、8层截断、坏索引拒绝和异常行计数；
+每次返回的QVariant均析构。Release构建、dispatch_test/bootstrap_test通过；
+147项Python测试146通过、1项符号链接权限跳过。真实Hammer stdio工具列举55项并读取两棵24行树成功。
+本地报告C:\CS2_Temp\qt_outliner_stdio.json、qt_outliner_live.json、qt_outliner_empty.json。
+
+部署前再次确认隔离副本世代1/saved1与原图哈希；正常关闭该Hammer后独立读回零打开文档，
+按FILETIME/路径绑定停止本轮测试进程16492，启动3280并单次注入新桥接。
+启动早期打开Hammer因按钮0匹配明确拒绝；确认未点击后待启动就绪再调用成功。
+没有因观察超时重发未知动作，未热卸载DLL。
+桥接SHA c02ef5914b610763934e4aeb44b2926fb27e3d17a76220892dcd447113425318。
+当前仍打开隔离UUID bc1d170dd26541cf80f946e324a3beca；快照8d601edebe0743d38365a4fb9bbc0cf2。
+原图/副本SHA f489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e不变。
+C:\CS2_Temp\qt_outliner_session.json记录实际文档RTTI、原生写入拒绝和派发自测通过。
+保持本地，不自动推送。

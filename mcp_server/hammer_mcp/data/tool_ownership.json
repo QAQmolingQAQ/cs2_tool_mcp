@@ -12,6 +12,7 @@
     "hammer": [
       "cs2_map_snapshot_compare",
       "cs2_edit_preview",
+      "cs2_qt_hammer_outliner",
       "cs2_edit_preflight",
       "cs2_hammer_layout_observe",
       "cs2_map_io_check",

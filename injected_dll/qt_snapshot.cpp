@@ -50,6 +50,8 @@ struct Api {
     ParentGetter parent_widget = nullptr;
     StringGetter label_text = nullptr, line_text = nullptr;
     IntGetter echo_mode = nullptr;
+    StringGetter variant_to_string = nullptr;
+    StringDestructor destroy_variant = nullptr;
 };
 Api LoadApi() {
     HMODULE core = GetModuleHandleW(L"Qt5Core.dll"), widgets = GetModuleHandleW(L"Qt5Widgets.dll");
@@ -70,6 +72,8 @@ Api LoadApi() {
     a.label_text = reinterpret_cast<StringGetter>(GetProcAddress(widgets, "?text@QLabel@@QEBA?AVQString@@XZ"));
     a.line_text = reinterpret_cast<StringGetter>(GetProcAddress(widgets, "?text@QLineEdit@@QEBA?AVQString@@XZ"));
     a.echo_mode = reinterpret_cast<IntGetter>(GetProcAddress(widgets, "?echoMode@QLineEdit@@QEBA?AW4EchoMode@1@XZ"));
+    a.variant_to_string = reinterpret_cast<StringGetter>(GetProcAddress(core,"?toString@QVariant@@QEBA?AVQString@@XZ"));
+    a.destroy_variant = reinterpret_cast<StringDestructor>(GetProcAddress(core,"??1QVariant@@QEAA@XZ"));
     if (!a.widgets || !a.object_name || !a.button_text || !a.destroy_string || !a.inherits || !a.dispose)
         throw std::runtime_error("required Qt exports missing");
     return a;
@@ -174,8 +178,56 @@ struct Query {
     std::string probe_action, expected_title;
     bool open_dialog = false;
     std::string map_path;
+    bool outliner = false;
     std::string result, error;
 };
+// Qt 5 MSVC x64 ABI, independently checked against hasIndex/sibling/itemData.
+// These virtual slots belong to QAbstractItemModel, never an editor offset profile.
+struct ModelIndex { int row=-1, column=-1; uintptr_t internal=0; void* model=nullptr; };
+static_assert(sizeof(ModelIndex)==24,"unexpected QModelIndex ABI");
+using ModelGetter=void* (*)(void*);
+using ModelCount=int (*)(void*,const ModelIndex*);
+using ModelIndexGetter=void* (*)(void*,ModelIndex*,int,int,const ModelIndex*);
+using ModelDataGetter=void* (*)(void*,void*,const ModelIndex*,int);
+std::string ModelRows(void* model,const Api& a) {
+    if (!Readable(model,sizeof(void*)) || !a.inherits(model,"QAbstractItemModel"))
+        throw std::runtime_error("invalid outliner model");
+    auto** table=*reinterpret_cast<void***>(model);
+    if (!Readable(table,0x90)) throw std::runtime_error("invalid model virtual table");
+    auto count=reinterpret_cast<ModelCount>(table[0x70/8]);
+    auto index=reinterpret_cast<ModelIndexGetter>(table[0x58/8]);
+    auto data=reinterpret_cast<ModelDataGetter>(table[0x88/8]);
+    auto toString=a.variant_to_string;
+    auto destroy=a.destroy_variant;
+    if (!toString || !destroy) throw std::runtime_error("QVariant exports missing");
+    struct Pending {ModelIndex parent;std::vector<int> path;};
+    std::vector<Pending> pending{{ModelIndex{}, {}}};
+    std::vector<std::string> rows;
+    bool complete=true;
+    while (!pending.empty()) {
+        auto entry=pending.back();pending.pop_back();
+        const int total=count(model,&entry.parent);
+        if (total<0 || total>100000) throw std::runtime_error("invalid outliner row count");
+        if (entry.path.size()>=8) {if(total)complete=false;continue;}
+        for (int row=0;row<total;++row) {
+            if (rows.size()>=256) {complete=false;pending.clear();break;}
+            ModelIndex child;
+            index(model,&child,row,0,&entry.parent);
+            if (child.model!=model || child.row!=row || child.column!=0)
+                throw std::runtime_error("outliner index identity mismatch");
+            alignas(8) unsigned char value[16]{};
+            data(model,value,&child,0); // Qt::DisplayRole only, never setData.
+            struct VariantGuard {void* value;StringDestructor destroy;~VariantGuard(){destroy(value);}} guard{value,destroy};
+            auto text=Text(value,toString,a);
+            auto path=entry.path;path.push_back(row);
+            std::vector<std::string> jsonPath;for(int part:path)jsonPath.push_back(JsonMakeInt(part));
+            rows.push_back(JsonMakeObject({{"path",JsonMakeArray(jsonPath)}, {"display_text",JsonMakeString(text)}}));
+            pending.push_back({child,path});
+        }
+    }
+    return JsonMakeObject({{"rows",JsonMakeArray(rows)},{"traversal_complete",JsonMakeBool(complete)},
+        {"row_limit",JsonMakeInt(256)},{"depth_limit",JsonMakeInt(8)}});
+}
 HWND NativeFileDialog() {
     std::vector<HWND> matches;
     EnumThreadWindows(GetCurrentThreadId(), [](HWND window, LPARAM context)->BOOL {
@@ -237,6 +289,32 @@ uint64_t Collect(Query* q) {
             throw std::runtime_error("invalid QList bounds");
         auto** items = reinterpret_cast<void**>(p + 16);
         if (!Readable(items, size_t(end) * sizeof(void*))) throw std::runtime_error("invalid QList storage");
+        if (q->outliner) {
+            if (!a.visible || !a.enabled || !a.parent_widget) throw std::runtime_error("Qt inspection exports missing");
+            auto widgets=GetModuleHandleW(L"Qt5Widgets.dll");
+            auto modelGetter=reinterpret_cast<ModelGetter>(GetProcAddress(widgets,"?model@QAbstractItemView@@QEBAPEAVQAbstractItemModel@@XZ"));
+            if (!modelGetter) throw std::runtime_error("Qt item view model export missing");
+            std::vector<std::string> views;
+            for(int i=begin;i<end;++i) {
+                void* widget=items[i];
+                if (!a.inherits(widget,"QTreeView") || !a.visible(widget)) continue;
+                void* ancestor=widget;bool dock=false,window=false;
+                std::vector<void*> seen;
+                while(ancestor && seen.size()<32) {
+                    if(std::find(seen.begin(),seen.end(),ancestor)!=seen.end())throw std::runtime_error("cyclic outliner ancestry");
+                    seen.push_back(ancestor);auto name=Text(ancestor,a.object_name,a);
+                    if(name=="HammerMapOutlineDockWidget" && a.inherits(ancestor,"QDockWidget"))dock=true;
+                    if(name=="CQBaseEditorWnd" && a.inherits(ancestor,"QMainWindow"))window=true;
+                    ancestor=a.parent_widget(ancestor);
+                }
+                if(!dock || !window || ancestor)continue;
+                if(views.size()>=4)throw std::runtime_error("too many outliner views");
+                views.push_back(ModelRows(modelGetter(widget),a));
+            }
+            q->result=JsonMakeObject({{"pid",JsonMakeInt(GetCurrentProcessId())},{"views",JsonMakeArray(views)},
+                {"selection_changed",JsonMakeBool(false)},{"snapshot_atomic",JsonMakeBool(false)}});
+            return 1;
+        }
         if (!q->map_path.empty()) {
             auto core=GetModuleHandleW(L"Qt5Core.dll"),widgets=GetModuleHandleW(L"Qt5Widgets.dll");
             using Mode=int (*)(void*);
@@ -509,6 +587,10 @@ std::string QtFileDialogMap(const std::string& path,bool confirm) {
         return JsonMakeObject({{"error",JsonMakeString("map file is missing or is a directory")}});
     auto query=std::make_shared<Query>();query->map_path=path;query->confirm=confirm;
     return RunQuery(query);
+}
+
+std::string QtHammerOutliner() {
+    auto query=std::make_shared<Query>();query->outliner=true;return RunQuery(query);
 }
 
 }

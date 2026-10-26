@@ -53,3 +53,5 @@ configure 只能对未打开的数据库执行。
 当前 hammer_mcp 是共享实现的历史包名；已按 DLL 分服务和工具清单，但未按 DLL 重排物理源码目录。配置入口与缺口清单见 [CODEX_SETUP.md](CODEX_SETUP.md)，公开 TOML 模板见 [config/codex.example.toml](config/codex.example.toml)。真实项目 .codex/config.toml 已被忽略。
 
 本轮新增cs2_particle_editor_root_value归pet.dll；62项测试和八组stdio验证通过，已对独立测试粒子实机读取Base Properties。参数写入仍未开放。
+
+2026-10-26：Hammer新增只读cs2_qt_hammer_outliner，100个唯一工具、Hammer55；读取原生Qt显示模型，不选择/写入文档。真实stdio双树24行验证，详见QT_HOOK_NOTES.md。

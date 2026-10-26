@@ -7,7 +7,7 @@ from .process_snapshot import pipe_snapshot
 
 SAFE_METHODS = frozenset(('ping', 'list_tools', 'get_status', 'list_modules', 'get_module',
     'read_memory', 'read_qword', 'read_value', 'read_string', 'read_ptr_chain',
-    'find_pattern', 'scan_heap', 'list_interfaces', 'module_interfaces', 'main_thread_selftest', 'qt_widgets_snapshot', 'qt_menu_actions'))
+    'find_pattern', 'scan_heap', 'list_interfaces', 'module_interfaces', 'main_thread_selftest', 'qt_widgets_snapshot', 'qt_menu_actions', 'qt_hammer_outliner'))
 STABLE_UI_METHODS = frozenset(('qt_open_editor', 'qt_hammer_open_dialog', 'qt_file_dialog_map', 'qt_hammer_probe_action'))  # fixed Qt ABI adapter; no editor RVAs
 MANIFEST = Path(__file__).with_name('data') / 'native_compatibility.json'
 

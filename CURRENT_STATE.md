@@ -186,3 +186,5 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 2026-10-26：恢复工具实例PID15744/桥接v0.2.1，原生拒绝与主线程自测实机通过；唯一Hammer文档为新隔离UUID bc1d170dd26541cf80f946e324a3beca，原图/副本SHA未变。截图超时、辅助功能索引输入缓存错误，未修改属性。当前实验工程配置及证据见EDIT_CYCLE_VERIFICATION.md，下一步补Qt稳定控件定位；不得复用历史PID/地址。保持本地。
 
 2026-10-26：cs2_qt_widgets新增有界父级路径、Qt类型、visible/enabled及可见标签/普通文本框内容；非普通echoMode隐去。原生父链测试/147Python测试通过（1权限跳过），新stdio实机128控件字段验证通过。新实例PID16492已重新打开隔离UUID bc1d170dd26541cf80f946e324a3beca，读回/写入拒绝/派发自测通过，原图不变。定位唯一性与属性往返仍未完成；桥接SHA与部署过程见QT_HOOK_NOTES.md，保持本地。
+
+2026-10-26：新增cs2_qt_hammer_outliner（100唯一/Hammer55），实际stdio读出两个Outliner各24行/21实体/2网格/根，遍历完整且不改选择。原生模型ABI/边界与析构测试、147Python测试通过（1权限跳过）。新测试实例PID3280，仍为隔离UUID bc1d170dd26541cf80f946e324a3beca，原图/副本不变；自检/拒绝/线程实测通过。下一步选择模型/当前索引及固定选择动作；详见QT_HOOK_NOTES.md，保持本地。

@@ -328,7 +328,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
     const char* diagnostic_methods[] = {
         "ping", "list_tools", "get_status", "list_modules", "get_module",
         "read_memory", "read_qword", "read_value", "read_string", "read_ptr_chain",
-        "find_pattern", "scan_heap", "list_interfaces", "module_interfaces", "main_thread_selftest", "qt_widgets_snapshot", "qt_menu_actions"
+        "find_pattern", "scan_heap", "list_interfaces", "module_interfaces", "main_thread_selftest", "qt_widgets_snapshot", "qt_menu_actions", "qt_hammer_outliner"
     };
     bool diagnostic = false;
     for (auto name : diagnostic_methods) if (method == name) diagnostic = true;
@@ -747,6 +747,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         if (!params) return error("missing params");
         return success(QtFileDialogMap(params->GetString("path"),params->GetBool("confirm",false)));
     }
+    if (method == "qt_hammer_outliner") return success(QtHammerOutliner());
     if (method == "qt_hammer_probe_action") {
         if (!params) return error("missing params");
         return success(QtHammerProbeAction(params->GetString("action"),params->GetString("expected_title"),params->GetBool("confirm",false)));
