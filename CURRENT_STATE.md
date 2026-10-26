@@ -208,3 +208,5 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 本轮验证：163项Python测试，162通过/1符号链接权限跳过；真实MCP加载任务独立status已验证。
 
 2026-10-27：新增cs2_edit_plan_recheck（Hammer归属，103唯一/Hammer58），预览报告哈希绑定、前后文件身份复核、fresh preflight对比和逐项stale标记；始终不执行且safe_to_write=false。真实新stdio生成/复查计划成功，错误哈希拒绝；165测试（164通过/1权限跳过）。记录EDIT_PREFLIGHT.md，私人证据edit_plan_recheck_stdio.json。下一步实体GUID与内存属性/选择的可靠关联，再接批量执行/回读/Undo，不把计划匹配当写入许可。保持本地。
+
+2026-10-27：只读追踪Outliner代理→QStandardItemModel源item→role256 CMapEntity→+8 GUID，当前21实体GUID与保存快照集合完全一致；行[0,3]对应此前属性验证GUID。新增可复现scripts/hammer_outliner_identity_probe.py，依赖哈希/RTTI/向量边界/读取前后复核，仍非原子且不写地图；公开工具103不变。168测试（167通过/1权限跳过），证据和下一步见HAMMER_OUTLINER_IDENTITY.md。下一步接只读MCP及排序/筛选/同名验证，再接内存属性与批量修改。保持本地。

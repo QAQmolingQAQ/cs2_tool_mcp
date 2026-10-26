@@ -4622,3 +4622,5 @@ modeldoc 的 20 个工具类目标（`Tool_Selection` / `Tool_Picker` / `ModelDo
 该根对象 `+0x10` 仍为零，尚不能把虚表 `+0x40` 中出现的子节点数组布局
 推广为通用的实时节点读取方式。
 
+
+2026-10-27：只读追踪Outliner代理→QStandardItemModel源item→role256 CMapEntity→+8 GUID，当前21实体GUID与保存快照集合完全一致；行[0,3]对应此前属性验证GUID。新增可复现scripts/hammer_outliner_identity_probe.py，依赖哈希/RTTI/向量边界/读取前后复核，仍非原子且不写地图；公开工具103不变。168测试（167通过/1权限跳过），证据和下一步见HAMMER_OUTLINER_IDENTITY.md。下一步接只读MCP及排序/筛选/同名验证，再接内存属性与批量修改。保持本地。
