@@ -14,6 +14,8 @@ using Inherits = bool (*)(void*, const char*);
 using Dispose = void (*)(void*);
 using Predicate = bool (*)(void*);
 using Click = void (*)(void*);
+using ParentGetter = void* (*)(void*);
+using IntGetter = int (*)(void*);
 
 bool Readable(const void* ptr, size_t size) {
     const uintptr_t start = reinterpret_cast<uintptr_t>(ptr);
@@ -45,6 +47,9 @@ struct Api {
     Dispose dispose = nullptr;
     Predicate visible = nullptr, enabled = nullptr;
     Click click = nullptr;
+    ParentGetter parent_widget = nullptr;
+    StringGetter label_text = nullptr, line_text = nullptr;
+    IntGetter echo_mode = nullptr;
 };
 Api LoadApi() {
     HMODULE core = GetModuleHandleW(L"Qt5Core.dll"), widgets = GetModuleHandleW(L"Qt5Widgets.dll");
@@ -61,6 +66,10 @@ Api LoadApi() {
     a.visible = reinterpret_cast<Predicate>(GetProcAddress(widgets, "?isVisible@QWidget@@QEBA_NXZ"));
     a.enabled = reinterpret_cast<Predicate>(GetProcAddress(widgets, "?isEnabled@QWidget@@QEBA_NXZ"));
     a.click = reinterpret_cast<Click>(GetProcAddress(widgets, "?click@QAbstractButton@@QEAAXXZ"));
+    a.parent_widget = reinterpret_cast<ParentGetter>(GetProcAddress(widgets, "?parentWidget@QWidget@@QEBAPEAV1@XZ"));
+    a.label_text = reinterpret_cast<StringGetter>(GetProcAddress(widgets, "?text@QLabel@@QEBA?AVQString@@XZ"));
+    a.line_text = reinterpret_cast<StringGetter>(GetProcAddress(widgets, "?text@QLineEdit@@QEBA?AVQString@@XZ"));
+    a.echo_mode = reinterpret_cast<IntGetter>(GetProcAddress(widgets, "?echoMode@QLineEdit@@QEBA?AW4EchoMode@1@XZ"));
     if (!a.widgets || !a.object_name || !a.button_text || !a.destroy_string || !a.inherits || !a.dispose)
         throw std::runtime_error("required Qt exports missing");
     return a;
@@ -90,6 +99,29 @@ std::string Text(void* object, StringGetter getter, const Api& a) {
     StringResult value{nullptr,a.destroy_string};
     getter(object,&value.data);
     return DecodeString(value.data);
+}
+std::string WidgetKind(void* widget, const Api& a) {
+    for (const char* name : {"QLineEdit", "QLabel", "QTreeView", "QTableView", "QComboBox",
+                            "QAbstractButton", "QDockWidget", "QMainWindow"})
+        if (a.inherits(widget,name)) return name;
+    return "QWidget";
+}
+struct Ancestry { std::vector<std::string> rows; bool complete = false; };
+Ancestry WidgetAncestry(void* widget, const Api& a) {
+    Ancestry result;
+    std::vector<void*> seen;
+    void* current = a.parent_widget(widget);
+    while (current && result.rows.size()<32) {
+        if (!Readable(current,sizeof(void*)) || std::find(seen.begin(),seen.end(),current)!=seen.end())
+            throw std::runtime_error("invalid or cyclic Qt parent path");
+        seen.push_back(current);
+        result.rows.push_back(JsonMakeObject({{"kind",JsonMakeString(WidgetKind(current,a))},
+            {"object_name",JsonMakeString(Text(current,a.object_name,a))}}));
+        current=a.parent_widget(current);
+    }
+    result.complete=current==nullptr;
+    std::reverse(result.rows.begin(),result.rows.end());
+    return result;
 }
 struct ListResult {
     void* data = nullptr;
@@ -376,17 +408,34 @@ uint64_t Collect(Query* q) {
             return 1;
         }
         std::vector<std::string> rows;
+        if (!a.parent_widget || !a.visible || !a.enabled || !a.label_text || !a.line_text || !a.echo_mode)
+            throw std::runtime_error("Qt widget inspection exports missing");
         const int total = end - begin;
         for (int i = q->offset; i < total && i < q->offset + q->limit; ++i) {
             void* widget = items[begin + i];
             if (!Readable(widget, sizeof(void*))) throw std::runtime_error("invalid QWidget");
             const bool button = a.inherits(widget, "QAbstractButton");
+            const auto kind=WidgetKind(widget,a);
+            const auto ancestry=WidgetAncestry(widget,a);
+            const bool visible=a.visible(widget);
+            bool redacted=false;
+            std::string display;
+            if (visible && button) display=Text(widget,a.button_text,a);
+            else if (visible && kind=="QLabel") display=Text(widget,a.label_text,a);
+            else if (visible && kind=="QLineEdit") {
+                redacted=a.echo_mode(widget)!=0;
+                if (!redacted) display=Text(widget,a.line_text,a);
+            }
             char address[32]; snprintf(address, sizeof(address), "0x%llx", (unsigned long long)widget);
             rows.push_back(JsonMakeObject({
                 {"address", JsonMakeString(address)},
-                {"kind", JsonMakeString(button ? "QAbstractButton" : "QWidget")},
+                {"kind", JsonMakeString(kind)},
                 {"object_name", JsonMakeString(Text(widget, a.object_name, a))},
-                {"button_text", JsonMakeString(button ? Text(widget, a.button_text, a) : "")}
+                {"button_text", JsonMakeString(button ? Text(widget, a.button_text, a) : "")},
+                {"display_text",JsonMakeString(display)}, {"text_redacted",JsonMakeBool(redacted)},
+                {"visible",JsonMakeBool(visible)}, {"enabled",JsonMakeBool(a.enabled(widget))},
+                {"ancestors",JsonMakeArray(ancestry.rows)}, {"ancestry_complete",JsonMakeBool(ancestry.complete)},
+                {"locator_unique_verified",JsonMakeBool(false)}
             }));
         }
         q->result = JsonMakeObject({{"pid", JsonMakeInt(GetCurrentProcessId())},

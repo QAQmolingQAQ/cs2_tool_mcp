@@ -23,6 +23,9 @@ void* FakeStringGetter(void*, void* result) {
 }
 void FakeStringDestructor(void*) { ++destroyed_strings; }
 void FakeListDispose(void*) { ++disposed_lists; }
+struct FakeWidget { FakeWidget* parent=nullptr; };
+void* FakeParent(void* widget) { return static_cast<FakeWidget*>(widget)->parent; }
+bool FakeInherits(void*, const char*) { return false; }
 int CheckQtCleanup() {
     auto* size = reinterpret_cast<int*>(string_data + 4);
     *size = 2;
@@ -63,6 +66,17 @@ int CheckQtCleanup() {
     *reinterpret_cast<int*>(list_data+4)=1;
     *reinterpret_cast<int*>(list_data+12)=2;
     try { cs2tool::ListItems(list_data); return 40; } catch (const std::runtime_error&) {}
+    *size=0;
+    api.parent_widget=FakeParent;api.inherits=FakeInherits;api.object_name=FakeStringGetter;
+    FakeWidget chain[40];
+    for (int i=0;i<39;++i) chain[i].parent=&chain[i+1];
+    const auto bounded=cs2tool::WidgetAncestry(chain,api);
+    if (bounded.complete || bounded.rows.size()!=32) return 56;
+    const auto short_path=cs2tool::WidgetAncestry(&chain[37],api);
+    if (!short_path.complete || short_path.rows.size()!=2) return 57;
+    chain[39].parent=&chain[38];
+    try { cs2tool::WidgetAncestry(&chain[37],api);return 58; }
+    catch (const std::runtime_error&) {}
     return 0;
 }
 int CheckNativeFilename(HWND owner) {

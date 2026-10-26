@@ -280,3 +280,31 @@ content/csgo_addons/test/maps/__mcp_edit_tests/f61a8859b90241378cb9120ea21675fe/
 仍不推断clean。safe_to_write=false，dirty语义、批量执行/回滚和原生写入profile仍未完成。
 报告C:\CS2_Temp\isolated_map_preflight_verified.json；本地探针manifest仅在路径校验后更新editor_opened=true。
 后续保留此隔离文档用于修改、Undo/Redo和保存验证，不能因其当前无已知修改直接重启。
+
+## 2026-10-26：Qt控件父级与文本只读查询
+
+cs2_qt_widgets现增加kind（已识别的Qt基类）、visible/enabled、display_text、text_redacted、
+ancestors及ancestry_complete；祖先按根到父排列，最多32级，循环/坏指针拒绝。
+已支持QLineEdit、QLabel、QTreeView、QTableView、QComboBox、QAbstractButton、QDockWidget、QMainWindow分类。
+只读取可见标签、按钮和普通文本框的有界文本，非Normal echoMode文本框不读值。
+未新增任意对象地址调用或点击；locator_unique_verified始终false，空对象名与同名控件仍可能歧义。
+分页顺序仍不稳定，父级链是定位证据，不能据此宣称跨分页原子快照或稳定唯一定位已完成。
+
+原生测试覆盖父链32级截断、短链完成和循环拒绝；147项Python测试（146通过/1权限跳过）、
+dispatch_test及bootstrap_test通过，Release构建通过。未用真实密码控件验证redaction，不冒称该分支实机覆盖。
+桥接产物SHA 1c37e62bafc83eecf2aed86e10023123aa3480740e9b6f8c015b18f8f1581e62。
+
+为部署新桥接，先核对本轮自建隔离地图世代1/saved1、源码SHA不变；正常关闭Find Entities与Hammer，
+再关闭Asset Browser。底层测试游戏进程仍运行，确认MCP打开文档列表为空并以原始FILETIME/路径绑定后
+停止此自建测试进程，再启动新实例PID16492。首次按秒比较CIM时间因亚秒信息缺失而拒绝操作，
+随后改用原始创建FILETIME精确核对；没有因此杀错或重复启动进程。未热卸载任何DLL。
+
+新进程单次注入后，旧常驻MCP管道报错没有重发；新stdio会话验证成功。
+第一次手动查询误用qt_widgets方法名被版本门禁在发送前拒绝，改用实际qt_widgets_snapshot后读回成功。
+真实MCP返回128条控件及完整新增字段，快照当时总数1842，可见23；每条明确非唯一定位证明。
+记录C:\CS2_Temp\qt_widget_ancestry_stdio.json、qt_widget_ancestry_live.json。
+随后重新打开同一隔离UUID bc1d170dd26541cf80f946e324a3beca，独立实机自检确认唯一文档路径/RTTI、
+写入拒绝与线程派发自测通过；快照3bbb7b125bd64733ac3ff24337a6e96f，原图/副本仍未修改。
+当前实例身份以C:\CS2_Temp\qt_ancestry_session.json为准；旧PID15744已退出，勿复用地址。
+
+此次只有只读控件能力实机完成，实体属性选择、写入与Undo/Redo仍需继续；保持本地，未推送。

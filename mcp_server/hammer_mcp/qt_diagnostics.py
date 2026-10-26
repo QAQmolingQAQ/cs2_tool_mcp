@@ -3,10 +3,12 @@ from .runtime import _call
 
 
 def cs2_qt_widgets(offset: int = 0, limit: int = 128) -> str:
-    """在Qt窗口线程读取当前控件、对象名和按钮文字；不点击或修改。
+    """在Qt窗口线程读取控件类型、对象名、父级路径、可见状态及有界显示文本。
 
     仅支持已校验的Qt ABI，offset 0..20000，limit 1..128；文字最多256个UTF16单元。
     返回的地址仅为本次观察，不可跨窗口重建复用；列表顺序不稳定，分页不是一致快照。
+    新桥接返回最多32级父控件路径；可见标签/普通文本框可读，密码式文本框隐去。
+    父路径不保证唯一；locator_unique_verified=false，不能将观察当作点击授权。
     缺少唯一Qt窗口线程、未支持ABI或超时返回错误；不会重启进程或自动重试。
     """
     if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 20000:
