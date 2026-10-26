@@ -1,4 +1,7 @@
 """Fixed read-only Qt diagnostics shared by editor DLL services."""
+import json
+from pathlib import Path
+from .project import load_project
 from .runtime import _call
 
 
@@ -11,6 +14,32 @@ def cs2_qt_hammer_outliner() -> str:
     Does not select, edit, save or certify an atomic document snapshot.
     """
     return _call('qt_hammer_outliner', {})
+
+
+def cs2_qt_hammer_select(row_path_json: str, expected_label: str, expected_row_key: str,
+                       config: str = '', profile: str = '', confirm: bool = False) -> str:
+    """Preview or select a currently observed Outliner row in the configured map.
+
+    Copy path, display_text and row_key from cs2_qt_hammer_outliner. Row keys
+    are ephemeral and cannot be reused after process/model reconstruction.
+    Default preview performs no selection. Confirm requires unchanged root,
+    label/key and one shared model/selection model across visible views.
+    Selection is not an entity property edit. Query again to verify the current
+    row; a returned call alone is not effect verification. Never auto-replay.
+    """
+    if len(row_path_json)>256:
+        raise ValueError('row path JSON exceeds bound')
+    path=json.loads(row_path_json)
+    if (not isinstance(path,list) or not 1<=len(path)<=8 or
+            any(isinstance(row,bool) or not isinstance(row,int) or not 0<=row<100000 for row in path)):
+        raise ValueError('row path must contain 1..8 bounded integer indexes')
+    if (not isinstance(confirm,bool) or not expected_label or len(expected_label)>1024 or
+            not expected_row_key or len(expected_row_key)>112):
+        raise ValueError('observed label/key and boolean confirm required')
+    project=load_project(config,profile)
+    return _call('qt_hammer_outliner_select',{'row_path':path,
+        'expected_root':Path(project['source']).as_posix().lower(),
+        'expected_label':expected_label,'expected_row_key':expected_row_key,'confirm':confirm})
 
 
 def cs2_qt_widgets(offset: int = 0, limit: int = 128) -> str:

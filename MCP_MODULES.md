@@ -55,3 +55,5 @@ configure 只能对未打开的数据库执行。
 本轮新增cs2_particle_editor_root_value归pet.dll；62项测试和八组stdio验证通过，已对独立测试粒子实机读取Base Properties。参数写入仍未开放。
 
 2026-10-26：Hammer新增只读cs2_qt_hammer_outliner，100个唯一工具、Hammer55；读取原生Qt显示模型，不选择/写入文档。真实stdio双树24行验证，详见QT_HOOK_NOTES.md。
+
+2026-10-26：Hammer新增cs2_qt_hammer_select，101唯一工具/Hammer56。只选择工程范围内已观察的Qt行，默认预览、需独立查询验证，不修改实体属性。

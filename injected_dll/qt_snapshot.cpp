@@ -179,6 +179,9 @@ struct Query {
     bool open_dialog = false;
     std::string map_path;
     bool outliner = false;
+    bool select_outliner = false;
+    std::vector<int> row_path;
+    std::string expected_root, expected_label, expected_row_key;
     std::string result, error;
 };
 // Qt 5 MSVC x64 ABI, independently checked against hasIndex/sibling/itemData.
@@ -189,7 +192,42 @@ using ModelGetter=void* (*)(void*);
 using ModelCount=int (*)(void*,const ModelIndex*);
 using ModelIndexGetter=void* (*)(void*,ModelIndex*,int,int,const ModelIndex*);
 using ModelDataGetter=void* (*)(void*,void*,const ModelIndex*,int);
-std::string ModelRows(void* model,const Api& a) {
+std::string RowKey(const ModelIndex& index) {
+    char key[112];snprintf(key,sizeof(key),"%llx:%llx:%d:%d",
+        (unsigned long long)index.model,(unsigned long long)index.internal,index.row,index.column);
+    return key;
+}
+std::string ModelDisplay(void* model,const ModelIndex& child,const Api& a) {
+    auto** table=*reinterpret_cast<void***>(model);
+    auto data=reinterpret_cast<ModelDataGetter>(table[0x88/8]);
+    alignas(8) unsigned char value[16]{};
+    data(model,value,&child,0);
+    struct Guard {void* value;StringDestructor destroy;~Guard(){destroy(value);}} guard{value,a.destroy_variant};
+    return Text(value,a.variant_to_string,a);
+}
+ModelIndex ResolveModelPath(void* model,const std::vector<int>& path) {
+    auto** table=*reinterpret_cast<void***>(model);
+    auto count=reinterpret_cast<ModelCount>(table[0x70/8]);
+    auto index=reinterpret_cast<ModelIndexGetter>(table[0x58/8]);
+    ModelIndex current;
+    for(int row:path) {
+        const int total=count(model,&current);
+        if(total<0 || total>100000 || row<0 || row>=total)throw std::runtime_error("outliner path changed or out of range");
+        ModelIndex child;index(model,&child,row,0,&current);
+        if(child.model!=model || child.row!=row || child.column!=0)throw std::runtime_error("outliner path index mismatch");
+        current=child;
+    }
+    return current;
+}
+ModelIndex VerifyOutlinerTarget(void* model,const std::vector<int>& path,const std::string& root,
+    const std::string& label,const std::string& key,const Api& a) {
+    const auto rootIndex=ResolveModelPath(model,{0});
+    const auto target=ResolveModelPath(model,path);
+    if(ModelDisplay(model,rootIndex,a)!=root || ModelDisplay(model,target,a)!=label || RowKey(target)!=key)
+        throw std::runtime_error("outliner document, label or row identity changed; selection not issued");
+    return target;
+}
+std::string ModelRows(void* model,const Api& a,const ModelIndex* current=nullptr) {
     if (!Readable(model,sizeof(void*)) || !a.inherits(model,"QAbstractItemModel"))
         throw std::runtime_error("invalid outliner model");
     auto** table=*reinterpret_cast<void***>(model);
@@ -221,11 +259,14 @@ std::string ModelRows(void* model,const Api& a) {
             auto text=Text(value,toString,a);
             auto path=entry.path;path.push_back(row);
             std::vector<std::string> jsonPath;for(int part:path)jsonPath.push_back(JsonMakeInt(part));
-            rows.push_back(JsonMakeObject({{"path",JsonMakeArray(jsonPath)}, {"display_text",JsonMakeString(text)}}));
+            rows.push_back(JsonMakeObject({{"path",JsonMakeArray(jsonPath)}, {"display_text",JsonMakeString(text)},
+                {"row_key",JsonMakeString(RowKey(child))}}));
             pending.push_back({child,path});
         }
     }
     return JsonMakeObject({{"rows",JsonMakeArray(rows)},{"traversal_complete",JsonMakeBool(complete)},
+        {"current_row_key",JsonMakeString(current?RowKey(*current):"")},
+        {"current_text",JsonMakeString(current && current->model==model?ModelDisplay(model,*current,a):"")},
         {"row_limit",JsonMakeInt(256)},{"depth_limit",JsonMakeInt(8)}});
 }
 HWND NativeFileDialog() {
@@ -293,8 +334,11 @@ uint64_t Collect(Query* q) {
             if (!a.visible || !a.enabled || !a.parent_widget) throw std::runtime_error("Qt inspection exports missing");
             auto widgets=GetModuleHandleW(L"Qt5Widgets.dll");
             auto modelGetter=reinterpret_cast<ModelGetter>(GetProcAddress(widgets,"?model@QAbstractItemView@@QEBAPEAVQAbstractItemModel@@XZ"));
-            if (!modelGetter) throw std::runtime_error("Qt item view model export missing");
+            auto selectionGetter=reinterpret_cast<ModelGetter>(GetProcAddress(widgets,"?selectionModel@QAbstractItemView@@QEBAPEAVQItemSelectionModel@@XZ"));
+            auto currentGetter=reinterpret_cast<StringGetter>(GetProcAddress(widgets,"?currentIndex@QAbstractItemView@@QEBA?AVQModelIndex@@XZ"));
+            if (!modelGetter || !selectionGetter || !currentGetter) throw std::runtime_error("Qt item view exports missing");
             std::vector<std::string> views;
+            void* firstView=nullptr;void* firstModel=nullptr;void* firstSelection=nullptr;bool shared=true;
             for(int i=begin;i<end;++i) {
                 void* widget=items[i];
                 if (!a.inherits(widget,"QTreeView") || !a.visible(widget)) continue;
@@ -309,9 +353,30 @@ uint64_t Collect(Query* q) {
                 }
                 if(!dock || !window || ancestor)continue;
                 if(views.size()>=4)throw std::runtime_error("too many outliner views");
-                views.push_back(ModelRows(modelGetter(widget),a));
+                void* model=modelGetter(widget);void* selection=selectionGetter(widget);
+                ModelIndex current;currentGetter(widget,&current);
+                const auto tree=ModelRows(model,a,&current);
+                if(!firstView) {firstView=widget;firstModel=model;firstSelection=selection;}
+                else if(model!=firstModel || selection!=firstSelection)shared=false;
+                views.push_back(tree);
+            }
+            if(q->select_outliner) {
+                if(!firstView || !firstSelection || !shared)throw std::runtime_error("outliner views do not share a verified selection model");
+                const auto target=VerifyOutlinerTarget(firstModel,q->row_path,q->expected_root,q->expected_label,q->expected_row_key,a);
+                if(q->confirm) {
+                    using Setter=void (*)(void*,const ModelIndex*);
+                    auto setCurrent=reinterpret_cast<Setter>(GetProcAddress(widgets,"?setCurrentIndex@QAbstractItemView@@QEAAXAEBVQModelIndex@@@Z"));
+                    if(!setCurrent)throw std::runtime_error("Qt current index setter missing");
+                    setCurrent(firstView,&target);
+                    // Selection handlers may rebuild views. Do not dereference them again.
+                }
+                q->result=JsonMakeObject({{"pid",JsonMakeInt(GetCurrentProcessId())},
+                    {"status",JsonMakeString(q->confirm?"selection_call_returned":"preview")},
+                    {"effect_verified",JsonMakeBool(false)},{"document_modified_by_adapter",JsonMakeBool(false)}});
+                return 1;
             }
             q->result=JsonMakeObject({{"pid",JsonMakeInt(GetCurrentProcessId())},{"views",JsonMakeArray(views)},
+                {"shared_model_and_selection",JsonMakeBool(firstView && firstSelection && shared)},
                 {"selection_changed",JsonMakeBool(false)},{"snapshot_atomic",JsonMakeBool(false)}});
             return 1;
         }
@@ -591,6 +656,15 @@ std::string QtFileDialogMap(const std::string& path,bool confirm) {
 
 std::string QtHammerOutliner() {
     auto query=std::make_shared<Query>();query->outliner=true;return RunQuery(query);
+}
+std::string QtHammerOutlinerSelect(const std::vector<int>& path,const std::string& root,
+    const std::string& label,const std::string& key,bool confirm) {
+    if(path.empty() || path.size()>8 || root.empty() || root.size()>1024 || label.empty() || label.size()>1024 || key.empty() || key.size()>112 ||
+       std::any_of(path.begin(),path.end(),[](int row){return row<0 || row>=100000;}))
+        return JsonMakeObject({{"error",JsonMakeString("bounded row path, root, label and observed row key required")}});
+    auto query=std::make_shared<Query>();query->outliner=true;query->select_outliner=true;
+    query->row_path=path;query->expected_root=root;query->expected_label=label;query->expected_row_key=key;query->confirm=confirm;
+    return RunQuery(query);
 }
 
 }

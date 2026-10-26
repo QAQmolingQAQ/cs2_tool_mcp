@@ -332,7 +332,7 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
     };
     bool diagnostic = false;
     for (auto name : diagnostic_methods) if (method == name) diagnostic = true;
-    const bool stable_ui = (method == "qt_open_editor" || method == "qt_hammer_open_dialog" || method == "qt_file_dialog_map" || method == "qt_hammer_probe_action"); // fixed Qt ABI adapter, no editor RVAs
+    const bool stable_ui = (method == "qt_open_editor" || method == "qt_hammer_open_dialog" || method == "qt_file_dialog_map" || method == "qt_hammer_probe_action" || method == "qt_hammer_outliner_select"); // fixed Qt ABI adapter, no editor RVAs
     if (!diagnostic && !stable_ui) {
         const auto* attestation = params ? params->Get("native_attestation") : nullptr;
         if (!attestation || attestation->GetString("profile").empty() ||
@@ -748,6 +748,17 @@ std::string IpcPipeServer::HandleRequest(const std::string& json_request) {
         return success(QtFileDialogMap(params->GetString("path"),params->GetBool("confirm",false)));
     }
     if (method == "qt_hammer_outliner") return success(QtHammerOutliner());
+    if (method == "qt_hammer_outliner_select") {
+        const auto* path=params?params->Get("row_path"):nullptr;
+        if(!path || path->type!=JsonValue::Type::Array || path->arr.empty() || path->arr.size()>8)return error("bounded row_path array required");
+        std::vector<int> rows;
+        for(const auto& part:path->arr) {
+            if(part.type!=JsonValue::Type::Number || part.nval<0 || part.nval>=100000 || part.nval!=static_cast<int>(part.nval))return error("invalid row path index");
+            rows.push_back(static_cast<int>(part.nval));
+        }
+        return success(QtHammerOutlinerSelect(rows,params->GetString("expected_root"),params->GetString("expected_label"),
+            params->GetString("expected_row_key"),params->GetBool("confirm",false)));
+    }
     if (method == "qt_hammer_probe_action") {
         if (!params) return error("missing params");
         return success(QtHammerProbeAction(params->GetString("action"),params->GetString("expected_title"),params->GetBool("confirm",false)));

@@ -46,6 +46,16 @@ int CheckQtModels() {
     api.variant_to_string=FakeStringGetter;api.destroy_variant=FakeVariantDestroy;api.destroy_string=FakeStringDestructor;
     auto result=cs2tool::ModelRows(&model,api);
     if(result.find("\"traversal_complete\":true")==std::string::npos || model_data_calls!=2 || variant_destroyed!=2)return 60;
+    const auto target=cs2tool::ResolveModelPath(&model,{1});
+    if(target.row!=1 || target.model!=&model)return 65;
+    if(cs2tool::VerifyOutlinerTarget(&model,{1},"","",cs2tool::RowKey(target),api).row!=1)return 66;
+    for(int failure=0;failure<3;++failure) {
+        try {cs2tool::VerifyOutlinerTarget(&model,{1},failure==0?"wrong":"",failure==1?"wrong":"",
+            failure==2?"stale":cs2tool::RowKey(target),api);return 67;}
+        catch(const std::runtime_error&){}
+    }
+    try {cs2tool::ResolveModelPath(&model,{2});return 68;}catch(const std::runtime_error&){}
+    if(cs2tool::QtHammerOutlinerSelect({},"root","label","key",true).find("error")==std::string::npos)return 69;
     model.roots=300;model_data_calls=variant_destroyed=0;result=cs2tool::ModelRows(&model,api);
     if(result.find("\"traversal_complete\":false")==std::string::npos || model_data_calls!=256 || variant_destroyed!=256)return 61;
     model.roots=1;model.recursive=true;model_data_calls=variant_destroyed=0;result=cs2tool::ModelRows(&model,api);

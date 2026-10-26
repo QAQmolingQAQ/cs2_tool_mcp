@@ -339,3 +339,37 @@ QVariant/QString按Qt析构，模型索引必须属于同一模型且行列匹�
 原图/副本SHA f489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e不变。
 C:\CS2_Temp\qt_outliner_session.json记录实际文档RTTI、原生写入拒绝和派发自测通过。
 保持本地，不自动推送。
+
+## 2026-10-26：按工程范围选择Outliner行并独立读回
+
+cs2_qt_hammer_outliner新增每行row_key及每视图current_row_key/current_text，
+并报告shared_model_and_selection。保留既有views[].rows结构。
+实机确认两个镜像视图共享模型及选择模型；这是本轮指针比较证据，不由相同显示文字推断。
+row_key由模型指针、QModelIndex内部值及行列组成，只标识观察时的Qt索引，不是实体GUID。
+同名行重排仍可能无法从这些字段证明同一实体，因此不能把它单独作为批量属性执行的实体身份凭据。
+
+新增Hammer工具cs2_qt_hammer_select(row_path_json, expected_label, expected_row_key,
+config='', profile='', confirm=False)，唯一工具101个、Hammer56个。
+默认预览；地图根路径从工程配置读取，不能由调用者任意指定。确认时重新查找Qt控件/模型，
+要求可见镜像视图共享选择模型，再核对根路径、行文字及row_key；不匹配立即拒绝。
+只调用Qt的setCurrentIndex，不编辑或保存地图。回调可能重建控件，返回后不再使用旧指针；
+返回selection_call_returned/effect_verified=false，必须通过下一次独立Outliner查询核对效果。
+未知结果不自动重发。该工具不提供Undo或属性事务，不声称全目标已完成。
+
+当前实机PID5896：先选择[0,1]的info_player_start，两个视图独立读回相同当前索引；
+随后通过真实Hammer stdio先验证默认工程根路径不匹配时拒绝，再用隔离配置预览、确认选择[0,3]。
+两个视图的当前行从1变3、文字为Entity: info_player_start，读回成功。
+本地持久记录C:\CS2_Temp\qt_selection_stdio.json、outliner_selection_run.json，
+包括调用前记录、未知期间标记、实际响应及独立读回，不把返回值本身当作效果证明。
+选择后Qt属性面板显示Class:及info_player_start，采集selected_entity_property_widgets.json包含69个可见控件。
+属性字段仍为自定义布局，未识别可安全改写的targetname编辑器，不按空文本猜测目标字段。
+
+部署过程仍只关闭本轮隔离文档、确认零打开文档并绑定FILETIME/可执行路径后停止本轮测试进程3280；
+启动5896、单次注入。启动早期只读预览因Qt线程未就绪失败，未点击；待进程就绪后首次确认打开成功。
+桥接SHA ea4c33b30110c222a5e4e00d15c00b531ef4c7edcc6c2a02e35f4e66ff6e2f79。
+原生测试补充错误根/标签/行标识、路径越界与无效输入拒绝，Release/dispatch/bootstrap通过。
+150项Python测试：149通过，1项符号链接权限跳过；实际MCP范围拒绝/预览/选择/独立读回通过。
+最终隔离快照c6fd07619a2743f6bfa4ed88c52eb990：世代1/saved1，源码SHA仍
+f489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e；原图未改。
+qt_select_session.json再次确认唯一隔离文档、原生写入拒绝与线程自测成功。
+下一步应取得属性编辑器的明确字段绑定和实体身份，再做属性读回/Undo/Redo；保持本地。
