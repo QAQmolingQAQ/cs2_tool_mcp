@@ -190,3 +190,5 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 2026-10-26：新增cs2_qt_hammer_outliner（100唯一/Hammer55），实际stdio读出两个Outliner各24行/21实体/2网格/根，遍历完整且不改选择。原生模型ABI/边界与析构测试、147Python测试通过（1权限跳过）。新测试实例PID3280，仍为隔离UUID bc1d170dd26541cf80f946e324a3beca，原图/副本不变；自检/拒绝/线程实测通过。下一步选择模型/当前索引及固定选择动作；详见QT_HOOK_NOTES.md，保持本地。
 
 2026-10-26：cs2_qt_hammer_select接入Hammer（101唯一/Hammer56），配置根/观察行文字及Qt索引key校验，预览默认、不编辑地图。实机确认双视图共享选择模型，实际MCP从行1切到行3并独立读回，错误工程范围拒绝；属性面板类名可读。150测试（149通过/1权限跳过），原生测试通过；新实例PID5896/隔离UUID不变，源码与dirty世代未变。row_key不是实体GUID，属性字段绑定/修改与Undo仍待继续，见QT_HOOK_NOTES.md，保持本地。
+
+2026-10-26：新增cs2_hammer_property_fields（102唯一/Hammer57），借propertyeditor.dll的CQPropRow+0x68→CPropItem_Attr读取真实键名/显示名，反向行指针/RTTI/4个依赖SHA及前后上下文验证。实际MCP targetname/Name/空值读取与错误范围拒绝通过；156测试（155通过/1权限跳过）。propertyeditor.dll纳入版本自检监视；显示文字不是已提交属性值，仍无写入/Undo验收。详见PROPERTYEDITOR_BINDINGS.md；当前PID5896、隔离副本不变，保持本地。

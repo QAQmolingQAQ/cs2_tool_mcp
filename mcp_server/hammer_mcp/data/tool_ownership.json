@@ -14,6 +14,7 @@
       "cs2_edit_preview",
       "cs2_qt_hammer_outliner",
       "cs2_qt_hammer_select",
+      "cs2_hammer_property_fields",
       "cs2_edit_preflight",
       "cs2_hammer_layout_observe",
       "cs2_map_io_check",

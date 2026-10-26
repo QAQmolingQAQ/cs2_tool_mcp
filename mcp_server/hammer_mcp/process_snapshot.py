@@ -12,7 +12,7 @@ from .project import sha256
 
 WATCHED = frozenset(('cs2.exe', 'cs2_tool.dll', 'hammer.dll', 'pet.dll', 'particles.dll',
     'met.dll', 'modeldoc_editor.dll', 'scenesystem.dll', 'tier0.dll', 'qt5core.dll',
-    'qt5gui.dll', 'qt5widgets.dll', 'datamodel.dll', 'toolframework2.dll'))
+    'qt5gui.dll', 'qt5widgets.dll', 'datamodel.dll', 'toolframework2.dll', 'propertyeditor.dll'))
 
 
 class _Module(c.Structure):
