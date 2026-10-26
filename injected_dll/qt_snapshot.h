@@ -11,3 +11,5 @@ std::string QtFileDialogMap(const std::string& path,bool confirm); }
 namespace cs2tool { std::string QtHammerOutliner(); }
 namespace cs2tool { std::string QtHammerOutlinerSelect(const std::vector<int>& path,
     const std::string& root,const std::string& label,const std::string& key,bool confirm); }
+namespace cs2tool { std::string QtHammerTargetnameProbe(const std::string& root,
+    const std::string& selected_key,const std::string& before,const std::string& value,bool confirm); }

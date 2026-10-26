@@ -1,4 +1,5 @@
-// Fixed, read-only Qt 5 x64 ABI adapter. No caller-supplied function/object addresses.
+// Fixed Qt 5 x64 ABI adapters: diagnostics and bounded editor UI actions.
+// No caller-supplied function/object addresses.
 #include "qt_snapshot.h"
 #include "hammer_bridge.h"
 #include <algorithm>
@@ -182,6 +183,8 @@ struct Query {
     bool select_outliner = false;
     std::vector<int> row_path;
     std::string expected_root, expected_label, expected_row_key;
+    bool targetname_probe=false;
+    std::string expected_before, probe_value;
     std::string result, error;
 };
 // Qt 5 MSVC x64 ABI, independently checked against hasIndex/sibling/itemData.
@@ -225,6 +228,66 @@ ModelIndex VerifyOutlinerTarget(void* model,const std::vector<int>& path,const s
     const auto target=ResolveModelPath(model,path);
     if(ModelDisplay(model,rootIndex,a)!=root || ModelDisplay(model,target,a)!=label || RowKey(target)!=key)
         throw std::runtime_error("outliner document, label or row identity changed; selection not issued");
+    return target;
+}
+bool ProbeName(const std::string& value) {
+    return value.empty() || (value.size()<=96 && value.rfind("mcp_probe_",0)==0 &&
+        std::all_of(value.begin(),value.end(),[](unsigned char c){return (c>='a' && c<='z') || (c>='0' && c<='9') || c=='_';}));
+}
+void* ResolveFocusTarget(void* widget,ParentGetter proxy) {
+    std::vector<void*> seen;
+    while(widget && seen.size()<16) {
+        if(std::find(seen.begin(),seen.end(),widget)!=seen.end())throw std::runtime_error("cyclic Qt focus proxy");
+        seen.push_back(widget);void* next=proxy(widget);
+        if(!next)return widget;
+        widget=next;
+    }
+    throw std::runtime_error("Qt focus proxy chain exceeds bound");
+}
+bool ProbeMap(const std::string& root) {
+    const std::string marker="/content/csgo_addons/test/maps/__mcp_edit_tests/";
+    auto start=root.find(marker);
+    if(root.size()<8 || root[1]!=':' || root[2]!='/' || start==std::string::npos)return false;
+    start+=marker.size();
+    if(root.size()<start+34 || root[start+32]!='/')return false;
+    if(!std::all_of(root.begin()+start,root.begin()+start+32,[](char c){return (c>='0'&&c<='9') || (c>='a'&&c<='f');}))return false;
+    const auto file=root.substr(start+33);
+    return file.size()>5 && file.substr(file.size()-5)==".vmap" &&
+        std::all_of(file.begin(),file.end(),[](unsigned char c){return (c>='a'&&c<='z') || (c>='0'&&c<='9') || c=='_' || c=='-' || c=='.';}) && file.find("..") == std::string::npos;
+}
+std::string SmallCString(const char* value) {
+    std::string text;
+    for(size_t i=0;i<128;++i) {
+        if(!Readable(value+i,1))throw std::runtime_error("unreadable property key");
+        if(!value[i])return text;
+        text.push_back(value[i]);
+    }
+    throw std::runtime_error("property key exceeds bound");
+}
+bool TargetnameRow(void* row,HMODULE property) {
+    auto* bytes=static_cast<char*>(row);auto base=reinterpret_cast<uintptr_t>(property);
+    if(!Readable(row,0x70) || *reinterpret_cast<uintptr_t*>(row)!=base+0x10f900)return false;
+    auto* item=*reinterpret_cast<char**>(bytes+0x68);
+    if(!Readable(item,0x38) || *reinterpret_cast<uintptr_t*>(item)!=base+0x109488 ||
+        *reinterpret_cast<void**>(item+0x18)!=row)throw std::runtime_error("property row binding changed");
+    return SmallCString(*reinterpret_cast<char**>(item+0x28))=="targetname";
+}
+void* FindTargetnameEditor(const std::vector<void*>& items,const Api& a,HMODULE property) {
+    void* target=nullptr;int matches=0;
+    for(void* widget:items) {
+        if(!a.inherits(widget,"QLineEdit") || !a.visible(widget) || !a.enabled(widget))continue;
+        bool row=false,dock=false,window=false;void* parent=widget;std::vector<void*> seen;
+        while(parent && seen.size()<16) {
+            if(std::find(seen.begin(),seen.end(),parent)!=seen.end())throw std::runtime_error("property parent cycle");
+            seen.push_back(parent);row=row || TargetnameRow(parent,property);
+            const auto name=Text(parent,a.object_name,a);
+            if(name=="HammerObjectPropertyDockWidget")dock=true;
+            if(name=="CQBaseEditorWnd")window=true;
+            parent=a.parent_widget(parent);
+        }
+        if(!parent && row && dock && window) {target=widget;++matches;}
+    }
+    if(matches!=1)throw std::runtime_error("unique targetname text editor unavailable; matches="+std::to_string(matches));
     return target;
 }
 std::string ModelRows(void* model,const Api& a,const ModelIndex* current=nullptr) {
@@ -338,7 +401,7 @@ uint64_t Collect(Query* q) {
             auto currentGetter=reinterpret_cast<StringGetter>(GetProcAddress(widgets,"?currentIndex@QAbstractItemView@@QEBA?AVQModelIndex@@XZ"));
             if (!modelGetter || !selectionGetter || !currentGetter) throw std::runtime_error("Qt item view exports missing");
             std::vector<std::string> views;
-            void* firstView=nullptr;void* firstModel=nullptr;void* firstSelection=nullptr;bool shared=true;
+            void* firstView=nullptr;void* firstModel=nullptr;void* firstSelection=nullptr;bool shared=true,current_matches=true;
             for(int i=begin;i<end;++i) {
                 void* widget=items[i];
                 if (!a.inherits(widget,"QTreeView") || !a.visible(widget)) continue;
@@ -355,10 +418,64 @@ uint64_t Collect(Query* q) {
                 if(views.size()>=4)throw std::runtime_error("too many outliner views");
                 void* model=modelGetter(widget);void* selection=selectionGetter(widget);
                 ModelIndex current;currentGetter(widget,&current);
+                if(current.model!=model || RowKey(current)!=q->expected_row_key)current_matches=false;
                 const auto tree=ModelRows(model,a,&current);
                 if(!firstView) {firstView=widget;firstModel=model;firstSelection=selection;}
                 else if(model!=firstModel || selection!=firstSelection)shared=false;
                 views.push_back(tree);
+            }
+            if(q->targetname_probe) {
+                if(!firstView || !firstSelection || !shared || !current_matches)throw std::runtime_error("selected row changed; probe not issued");
+                if(ModelDisplay(firstModel,ResolveModelPath(firstModel,{0}),a)!=q->expected_root)
+                    throw std::runtime_error("isolated document root changed; probe not issued");
+                auto property=GetModuleHandleW(L"propertyeditor.dll");
+                if(!Matches(property,1792684908,1826816))throw std::runtime_error("unsupported propertyeditor ABI identity");
+                void* editor=FindTargetnameEditor(std::vector<void*>(items+begin,items+end),a,property);
+                auto readOnly=reinterpret_cast<Predicate>(GetProcAddress(widgets,"?isReadOnly@QLineEdit@@QEBA_NXZ"));
+                if(!readOnly || !a.echo_mode || !a.line_text || readOnly(editor) || a.echo_mode(editor)!=0 || Text(editor,a.line_text,a)!=q->expected_before)
+                    throw std::runtime_error("targetname control state/value changed; probe not issued");
+                if(q->expected_before==q->probe_value) {
+                    q->result=JsonMakeObject({{"status",JsonMakeString("no_change")},{"effect_verified",JsonMakeBool(false)}});return 1;
+                }
+                if(q->confirm) {
+                    using Utf8=void* (*)(void*,const char*,int);using Insert=void (*)(void*,const void*);
+                    using SingleShot=void (*)(int,const void*,const char*);
+                    auto core=GetModuleHandleW(L"Qt5Core.dll");
+                    auto utf8=reinterpret_cast<Utf8>(GetProcAddress(core,"?fromUtf8@QString@@SA?AV1@PEBDH@Z"));
+                    auto insert=reinterpret_cast<Insert>(GetProcAddress(widgets,"?insert@QLineEdit@@QEAAXAEBVQString@@@Z"));
+                    auto selectAll=reinterpret_cast<Click>(GetProcAddress(widgets,"?selectAll@QLineEdit@@QEAAXXZ"));
+                    using Focus=void (*)(void*,int);using Focused=void* (*)();
+                    auto focus=reinterpret_cast<Focus>(GetProcAddress(widgets,"?setFocus@QWidget@@QEAAXW4FocusReason@Qt@@@Z"));
+                    auto focused=reinterpret_cast<Focused>(GetProcAddress(widgets,"?focusWidget@QApplication@@SAPEAVQWidget@@XZ"));
+                    auto proxy=reinterpret_cast<ParentGetter>(GetProcAddress(widgets,"?focusProxy@QWidget@@QEBAPEAV1@XZ"));
+                    auto windowGetter=reinterpret_cast<ParentGetter>(GetProcAddress(widgets,"?window@QWidget@@QEBAPEAV1@XZ"));
+                    auto activate=reinterpret_cast<Click>(GetProcAddress(widgets,"?setActiveWindow@QApplication@@SAXPEAVQWidget@@@Z"));
+                    auto shot=reinterpret_cast<SingleShot>(GetProcAddress(core,"?singleShot@QTimer@@SAXHPEBVQObject@@PEBD@Z"));
+                    if(!utf8 || !insert || !selectAll || !shot || !focus || !focused || !proxy || !windowGetter || !activate)throw std::runtime_error("Qt insert/focus/queued commit exports missing");
+                    StringResult value{nullptr,a.destroy_string};utf8(&value.data,q->probe_value.data(),static_cast<int>(q->probe_value.size()));
+                    void* focusTarget=ResolveFocusTarget(editor,proxy);
+                    if(focusTarget!=editor && focusTarget!=a.parent_widget(editor))throw std::runtime_error("targetname focus proxy is outside its editor/parent");
+                    void* owner=windowGetter(editor);
+                    if(!owner || Text(owner,a.object_name,a)!="CQBaseEditorWnd")throw std::runtime_error("targetname owner window changed");
+                    activate(owner);
+                    focus(editor,7); // Qt::OtherFocusReason: enter the real editor focus lifecycle.
+                    ListResult focusWidgets{nullptr,a.dispose};a.widgets(&focusWidgets.data);
+                    if(FindTargetnameEditor(ListItems(focusWidgets.data),a,property)!=editor || focused()!=focusTarget)
+                        throw std::runtime_error("targetname focus not acquired or editor rebuilt; insert not issued");
+                    selectAll(editor);
+                    ListResult refreshed{nullptr,a.dispose};a.widgets(&refreshed.data);
+                    if(FindTargetnameEditor(ListItems(refreshed.data),a,property)!=editor || Text(editor,a.line_text,a)!=q->expected_before)
+                        throw std::runtime_error("property editor changed after text selection; insert not issued");
+                    // Qt strips the 0/1/2 prefix and posts invokeMethod(QueuedConnection).
+                    // Queue first so QObject destruction cancels the pending receiver safely.
+                    shot(0,editor,"2returnPressed()");
+                    shot(0,editor,"2editingFinished()");
+                    insert(editor,&value.data);
+                    // insert emits the user-edit signal; no object access after its handlers.
+                }
+                q->result=JsonMakeObject({{"status",JsonMakeString(q->confirm?"text_inserted_commit_queued":"preview")},
+                    {"pid",JsonMakeInt(GetCurrentProcessId())},{"effect_verified",JsonMakeBool(false)},
+                    {"commit_execution_verified",JsonMakeBool(false)}});return 1;
             }
             if(q->select_outliner) {
                 if(!firstView || !firstSelection || !shared)throw std::runtime_error("outliner views do not share a verified selection model");
@@ -664,6 +781,14 @@ std::string QtHammerOutlinerSelect(const std::vector<int>& path,const std::strin
         return JsonMakeObject({{"error",JsonMakeString("bounded row path, root, label and observed row key required")}});
     auto query=std::make_shared<Query>();query->outliner=true;query->select_outliner=true;
     query->row_path=path;query->expected_root=root;query->expected_label=label;query->expected_row_key=key;query->confirm=confirm;
+    return RunQuery(query);
+}
+std::string QtHammerTargetnameProbe(const std::string& root,const std::string& selected_key,
+    const std::string& before,const std::string& value,bool confirm) {
+    if(!ProbeMap(root) || selected_key.empty() || selected_key.size()>112 || !ProbeName(before) || !ProbeName(value))
+        return JsonMakeObject({{"error",JsonMakeString("UUID-scoped test map, observed selection and probe-only names required")}});
+    auto query=std::make_shared<Query>();query->outliner=true;query->targetname_probe=true;
+    query->expected_root=root;query->expected_row_key=selected_key;query->expected_before=before;query->probe_value=value;query->confirm=confirm;
     return RunQuery(query);
 }
 

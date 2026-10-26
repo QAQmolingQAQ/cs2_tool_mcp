@@ -100,6 +100,21 @@ int CheckQtCleanup() {
     if (cs2tool::QtFileDialogMap("not-a-map.txt",true).find("error")==std::string::npos) return 42;
     if (cs2tool::QtHammerProbeAction("File/Exit","Hammer - [test.vmap]",true).find("unsupported")==std::string::npos) return 43;
     if (cs2tool::QtHammerProbeAction("File/Save","Hammer",true).find("title required")==std::string::npos) return 44;
+    const std::string probeRoot="c:/game/content/csgo_addons/test/maps/__mcp_edit_tests/0123456789abcdef0123456789abcdef/test.vmap";
+    if(!cs2tool::ProbeMap(probeRoot) || cs2tool::ProbeMap("c:/game/maps/test.vmap") ||
+        cs2tool::ProbeMap(probeRoot+"/more") || cs2tool::ProbeMap(probeRoot.substr(0,probeRoot.size()-9)+"../test.vmap"))return 70;
+    if(!cs2tool::ProbeName("") || !cs2tool::ProbeName("mcp_probe_test1") || cs2tool::ProbeName("real_name") || cs2tool::ProbeName("mcp_probe_bad\n"))return 71;
+    if(cs2tool::QtHammerTargetnameProbe("c:/real/map.vmap","key","","mcp_probe_test",true).find("error")==std::string::npos)return 72;
+    alignas(8) uintptr_t fakeRow[16]{},fakeItem[8]{};
+    auto fakeModule=reinterpret_cast<HMODULE>(uintptr_t(0x10000000));
+    fakeRow[0]=0x1010f900;fakeRow[13]=reinterpret_cast<uintptr_t>(fakeItem);
+    fakeItem[0]=0x10109488;fakeItem[3]=reinterpret_cast<uintptr_t>(fakeRow);
+    fakeItem[5]=reinterpret_cast<uintptr_t>("targetname");
+    if(!cs2tool::TargetnameRow(fakeRow,fakeModule))return 73;
+    fakeItem[5]=reinterpret_cast<uintptr_t>("classname");
+    if(cs2tool::TargetnameRow(fakeRow,fakeModule))return 74;
+    fakeItem[3]=0;
+    try {cs2tool::TargetnameRow(fakeRow,fakeModule);return 75;}catch(const std::runtime_error&){}
     if (cs2tool::MenuLabel("&Open...") != "Open" || cs2tool::MenuLabel("&File") != "File" || cs2tool::MenuLabel("&Open\tCtrl+O") != "Open") return 38;
     if (cs2tool::QtMenuActions("").find("error") == std::string::npos) return 39;
     alignas(8) unsigned char list_data[24]{};
@@ -110,11 +125,14 @@ int CheckQtCleanup() {
     api.parent_widget=FakeParent;api.inherits=FakeInherits;api.object_name=FakeStringGetter;
     FakeWidget chain[40];
     for (int i=0;i<39;++i) chain[i].parent=&chain[i+1];
+    if(cs2tool::ResolveFocusTarget(&chain[37],FakeParent)!=&chain[39])return 76;
+    try {cs2tool::ResolveFocusTarget(chain,FakeParent);return 77;}catch(const std::runtime_error&){}
     const auto bounded=cs2tool::WidgetAncestry(chain,api);
     if (bounded.complete || bounded.rows.size()!=32) return 56;
     const auto short_path=cs2tool::WidgetAncestry(&chain[37],api);
     if (!short_path.complete || short_path.rows.size()!=2) return 57;
     chain[39].parent=&chain[38];
+    try {cs2tool::ResolveFocusTarget(&chain[37],FakeParent);return 78;}catch(const std::runtime_error&){}
     try { cs2tool::WidgetAncestry(&chain[37],api);return 58; }
     catch (const std::runtime_error&) {}
     return 0;

@@ -854,3 +854,7 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-26：cs2_qt_hammer_select接入Hammer（101唯一/Hammer56），配置根/观察行文字及Qt索引key校验，预览默认、不编辑地图。实机确认双视图共享选择模型，实际MCP从行1切到行3并独立读回，错误工程范围拒绝；属性面板类名可读。150测试（149通过/1权限跳过），原生测试通过；新实例PID5896/隔离UUID不变，源码与dirty世代未变。row_key不是实体GUID，属性字段绑定/修改与Undo仍待继续，见QT_HOOK_NOTES.md，保持本地。
 
 2026-10-26：新增cs2_hammer_property_fields（102唯一/Hammer57），借propertyeditor.dll的CQPropRow+0x68→CPropItem_Attr读取真实键名/显示名，反向行指针/RTTI/4个依赖SHA及前后上下文验证。实际MCP targetname/Name/空值读取与错误范围拒绝通过；156测试（155通过/1权限跳过）。propertyeditor.dll纳入版本自检监视；显示文字不是已提交属性值，仍无写入/Undo验收。详见PROPERTYEDITOR_BINDINGS.md；当前PID5896、隔离副本不变，保持本地。
+
+2026-10-27 进行中：targetname Qt实验尚未提交。setText+editingFinished与insert+editingFinished均仅改UI文字，Outliner和dirty世代仍1/saved1；已将两次生成的输入清回空值并原生预览核对。当前测试PID21732、隔离UUID bc1d170dd26541cf80f946e324a3beca，原图/副本SHA不变。未调用Undo猜测恢复，未保存。实验代码/脚本未提交，下一步补焦点和回车路径；证据targetname_probe_after_commit.json、targetname_insert_after.json、targetname_insert_cleanup_verified.json在C:\CS2_Temp。
+
+2026-10-27：在隔离test地图完成targetname文档提交、保存、Undo/Redo和最终Undo保存，原图未动。分别核对控件缓冲/内存文档/磁盘；25节点内容严格相等，元数据仍不同。通用批量与完整回滚未完成，详见HAMMER_PROPERTY_EDIT_VERIFICATION.md；保持本地。

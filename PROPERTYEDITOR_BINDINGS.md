@@ -57,3 +57,5 @@ property_item_fields.json和propertyeditor_row_static.json。
 
 下一步通过这个明确绑定的控件验证Qt提交信号路径，独立读取提交后的属性/脏状态和Undo/Redo。
 还需把选择对象绑定到实体GUID，才能将其用于通用批量执行；Qt行索引不能代替实体身份。
+
+2026-10-27：在隔离test地图完成targetname文档提交、保存、Undo/Redo和最终Undo保存，原图未动。分别核对控件缓冲/内存文档/磁盘；25节点内容严格相等，元数据仍不同。通用批量与完整回滚未完成，详见HAMMER_PROPERTY_EDIT_VERIFICATION.md；保持本地。

@@ -109,3 +109,5 @@ Ctrl+Shift+F后未验证实体查找对话框出现，不误称快捷键已完�
 hammer_property_probe_accessibility.txt、property_probe_menus.json；
 隔离快照ID b2817f1575bd477e8790243fb6886f9c。
 本轮没有功能源码改动，不重复运行未变的147项测试；实际stdio重新验证通过。保持本地。
+
+2026-10-27：在隔离test地图完成targetname文档提交、保存、Undo/Redo和最终Undo保存，原图未动。分别核对控件缓冲/内存文档/磁盘；25节点内容严格相等，元数据仍不同。通用批量与完整回滚未完成，详见HAMMER_PROPERTY_EDIT_VERIFICATION.md；保持本地。
