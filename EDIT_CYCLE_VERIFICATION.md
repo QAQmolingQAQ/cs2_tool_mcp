@@ -111,3 +111,11 @@ hammer_property_probe_accessibility.txt、property_probe_menus.json；
 本轮没有功能源码改动，不重复运行未变的147项测试；实际stdio重新验证通过。保持本地。
 
 2026-10-27：在隔离test地图完成targetname文档提交、保存、Undo/Redo和最终Undo保存，原图未动。分别核对控件缓冲/内存文档/磁盘；25节点内容严格相等，元数据仍不同。通用批量与完整回滚未完成，详见HAMMER_PROPERTY_EDIT_VERIFICATION.md；保持本地。
+
+## 2026-10-27：属性往返后的保存地图构建
+
+实际MCP build_start/status任务16a7b0c6556a49b4931c61d599b12799使用属性往返后已保存的隔离地图（SHA6614e9746a6dc654ae57e3c6a0c74b46c15f72c12acfed992af87ccb35c900d6），不是历史ac72任务的旧源码。world/phys/vis快速构建退出0，源码和安装输入保持不变，进程树退出。产物mcp_16a7b0c6556a49b4931c61d5.vpk，SHA5e3e025d74b7d3c262616c613546a6bedc2836300a7b07fea4cfa9337494c3b7；11条目CRC/资源边界通过、VXVS存在、没有光照贴图，因此artifact_complete/release_ready均false。
+
+当前源码依赖查询覆盖19资源/28条RERL引用，0问题、声明引用闭合通过；不覆盖动态引用或发布完整性。报告C:\CS2_Temp\edit_cycle_saved_build_verification.json；构建request/state/compiler.log保存在状态目录的任务ID下。未新增功能源码，本轮不重复无变化的测试。
+
+另以当前源码完整标记诊断核对PID7132：状态为Server Running、Client Connected loopback、Current game，没有loaded spawngroup地图名行。原始输出仅留本地runtime_status_format_private.json，不从缺失地图行推断空闲安全。加载器真实预览返回one unambiguous current runtime map required，未发map命令。这一步证明编辑往返保存后的构建与声明依赖，尚未完成这一产物的游戏加载；下一步需可靠区分工具默认世界/已加载地图状态，或从原生会话取得可交叉核对的运行地图身份。

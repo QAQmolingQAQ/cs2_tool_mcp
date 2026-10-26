@@ -860,3 +860,5 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-27：在隔离test地图完成targetname文档提交、保存、Undo/Redo和最终Undo保存，原图未动。分别核对控件缓冲/内存文档/磁盘；25节点内容严格相等，元数据仍不同。通用批量与完整回滚未完成，详见HAMMER_PROPERTY_EDIT_VERIFICATION.md；保持本地。
 
 2026-10-27：运行诊断增加结束echo标记，缺失/超时/预算不足拒绝成功；159测试（158通过/1权限跳过），当前源码函数在PID7132实机完整返回。loopback连接但没有地图名证据，加载器仍拒绝，未切图；详见RUNTIME_VALIDATION.md。保持本地。
+
+2026-10-27：属性往返保存后的6614源图已由实际MCP快速构建任务16a7b0c6556a49b4931c61d599b12799编译成功，VPK SHA5e3e025d…、11条目CRC/VIS通过，无光照；19资源28引用声明闭合通过。当前状态Current game而无地图名，真实加载预览拒绝，未切图；详见EDIT_CYCLE_VERIFICATION.md。保持本地。
