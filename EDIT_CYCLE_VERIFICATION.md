@@ -82,3 +82,30 @@ VPK SHAae798e7ab64c255a51157d207f15de163a04345a313cc174b9ca02727ca68243，
 这是保存后磁盘数据的快速构建，不证明编辑器全局clean，也不是完整光照构建或游戏加载通过。
 任务日志/状态位于C:\CS2_Temp\mcp_build_jobs\759ba3afef6846bab69efa5590c1679d。
 完整光照此前已受VMware GPU不支持VRAD3光追阻断，本轮没有无条件重跑相同失败。
+
+## 2026-10-26：重新建立属性往返测试环境
+
+本轮重新核对后没有运行CS2；Steam在线。启动-insecure -tools -addon test
+-allow_third_party_software -condebug，实例PID15744（仅历史身份，下轮重查）。CE MCP连接失败，
+改用仓库injector一次加载现有v0.2.1桥接，实际stdio独立确认PID/桥接、主线程自测及原生写入拒绝通过。
+未因CE失败重试注入；未调用静态候选写入、未新增兼容profile。
+
+通过固定Qt按钮打开Hammer，新建隔离副本UUID bc1d170dd26541cf80f946e324a3beca。
+工程配置C:\CS2_Temp\mcp_build_jobs\editor_probes\bc1d170dd26541cf80f946e324a3beca\project.json。
+电脑操控Ctrl+O打开Windows原生选择器；辅助功能可观察文件名编辑框，但set_value报告
+“element is not available in cached app state”。刷新后仍失败，未通过其他UIA接口绕过。
+随后使用已验证的qt_file_dialog_map适配器，完整路径读回后排队打开。
+独立实际MCP核对唯一文档路径、主虚表及RTTI匹配，确认打开的是新UUID副本。
+
+原图和新副本SHA均仍为f489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e。
+观察dirty世代候选1/saved1，但全局dirty仍unknown，不据此开放通用写入。
+实机Qt枚举3443控件；辅助功能间歇返回完整属性面板与Outliner（21实体），
+截图仍FrameArrived超时，索引点击info_player_start也遭同类缓存定位错误，没有选择或修改实体。
+Ctrl+Shift+F后未验证实体查找对话框出现，不误称快捷键已完成目标动作。
+
+当前仅完成环境恢复、隔离文件打开与身份/拒绝校验；属性修改、读回、Undo/Redo仍待完成。
+后续优先补Qt控件的稳定文档/父路径定位和只读属性模型观察；不使用易变地址或旧RVA直接写。
+证据C:\CS2_Temp\mcp_property_probe_session.json、mcp_property_open_result.json、
+hammer_property_probe_accessibility.txt、property_probe_menus.json；
+隔离快照ID b2817f1575bd477e8790243fb6886f9c。
+本轮没有功能源码改动，不重复运行未变的147项测试；实际stdio重新验证通过。保持本地。
