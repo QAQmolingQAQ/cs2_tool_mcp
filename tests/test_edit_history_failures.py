@@ -16,10 +16,22 @@ class EditHistoryFailureTests(unittest.TestCase):
                lambda:history._hist_record_object(1,2,False),
                lambda:history._hist_record_node(1,2),
                lambda:history._hist_notify(1)]
-        for call in calls:
-            with self.subTest(call=call), patch.object(history,'_call_fn',return_value=('', 'running_timeout_unknown')), patch.object(history,'_read_int') as read:
+        for index,call in enumerate(calls):
+            with self.subTest(call=call), patch.object(history,'_call_fn',return_value=('', 'running_timeout_unknown')), patch.object(history,'_read_int',return_value=2) as read:
                 with self.assertRaisesRegex(RuntimeError,'do not retry'):call()
-                read.assert_not_called()
+                self.assertEqual(read.call_count,1 if index==0 else 0)
+
+    def test_native_return_without_verified_new_step_is_not_success(self):
+        for after in (4,3,6):
+            with self.subTest(after=after), patch.object(history,'_call_fn',return_value=('0x0','')), patch.object(history,'_read_int',side_effect=[4,after]):
+                with self.assertRaisesRegex(RuntimeError,'not verified'):history._hist_push_step(1,'step')
+        with patch.object(history,'_call_fn',return_value=('0x0','')), patch.object(history,'_read_int',side_effect=[4,5]):
+            self.assertEqual(history._hist_push_step(1,'step'),5)
+
+    def test_invalid_initial_history_count_stops_native_call(self):
+        with patch.object(history,'_call_fn') as native, patch.object(history,'_read_int',return_value=1000001):
+            with self.assertRaisesRegex(RuntimeError,'not executed'):history._hist_push_step(1,'step')
+            native.assert_not_called()
 
     def prepare(self, stack, module, failure):
         for name,value in {'_parse_addr':0x10000,'_read_int':1,'_entity_class_props':0x20000,

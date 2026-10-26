@@ -53,5 +53,60 @@
       "pseudocode_sha256": "738380a775b189ed15c0567f84536c91efe4e8f088822fcceb332fa48d869fd2",
       "live_verified": false
     }
-  ]
+  ],
+  "callsite_analysis": {
+    "basis": "decoded direct E8 calls aligned from PE unwind fragments; not exhaustive control flow",
+    "runtime_verified": false,
+    "push_step": {
+      "candidate_rva": "0x152b0e0",
+      "arguments": [
+        "RCX history",
+        "RDX name",
+        "R8 flag",
+        "R9 optional descriptor"
+      ],
+      "guarded_wrapper_rva": "0x152b090",
+      "direct_calls_observed": 7
+    },
+    "notify": {
+      "candidate_rva": "0x152b550",
+      "arguments": [
+        "RCX history",
+        "EDX event kind"
+      ],
+      "observed_event_kind": 2,
+      "direct_calls_observed": 8
+    },
+    "record_node": {
+      "arguments": [
+        "RCX history",
+        "RDX element+0xc8",
+        "R8D recursive flag"
+      ],
+      "direct_calls_observed": 487
+    },
+    "keyvalue": {
+      "arguments": [
+        "RCX entity",
+        "RDX property name",
+        "R8 value string"
+      ],
+      "direct_calls_observed": 93
+    },
+    "scope_wrapper": {
+      "candidate_rva": "0x86e520",
+      "arguments": [
+        "RCX context",
+        "RDX optional object",
+        "R8 step name",
+        "R9 descriptor"
+      ],
+      "calls": [
+        "0x152ab60",
+        "0x152b090",
+        "0x152abc0",
+        "0x89c300"
+      ]
+    }
+  }
 }

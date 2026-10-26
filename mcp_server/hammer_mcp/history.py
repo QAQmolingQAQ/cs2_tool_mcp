@@ -153,8 +153,14 @@ def _hist_push_step(hist: int, name: str) -> int:
     ⚠ 名字**必须是 ASCII**：参数经管道以 ANSI 字符串传给 `V_strncpy`，中文会变成 `??`
     （实测 `'cs2: 创建 info_target'` 存进去成了 `'cs2: ?? info_target'`）。
     """
+    before = _read_int(hist + HISTORY_OFF_COUNT, "u32")
+    if before > 1000000:
+        raise RuntimeError('history count outside inspection bound; preparation not executed')
     _checked_history_call(RVA_MAP_HISTORY_PUSH_STEP, [hist, f"str:{name}", 0, 0], timeout=20000)
-    return _read_int(hist + HISTORY_OFF_COUNT, "u32")
+    after = _read_int(hist + HISTORY_OFF_COUNT, "u32")
+    if after != before + 1:
+        raise RuntimeError('history step creation not verified; history may have changed; do not retry')
+    return after
 
 
 def _hist_record_object(hist: int, element: int, added: bool) -> int:
