@@ -170,3 +170,9 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 新增持久加载MCP cs2_runtime_load_start/status（唯一98/bridge44）：源/配置/产物哈希、精确当前地图、进程身份重查及发送前回执，未知结果禁止重发。实际MCP新构建ac72ac0b72a84b3a8ace4022403800c6加载任务23b20a7a43df4d78a0125bdfc465bdf1，从requested经新stdio客户端status核验loaded；再次start确认不发map。129测试通过。当前PID8408运行mcp_ac72ac0b72a84b3a8ace4022，Hammer隔离文档保留/原图SHA不变，release_ready=false。证据RUNTIME_VALIDATION.md，未推送。
 
 新增cs2_build_dependencies（唯一99/bridge45），解析RERL并递归检查包内/磁盘/基础pak引用，仅被遍历的基础条目做CRC/SHA，索引不冒称完整载荷验证。实际MCP对ac72ac0b72a84b3a8ace4022403800c6得到19资源/28引用/0范围内问题，19项CRC通过；动态脚本/声音名和隐式地图资源仍不覆盖，coverage_complete及release_ready仍false。132测试通过，见BUILD_DEPENDENCIES.md，本轮未推送。
+
+## 最新本地脚本检查
+
+2026-10-26：cs2_map_io_check接入Acorn静态脚本输入声明检查，138测试通过；真实stdio+dmxconvert隔离地图读出本机SDK模型脚本6个入口并匹配ScaleUp。需Node和script_tools的npm ci；不执行目标脚本，不证明运行注册。源码/导入SHA与问题计数保留，详见MAP_IO_CHECK.md。该阶段保持本地，未再次推送。
+
+2026-10-26：脚本检查追加边界修正及真实MCP负例（错入口/语法错误/缺Node），新增static_checks_passed独立结果。140测试，139通过、1项符号链接权限测试跳过。源码变更检测通过；保存后AST仍不等同运行注册，详见MAP_IO_CHECK.md。保持本地。

@@ -13,6 +13,7 @@ from .build_jobs import atomic_json
 from .fgd import FgdCatalog
 from .project import load_project, sha256
 from .source_parsing import map_entities
+from .script_check import check_scripts
 
 
 def parameter_error(type_name: str, value: str) -> str | None:
@@ -40,7 +41,7 @@ def parameter_error(type_name: str, value: str) -> str | None:
     return 'unsupported_fgd_parameter_type'
 
 
-def check_entities(entities: list[dict], catalog: FgdCatalog, max_issues: int = 100) -> dict:
+def check_entities(entities: list[dict], catalog: FgdCatalog, max_issues: int = 100, script_audit: dict | None = None) -> dict:
     issues = []
     counts = Counter()
     names = {}
@@ -58,7 +59,14 @@ def check_entities(entities: list[dict], catalog: FgdCatalog, max_issues: int = 
         schemas[entity['id']] = catalog.resolve(props.get('classname', ''))
         if props.get('cs_script') or props.get('vscripts') or props.get('classname') == 'point_script':
             script_count += 1
-            issue('script_semantics_not_yet_validated', entity, 'warning')
+            if script_audit is None or props.get('classname') != 'point_script':
+                issue('script_semantics_not_yet_validated', entity, 'warning')
+
+    if script_audit is not None:
+        for finding in script_audit['issues']:
+            counts[finding['severity']] += 1
+            if len(issues) < max_issues:
+                issues.append(finding)
 
     def targets(name, source=None):
         if name.casefold() == '!self':
@@ -172,13 +180,15 @@ def cs2_map_io_check(config: str = '', profile: str = '', max_issues: int = 100)
         entities = map_entities(output.read_text(encoding='utf-8-sig'))
         catalog = FgdCatalog(game)
         catalog.load(game / 'game/csgo/csgo.fgd')
-        checked = check_entities(entities, catalog, max_issues)
+        script_audit = check_scripts(entities, Path(project['source_root']), game)
+        checked = check_entities(entities, catalog, max_issues, script_audit)
         if (sha256(source) != source_hash or sha256(converter) != converter_hash or
-                any(sha256(Path(path)) != digest for path, digest in catalog.files.items())):
-            raise ValueError('map, converter or FGD changed during inspection')
+                any(sha256(Path(path)) != digest for path, digest in catalog.files.items()) or
+                any(sha256(Path(path)) != digest for path, digest in script_audit['source_files'].items())):
+            raise ValueError('map, converter, FGD or script changed during inspection')
         response = {'ok': True, **checked, 'source_basis': 'saved_disk_snapshot',
                     'source_sha256': source_hash, 'source': str(source),
-                    'fgd_files': catalog.files, 'fgd_classes': len(catalog.classes),
+                    'fgd_files': catalog.files, 'fgd_classes': len(catalog.classes), 'script_audit': script_audit,
                     'converter_sha256': converter_hash, 'report_path': str(folder / 'report.json'), 'release_ready': False}
         atomic_json(folder / 'report.json', response)
         return response

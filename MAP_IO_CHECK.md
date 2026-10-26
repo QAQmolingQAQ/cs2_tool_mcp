@@ -2,7 +2,7 @@
 
 工具 `cs2_map_io_check(config="", profile="", max_issues=100)` 归hammer.dll服务。
 它只检查工程配置指定地图的磁盘副本，不保存/修改Hammer，不替代实时文档检查。
-当前86个工具；Hammer组50个。`scripts/check_map_io_mcp.py`通过真实stdio调用同一工具。
+当前99个唯一工具；Hammer组54个。`scripts/check_map_io_mcp.py`通过真实stdio调用同一工具。
 
 ## 流程与已实现检查
 
@@ -28,8 +28,8 @@ include限定在安装game目录，检测include与继承环及缺失基类；�
   因此不能把未声明直接当作引擎不存在该接口。
 - !self可静态定位；!activator等依赖运行事件的目标标记deferred，不误报为磁盘实体缺失。
 - FGD的api参数类型没有完整签名时标记unsupported，不强行当作string通过。
-- Script实体标记script_semantics_not_yet_validated。尚未验证OnScriptInput回调、脚本入口、
-  参数签名、脚本资源依赖、实例/prefab展开、脚本动态创建目标或游戏运行行为。
+- point_script新增保存后JavaScript AST检查，见下节。其他脚本实体仍标记script_semantics_not_yet_validated。
+  尚未验证回调运行、动态目标、实例/prefab展开和游戏运行行为。
 - coverage_complete与release_ready都保持false；passed不代表整张地图I/O已验收。
 - source_basis=saved_disk_snapshot，不能代表Hammer未保存状态，也不能据此批准批量写入。
 
@@ -42,3 +42,44 @@ include限定在安装game目录，检测include与继承环及缺失基类；�
 源码SHA仍为f489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e。
 本轮报告在 `C:\CS2_Temp\mcp_build_jobs\checks\a83c6bfbaf6640ec8e36fd6e9325f856\report.json`。
 八组stdio启动验证另见CURRENT_STATE/PROGRESS。只保留本地，未提交或推送。
+
+## JavaScript 输入声明检查（2026-10-26，本地）
+
+同一个cs2_map_io_check现在自动检查point_script的cs_script资源。SDK的point_script.d.ts声明
+OnScriptInput(name: string, callback: (inputData: {caller?: Entity, activator?: Entity}) => void)，
+RunScriptInput的整个字符串参数对应name；名称按大小写精确比较，不臆造额外的数字参数。
+
+先安装Node.js，再在mcp_server/script_tools运行`npm ci --ignore-scripts --no-audit --no-fund`。
+Acorn固定8.15.0、锁文件记录完整性；只解析AST，绝不执行、import或eval目标脚本。
+无需Node的地图不调用解析器；缺少解析器时脚本检查报告warning/unverified，不把缺源码误判为运行缺资源。
+
+- .vjs虚拟资源映射到相邻.js源码，双文件歧义拒绝。按addon、csgo、core内容根查找；
+  相对导入受所属根约束，阻止路径逃逸。SDK模块不当作普通文件加载。
+- 识别Instance命名导入及别名、字面量OnScriptInput名称、直接回调形式与参数数量。
+  注释/字符串不产生入口。动态名称、条件/函数内注册、间接引用、别名逃逸和动态导入保留不完整标记。
+- 检查重复声明、语法错误、缺失/未知导入、RunScriptInput静态目标（含!self与通配符）。
+  未发现字面量入口仅warning；存在声明也不证明执行可达、注册顺序或回调运行正确。
+- 单文件1MiB、总源码4MiB、64文件、导入深度8、单解析5秒、遍历时间预算15秒；
+  Acorn进程堆上限128MiB，AST节点20万，输出入口4096、导入1024。
+- 报告script_audit包含逐实体入口、源码SHA、问题和静态分析边界；检查结束重新核对源码SHA。
+  脚本语法error计入地图passed判定，问题截断不丢失总数；coverage_complete/release_ready仍为false。
+
+138项Python测试通过（新增6项依赖Node/Acorn，缺依赖明确skip）。真实Hammer stdio MCP对
+新建隔离KV2地图执行安装版dmxconvert并检查本机SDK mdlchange.vjs源，读到GlowToggle、ScaleDown、
+ScaleUp和SetModelVar1/2/3六个入口，ScaleUp连接匹配，script_audit无问题。
+这是转换器和MCP的保存后检查验证，未在Hammer打开测试文件、未执行脚本或修改现有文档。
+本地报告C:\CS2_Temp\script_check_mcp_report.json；用户原地图和脚本均未修改。
+
+### 后续边界验证
+
+修复.vjs到.js候选映射后的范围复核；条件识别覆盖短路表达式和可选链。
+script_audit新增static_checks_passed、declaration_analysis_complete和runtime_registration_verified：
+缺入口或任何未解决脚本问题时static_checks_passed=false；运行注册标记始终false。
+地图顶层passed仍只表示没有error，不能替代脚本专用结果或发布验收。
+
+真实MCP三条负例：ScaleTypo给出script_input_not_statically_declared；语法错误使passed=false；
+无Node PATH使声明分析不完整、给出script_analysis_unavailable。最终MCP正/负入口检查分别
+得到static_checks_passed=true/false，均未执行脚本。报告在C:\CS2_Temp\script_check_final_valid.json、
+script_check_final_typo.json、script_check_syntax_error_mcp.json和script_check_parser_missing_mcp.json。
+测试现共140项：139通过、1项Windows符号链接权限测试明确跳过；不得声称实测符号链接穿越。
+源码变更检测另有实际临时文件变更测试通过。成果本地保留，未再次推送。

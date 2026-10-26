@@ -1,0 +1,6 @@
+{
+  "name": "cs2-mcp-script-analysis",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": { "acorn": "8.15.0" }
+}
