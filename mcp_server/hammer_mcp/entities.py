@@ -457,7 +457,7 @@ def cs2_entity_set_attr(entity: str, name: str, value: str, history: bool = True
             kind = "变换(原生成员)"
         else:
             if not props:
-                return f"实体 {ent:#x} 没有 entity_properties，无法写 keyvalue"
+                return f"ERROR 实体 {ent:#x} 的 entity_properties 不可用或未验证，未执行 keyvalue 写入"
             rva = RVA_ENTITY_SET_KEYVALUE
             args = [ent, f"str:{name}", f"str:{value}"]
             attr = _dm_find_attr(props, name) or _dm_find_attr(ent, name)
@@ -480,7 +480,7 @@ def cs2_entity_set_attr(entity: str, name: str, value: str, history: bool = True
                     _hist_notify(undo_h)
                     hist_note = f"  Ctrl+Z 步: {_hist_state(undo_h)}"
                 except Exception as e:  # noqa: BLE001
-                    hist_note = f"  ⚠ 记 Ctrl+Z 历史失败（写入照常）: {type(e).__name__}: {e}"
+                    return f"ERROR 属性写入未执行；撤销准备失败或结果未知，勿重试: {type(e).__name__}: {e}"
         undo_before = _read_int(um + UNDO_MGR_OFF_UNDO_COUNT, "u32")
         undo_was_off = _ensure_undo_enabled()
         _undo_scope_begin(f"cs2 set {name}")

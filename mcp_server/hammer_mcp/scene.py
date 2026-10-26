@@ -69,27 +69,34 @@ def _doc_of_element(el: int) -> int:
     """反查元素所属的 CMapDoc —— **多文档时写东西进历史必须用它**。
 
     沿 `RVA_NODE_GET_PARENT` 一路向上收集祖先地址（mesh 通常 1~2 跳就到顶），
-    再与各文档的 `CMapDoc+0x88`(world) 比对。找不到时退回 `_map_doc("")`（旧行为）。
+    再与各文档的 `CMapDoc+0x88`(world) 比对。归属未知或不唯一时拒绝。
     """
     chain = []
     cur = el
     for _ in range(64):
         if not cur:
             break
+        if cur in chain:
+            raise RuntimeError('element parent chain contains a cycle; document ownership unverified')
         chain.append(cur)
         p, err = _call_fn(RVA_NODE_GET_PARENT, [cur])
         if err:
-            break
+            raise RuntimeError('element parent query failed; document ownership unverified: ' + str(err))
         cur = int(p, 16) if p else 0
+    else:
+        raise RuntimeError('element parent chain exceeds bound; document ownership unverified')
     if chain:
-        worlds = {}
-        for d in _get_pipe().call("map_list_docs", {}).get("result", {}).get("docs", []):
+        matches = set()
+        response = _get_pipe().call("map_list_docs", {})
+        if 'error' in response:
+            raise RuntimeError('document enumeration failed: ' + str(response['error']))
+        for d in response.get("result", {}).get("docs", []):
             addr = int(d["address"], 16)
-            worlds[_read_int(addr + CMAPDOC_WORLD_OFFSET, "u64")] = addr
-        for addr in chain:
-            if addr in worlds:
-                return worlds[addr]
-    return _map_doc("")
+            if _read_int(addr + CMAPDOC_WORLD_OFFSET, "u64") in chain:
+                matches.add(addr)
+        if len(matches) == 1:
+            return matches.pop()
+    raise RuntimeError('element document ownership missing or ambiguous; refusing active-document fallback')
 
 
 def _walk_elements(root: int, table: list[int] | None = None, cap: int = 0,

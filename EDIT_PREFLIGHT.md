@@ -40,3 +40,21 @@ live_observation_unavailable 和写入禁用。报告：
 结果planned；原地图SHA前后仍为f489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e。
 报告 `C:\CS2_Temp\edit_preview_mcp.json`，计划ID47af49e9636349bb96aebd7b48693f32。
 当前桥接离线，未执行属性修改。
+
+## 2026-10-26：撤销准备失败与文档归属修复（本地）
+
+发现旧属性setter和I/O增删捕获撤销准备异常后仍继续修改；历史辅助函数还忽略了_call_fn返回的错误。
+现压步、登记对象/节点和通知均检查派发错误，错误或未知结果向上传播；默认history=True时属性和I/O增删
+在准备失败后立即返回ERROR，不分配连接缓冲或执行内容写入。历史自身可能已部分改变，因此报告勿重试，
+不声称自动清理撤销栈或已完成回滚。history=False仍为既有显式调用约定，不代表批量执行已验证。
+
+_doc_of_element取消找不到归属时选择首个文档的回退：父链查询失败、循环、超64跳、缺失或多文档匹配
+均拒绝；唯一世界节点匹配才返回归属。旧REVERSE_NOTES§18.2的回退描述仅为历史行为。
+
+新增5项测试，模拟每个历史准备阶段失败，确认后续内容setter、I/O分配/增删不发生；覆盖第二文档匹配、
+无归属、父链错误/循环和歧义。145项测试：144通过、1项Windows符号链接权限测试跳过。
+当前未发现CS2/IDA进程，IDA13341连接拒绝；未启动或关闭用户编辑器，也未变更原生兼容profile。
+真实Hammer stdio MCP离线调用返回ERROR/未执行keyvalue写入，报告C:\CS2_Temp\edit_history_offline_mcp.json。
+该旧接口的MCP isError仍为false，调用方须读取ERROR正文；不将传输成功视为编辑成功。
+首次探针曾因缺少ERROR前缀而断言失败，已把不可用/未验证entity_properties的返回统一为明确ERROR并重测通过。
+本次没有完成当前版本原生写入、Undo/Redo或通用批量回滚验证；下一步仍需隔离文档实测。

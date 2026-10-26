@@ -141,13 +141,19 @@ def _find_map_histories(doc: int | None = None) -> tuple[int, int]:
     return undo_h, redo_h
 
 
+def _checked_history_call(rva: int, args: list, timeout: int) -> None:
+    _, error = _call_fn(rva, args, timeout=timeout)
+    if error:
+        raise RuntimeError(f'history preparation failed or outcome unknown; do not retry: {error}')
+
+
 def _hist_push_step(hist: int, name: str) -> int:
     """压入一个具名撤销步（名字会显示在 Hammer 的 Undo 菜单里）-> 压入后的步数。
 
     ⚠ 名字**必须是 ASCII**：参数经管道以 ANSI 字符串传给 `V_strncpy`，中文会变成 `??`
     （实测 `'cs2: 创建 info_target'` 存进去成了 `'cs2: ?? info_target'`）。
     """
-    _call_fn(RVA_MAP_HISTORY_PUSH_STEP, [hist, f"str:{name}", 0, 0], timeout=20000)
+    _checked_history_call(RVA_MAP_HISTORY_PUSH_STEP, [hist, f"str:{name}", 0, 0], timeout=20000)
     return _read_int(hist + HISTORY_OFF_COUNT, "u32")
 
 
@@ -158,14 +164,14 @@ def _hist_record_object(hist: int, element: int, added: bool) -> int:
     且记「移除」时必须**在摘除之前**调用。
     """
     node = element + NODE_IFACE_OFFSET
-    _call_fn(RVA_MAP_HISTORY_REC_ADDED if added else RVA_MAP_HISTORY_REC_REMOVED,
+    _checked_history_call(RVA_MAP_HISTORY_REC_ADDED if added else RVA_MAP_HISTORY_REC_REMOVED,
              [hist, node], timeout=20000)
     return node
 
 
 def _hist_notify(hist: int) -> None:
     """通知历史对象上的监听者（刷新 Undo/Redo 菜单与工具状态）。"""
-    _call_fn(RVA_MAP_HISTORY_NOTIFY, [hist, 2], timeout=20000)
+    _checked_history_call(RVA_MAP_HISTORY_NOTIFY, [hist, 2], timeout=20000)
 
 
 def _hist_record_node(hist: int, element: int) -> None:
@@ -178,7 +184,7 @@ def _hist_record_node(hist: int, element: int) -> None:
 
     ⚠ 元素多/层级深时会比较慢（递归），超时给得比其它历史调用大。
     """
-    _call_fn(RVA_HIST_RECORD_NODE, [hist, element + NODE_IFACE_OFFSET, 1], timeout=60000)
+    _checked_history_call(RVA_HIST_RECORD_NODE, [hist, element + NODE_IFACE_OFFSET, 1], timeout=60000)
 
 
 def _hist_state(hist: int) -> str:

@@ -205,7 +205,7 @@ def cs2_entity_add_io(entity: str, output: str, input_name: str,
                 _hist_notify(undo_h)
                 hist_note = f"  Ctrl+Z 步: {_hist_state(undo_h)}"
             except Exception as e:  # noqa: BLE001
-                hist_note = f"  ⚠ 记 Ctrl+Z 历史失败（写入照常）: {type(e).__name__}: {e}"
+                return f"ERROR IO追加未执行；撤销准备失败或结果未知，勿重试: {type(e).__name__}: {e}"
         blk = _conn_scratch({"source": source, "output": output, "target": target,
                              "input": input_name, "param": param},
                             target_type, delay, times_to_fire, relay, global_relay)
@@ -264,7 +264,7 @@ def cs2_entity_remove_io(entity: str, index: int, history: bool = True) -> str:
                 _hist_notify(undo_h)
                 hist_note = f"  Ctrl+Z 步: {_hist_state(undo_h)}"
             except Exception as e:  # noqa: BLE001
-                hist_note = f"  ⚠ 记 Ctrl+Z 历史失败（删除照常）: {type(e).__name__}: {e}"
+                return f"ERROR IO删除未执行；撤销准备失败或结果未知，勿重试: {type(e).__name__}: {e}"
         ret, err = _call_fn(RVA_ENTITY_REMOVE_CONN, [ent, index << 16], timeout=15000)
         if err:
             return f"ERROR 调用 Hammer 删除函数 sub_180987AF0 失败: {err}"
