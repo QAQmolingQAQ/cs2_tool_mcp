@@ -100,3 +100,11 @@ runtime_load_already_loaded.json以及mcp_build_jobs/runtime_loads/<load_id>.jso
 获取锁期间地图变化拒绝、精确命令帧及ack、已加载不重发和进程切换。
 唯一工具98个，bridge44。原地图SHA保持f489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e，
 Hammer仍为原隔离文档；本轮不推送。加载任务通过不提升release_ready，也不替代完整目标验收。
+
+## 2026-10-27：诊断批次完整性
+
+固定诊断命令追加独立结束echo标记，仅在起止标记之间收集输出。缺少结束标记、超时、EOF或预算耗尽均不能返回ok；diagnostic_batch_completed明确区别完整返回和部分输出。保留精确进程绑定、输入哈希复核与共享控制台非原子范围，不把结束标记当作整图或画质验收。
+
+新增3项测试覆盖结束标记前后的排除、起始后超时、帧与行预算；159项测试通过（1项符号链接权限跳过）。直接调用当前源码的诊断函数对实际PID7132/创建时间134375068170658822实测，完整标记返回成功，客户端loopback已连接、observed_maps为空，因此runtime_map_verified=false。私人报告C:\CS2_Temp\runtime_completed_batch_probe.json；使用独立私人配置副本，未改原工程配置，未切图/设置cvar。此轮不是重载后的公开MCP服务验证。
+
+仍需查明当前无地图名输出的实际运行状态；不得仅根据observed_maps=[]推断可安全切图的空闲状态。现有加载器保留单一当前地图前置条件。

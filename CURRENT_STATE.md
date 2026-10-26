@@ -196,3 +196,7 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 2026-10-27 进行中：targetname Qt实验尚未提交。setText+editingFinished与insert+editingFinished均仅改UI文字，Outliner和dirty世代仍1/saved1；已将两次生成的输入清回空值并原生预览核对。当前测试PID21732、隔离UUID bc1d170dd26541cf80f946e324a3beca，原图/副本SHA不变。未调用Undo猜测恢复，未保存。实验代码/脚本未提交，下一步补焦点和回车路径；证据targetname_probe_after_commit.json、targetname_insert_after.json、targetname_insert_cleanup_verified.json在C:\CS2_Temp。
 
 2026-10-27 最新：Qt targetname实验在PID7132的隔离副本跑通提交/保存/Undo/Redo/最终Undo并保存。内存世代1→2→3→4→5，保存状态1→2→5；磁盘只在Save变化。保存后确认实体GUID657b42df-8155-4005-9f33-8ff4072e6c70是唯一属性变化，最终21实体属性及I/O业务字段恢复；真实MCP严格比较25节点内容/网格/变换/子序一致，metadata不同，full_rollback_verified仍false。当前隔离源SHA6614e9746a6dc654ae57e3c6a0c74b46c15f72c12acfed992af87ccb35c900d6，原图f489未动。桥接2282f05a…已加载，常规原生写入仍拒绝。没有公开属性写入工具或通用批量执行器，102工具不变；156测试（155通过/1权限跳过）及原生测试通过。详见HAMMER_PROPERTY_EDIT_VERIFICATION.md。下一步把单次属性执行接入批量身份/冲突/逐项结果与构建实测；保持本地。
+
+## 最新运行诊断完整性（2026-10-27）
+
+诊断须同时收到起始/结束echo标记才成功，部分输出超时不再误报。159测试（158通过/1权限跳过），源码函数实机验证完整返回；PID7132当前loopback连接但地图名列表为空，仍非地图加载证明。详见RUNTIME_VALIDATION.md；下一步调查无地图名状态，不放宽加载器条件。本轮仅本地。

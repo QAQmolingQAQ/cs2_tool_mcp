@@ -858,3 +858,5 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-27 进行中：targetname Qt实验尚未提交。setText+editingFinished与insert+editingFinished均仅改UI文字，Outliner和dirty世代仍1/saved1；已将两次生成的输入清回空值并原生预览核对。当前测试PID21732、隔离UUID bc1d170dd26541cf80f946e324a3beca，原图/副本SHA不变。未调用Undo猜测恢复，未保存。实验代码/脚本未提交，下一步补焦点和回车路径；证据targetname_probe_after_commit.json、targetname_insert_after.json、targetname_insert_cleanup_verified.json在C:\CS2_Temp。
 
 2026-10-27：在隔离test地图完成targetname文档提交、保存、Undo/Redo和最终Undo保存，原图未动。分别核对控件缓冲/内存文档/磁盘；25节点内容严格相等，元数据仍不同。通用批量与完整回滚未完成，详见HAMMER_PROPERTY_EDIT_VERIFICATION.md；保持本地。
+
+2026-10-27：运行诊断增加结束echo标记，缺失/超时/预算不足拒绝成功；159测试（158通过/1权限跳过），当前源码函数在PID7132实机完整返回。loopback连接但没有地图名证据，加载器仍拒绝，未切图；详见RUNTIME_VALIDATION.md。保持本地。

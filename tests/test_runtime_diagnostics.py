@@ -1,10 +1,31 @@
 from pathlib import Path
 import sys,unittest
+from unittest.mock import Mock, patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'mcp_server'))
 from hammer_mcp.runtime_diagnostics import summarize
+from hammer_mcp.runtime_diagnostics import _diagnostic_lines
 
 
 class RuntimeDiagnosticsTests(unittest.TestCase):
+    def test_completion_marker_bounds_observation(self):
+        reader=Mock()
+        with patch('hammer_mcp.runtime_diagnostics.print_text',side_effect=[
+                'outside','probe_END','probe','status line','probe_END','outside after']):
+            self.assertEqual(_diagnostic_lines(reader,'probe'),['status line'])
+        self.assertEqual(reader.frame.call_count,5)
+
+    def test_timeout_after_start_is_not_completed_diagnostic(self):
+        reader=Mock();reader.frame.side_effect=[object(),object(),TimeoutError('partial')]
+        with patch('hammer_mcp.runtime_diagnostics.print_text',side_effect=['probe','status line']):
+            with self.assertRaises(TimeoutError):_diagnostic_lines(reader,'probe')
+
+    def test_diagnostic_frame_and_line_budgets(self):
+        reader=Mock()
+        with patch('hammer_mcp.runtime_diagnostics.print_text',return_value=None):
+            with self.assertRaisesRegex(ValueError,'completion marker'):_diagnostic_lines(reader,'probe')
+        with patch('hammer_mcp.runtime_diagnostics.print_text',side_effect=['probe']+['line']*4001):
+            with self.assertRaisesRegex(ValueError,'line budget'):_diagnostic_lines(reader,'probe')
+
     def test_fixed_summary_keeps_map_coordinates_cvar_without_private_status_fields(self):
         lines=['Client:  Connected [loopback:1] [last packet 0.001 sec ago]\n',
                'loaded spawngroup(  1)  : SV:  [1: mcp_example | main lump | mapload]\n',
