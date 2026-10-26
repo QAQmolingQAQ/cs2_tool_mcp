@@ -16,9 +16,11 @@ permission to apply changes. Native editor offsets require an exact verified
 compatibility profile; the shipped profile list is intentionally empty.
 Fixed Qt UI adapters use a separate checked Qt ABI path.
 
-An isolated map completed edit/Undo/Redo/save tests and a quick build with
-validated VIS. Complete rollback, full lighting and game-load validation remain
-unfinished. See [EDIT_PREFLIGHT.md](EDIT_PREFLIGHT.md),
+An isolated map completed edit/Undo/Redo/save tests, a quick build with validated
+VIS, and a local game-load smoke check. Durable runtime load start/status now
+checks map identity after loading without replaying unknown commands; see
+[RUNTIME_VALIDATION.md](RUNTIME_VALIDATION.md). Complete rollback, full lighting,
+dependency coverage and gameplay validation remain unfinished. See [EDIT_PREFLIGHT.md](EDIT_PREFLIGHT.md),
 [EDIT_CYCLE_VERIFICATION.md](EDIT_CYCLE_VERIFICATION.md) and
 [WORKFLOW_GOAL.md](WORKFLOW_GOAL.md). Local evidence paths and historical process
 IDs in these reports are examples of recorded runs, not reusable live handles.

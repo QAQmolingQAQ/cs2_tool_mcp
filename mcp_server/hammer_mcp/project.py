@@ -27,7 +27,11 @@ def within(path: Path, root: Path) -> Path:
 
 def load_project(config: str = '', profile: str = '') -> dict:
     path = Path(config or os.environ.get('CS2_MCP_PROJECT', str(DEFAULT_CONFIG))).resolve(strict=True)
-    data = json.loads(path.read_text(encoding='utf-8'))
+    with path.open('rb') as stream:
+        raw = stream.read(1024*1024+1)
+    if len(raw)>1024*1024:raise ValueError('project config exceeds 1 MiB')
+    config_hash = hashlib.sha256(raw).hexdigest()
+    data = json.loads(raw.decode('utf-8-sig'))
     if data.get('version') != 1:
         raise ValueError('unsupported project config version')
     name = profile or data['active_profile']
@@ -47,10 +51,21 @@ def load_project(config: str = '', profile: str = '') -> dict:
     state_root = Path(data.get('state_root') or Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'CS2ToolMCP/builds').resolve()
     if state_root.is_relative_to(source_root) or state_root.is_relative_to(install_root):
         raise ValueError('state_root must be outside game addon directories')
-    return {'config_path': str(path), 'config_sha256': sha256(path), 'profile': name,
+    runtime = None
+    if selected.get('runtime') is not None:
+        settings = selected['runtime']
+        staging = within(game_root / settings['staging_root'], game_root / 'game')
+        port = settings.get('console_port', 29000)
+        if not staging.is_dir() or staging.name.casefold() != 'maps':
+            raise ValueError('runtime staging_root must be an existing game maps directory')
+        if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+            raise ValueError('invalid runtime console_port')
+        runtime = {'staging_root': str(staging), 'console_port': port}
+    if sha256(path) != config_hash:raise ValueError('project config changed during resolution')
+    return {'config_path': str(path), 'config_sha256': config_hash, 'profile': name,
             'game_root': str(game_root), 'addon': addon, 'source_root': str(source_root),
             'install_root': str(install_root), 'source': str(source), 'compiler': str(compiler),
-            'state_root': str(state_root), 'release': bool(selected.get('release', False))}
+            'state_root': str(state_root), 'release': bool(selected.get('release', False)), 'runtime': runtime}
 
 
 def cs2_project_info(config: str = '', profile: str = '') -> dict:

@@ -59,6 +59,18 @@ class VpkEntry:
                 data += stream.read(min(self.stored_size, count - len(data)))
         return data
 
+    def read_range(self, start: int, count: int) -> bytes:
+        if start<0 or count<0 or start+count>self.size or count>16*CHUNK_SIZE:
+            raise ValueError('entry range exceeds bounds')
+        data=self.preload[start:start+count] if start<len(self.preload) else b''
+        remaining=count-len(data)
+        if remaining:
+            with self.storage.open('rb') as stream:
+                stream.seek(self.offset+max(0,start-len(self.preload)))
+                data+=stream.read(remaining)
+        if len(data)!=count:raise ValueError('truncated entry range')
+        return data
+
 
 @dataclass
 class VpkInspection:
@@ -66,6 +78,8 @@ class VpkInspection:
     stamps: dict[Path, tuple]
     validated_bytes: int
     signature: dict
+    payloads_verified: bool = True
+    directory_sha256: str = ''
 
     def unchanged(self):
         for path, expected in self.stamps.items():
@@ -85,8 +99,11 @@ class VpkInspection:
         return result
 
 
-def inspect_vpk(path: Path, cancelled: Callable[[], bool] | None = None) -> VpkInspection:
-    """Stream every entry's CRC; retain only the bounded directory and metadata."""
+def inspect_vpk(path: Path, cancelled: Callable[[], bool] | None = None, *, verify_payloads: bool = True) -> VpkInspection:
+    """Validate directory/bounds and, by default, every entry CRC.
+
+    verify_payloads=False is an explicit directory index only, not artifact proof.
+    """
     path = path.resolve(strict=True)
     stamps = {path: _stamp(path)}
     signature = {'format': 'none', 'cryptographic_validation': False}
@@ -180,21 +197,23 @@ def inspect_vpk(path: Path, cancelled: Callable[[], bool] | None = None) -> VpkI
                 if size and start + size > bound:
                     raise ValueError(f'truncated VPK payload: {name}')
                 entry = VpkEntry(storage if size else None, start, size, payload, crc)
-                actual_crc = 0
-                for chunk in entry.chunks():
-                    _check_cancel(cancelled)
-                    actual_crc = zlib.crc32(chunk, actual_crc)
-                if actual_crc & 0xFFFFFFFF != crc:
-                    raise ValueError(f'VPK CRC mismatch: {name}')
+                if verify_payloads:
+                    actual_crc = 0
+                    for chunk in entry.chunks():
+                        _check_cancel(cancelled)
+                        actual_crc = zlib.crc32(chunk, actual_crc)
+                    if actual_crc & 0xFFFFFFFF != crc:
+                        raise ValueError(f'VPK CRC mismatch: {name}')
                 entries[name.casefold()] = entry
     if cursor != len(tree):
         raise ValueError('unexpected trailing directory bytes')
-    result = VpkInspection(entries, stamps, total_size, signature)
+    directory_digest=hashlib.sha256(header+(extra if version==2 else b'')+tree).hexdigest()
+    result = VpkInspection(entries, stamps, total_size if verify_payloads else 0, signature, verify_payloads, directory_digest)
     result.unchanged()
     return result
 
 
-def resource_blocks(resource: bytes | VpkEntry, *, nonempty: bool = False) -> list[str]:
+def resource_ranges(resource: bytes | VpkEntry) -> dict[str, tuple[int, int]]:
     data = resource.prefix(16) if isinstance(resource, VpkEntry) else resource
     if len(data) < 16:
         raise ValueError('truncated compiled resource')
@@ -209,16 +228,21 @@ def resource_blocks(resource: bytes | VpkEntry, *, nonempty: bool = False) -> li
         data = resource.prefix(table + count * 12)
     if len(data) < table + count * 12:
         raise ValueError('truncated compiled resource block directory')
-    blocks = []
+    blocks = {}
     for index in range(count):
         position = table + index * 12
         tag, offset, size = struct.unpack_from('<4sII', data, position)
         start = position + 4 + offset
         if start < table + count * 12 or start + size > length:
             raise ValueError('compiled resource block outside bounds')
-        if size or not nonempty:
-            blocks.append(tag.decode('ascii'))
+        name = tag.decode('ascii')
+        if name in blocks:raise ValueError('duplicate compiled resource block')
+        blocks[name] = (start, size)
     return blocks
+
+
+def resource_blocks(resource: bytes | VpkEntry, *, nonempty: bool = False) -> list[str]:
+    return [name for name, (_, size) in resource_ranges(resource).items() if size or not nonempty]
 
 
 def verify_map_artifact(path: str, map_name: str, mode: str = 'full', *, cancelled: Callable[[], bool] | None = None) -> dict:

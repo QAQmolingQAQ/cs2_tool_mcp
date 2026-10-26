@@ -52,8 +52,10 @@ def run(folder: Path):
         if any(sha256(game / relative) != digest for relative, digest in request['installation_hashes'].items()):
             raise ValueError('game installation changed after request')
         snapshot = Path(request['snapshot'])
-        snapshot.parent.mkdir(parents=True, exist_ok=False)
-        shutil.copyfile(source, snapshot)
+        snapshot.parent.mkdir(parents=True, exist_ok=request.get('snapshot_layout')=='runtime_flat_v1')
+        # Exclusive creation also protects a colliding flat name from overwrite.
+        with source.open('rb') as input_stream, snapshot.open('xb') as output_stream:
+            shutil.copyfileobj(input_stream, output_stream, 1024*1024)
         if sha256(snapshot) != request['source_sha256'] or sha256(source) != request['source_sha256']:
             raise ValueError('source changed while copying snapshot')
         artifact = Path(request['artifact'])

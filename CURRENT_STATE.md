@@ -4,6 +4,10 @@
 [`PROGRESS.md`](PROGRESS.md) 和 [`REVERSE_NOTES.md`](REVERSE_NOTES.md)。
 下载目录的角色模型与实机导入记录见 [`DOWNLOAD_MODELS.md`](DOWNLOAD_MODELS.md)。
 
+## 最新阶段上传（2026-10-26）
+
+运行加载start/status、VConsole2、固定运行诊断、显式暂存和RERL静态依赖检查已完成阶段验证：99个唯一工具、132项Python测试通过。本轮按用户要求上传这些已验证成果；脚本AST分析仍为本地未跟踪草稿，尚未接入MCP，不随本次上传。细节见RUNTIME_VALIDATION.md、BUILD_DEPENDENCIES.md与GITHUB_UPLOAD_CHECK.md。下方历史基线按各阶段时间理解，最新Git以远端读回为准。
+
 ## 当前持续目标：构建与产物验证
 
 - 完整目标见 `WORKFLOW_GOAL.md`；旧 `cs2-mcp-10-14` 自动任务保持暂停。
@@ -158,3 +162,11 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 新增Hammer cs2_map_snapshot_compare，严格保留类型/children顺序/变换/网格，实际MCP核验25节点无缺失新增，唯一节点差异world.children；metadata仍不同，完整回滚false。114测试通过，93工具。同一编辑后隔离工程MCP快速构建任务759ba3afef6846bab69efa5590c1679d成功，VPK11项/VIS有效/无光照；source未变。详见EDIT_CYCLE_VERIFICATION.md，仍缺完整光照和实机加载；未推送。
 
 2026-10-26 用户重新授权更新GitHub：阶段功能提交1af037abb2e0b48d93e2d0397010e334b642821f已普通push并ls-remote核对一致，包含此前2个本地提交。114测试、原生派发/bootstrap/发布替换测试、八组stdio通过；83文件敏感扫描无命中，私人配置/二进制/第三方资产未上传。上传回执另作提交，详见GITHUB_UPLOAD_CHECK.md；完整目标仍继续，后续不将本次授权视为无限自动推送授权。
+
+控制台进展：新增cs2_console_probe（bridge40/唯一94），TCP四元组+进程创建身份绑定当前PID8408，VConsole2握手和随机echo实机MCP通过；长CVRB为32位总长度754658字节。120测试通过。平面隔离构建任务49bbcf0f73014a9dac5bd2657f2c324d成功/VIS有效，但嵌套名、平面名及addon参数的map命令均invalid map name；GAME搜索路径未含test构建目录，运行加载仍未完成。详见VCONSOLE_PROTOCOL.md。本轮只保留本地，GitHub仍上轮e3f55f0。
+
+运行闭环进展：新增cs2_runtime_stage_build和cs2_runtime_diagnostics（唯一96/bridge42），显式runtime配置、VPK哈希/范围校验、不覆盖发布和回执已测。相对map名暂存后仍失败；engine2静态校验发现绝对路径入口，受控VConsole加载构建产物绝对路径成功。独立实际MCP核验地图mcp_49bbcf0f73014a9dac5bd265、本地客户端、世界坐标[0,0,0.015625]及sv_cheats=true。meta/css_plugins不可用；日志仍缺雷达/图标等资源，release_ready=false。原图不变，Hammer隔离文档仍在PID8408。124测试通过，详见RUNTIME_VALIDATION.md，未推送。
+
+新增持久加载MCP cs2_runtime_load_start/status（唯一98/bridge44）：源/配置/产物哈希、精确当前地图、进程身份重查及发送前回执，未知结果禁止重发。实际MCP新构建ac72ac0b72a84b3a8ace4022403800c6加载任务23b20a7a43df4d78a0125bdfc465bdf1，从requested经新stdio客户端status核验loaded；再次start确认不发map。129测试通过。当前PID8408运行mcp_ac72ac0b72a84b3a8ace4022，Hammer隔离文档保留/原图SHA不变，release_ready=false。证据RUNTIME_VALIDATION.md，未推送。
+
+新增cs2_build_dependencies（唯一99/bridge45），解析RERL并递归检查包内/磁盘/基础pak引用，仅被遍历的基础条目做CRC/SHA，索引不冒称完整载荷验证。实际MCP对ac72ac0b72a84b3a8ace4022403800c6得到19资源/28引用/0范围内问题，19项CRC通过；动态脚本/声音名和隐式地图资源仍不覆盖，coverage_complete及release_ready仍false。132测试通过，见BUILD_DEPENDENCIES.md，本轮未推送。

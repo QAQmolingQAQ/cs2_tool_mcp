@@ -122,7 +122,10 @@ def _plan(project: dict, mode: str, job_id: str) -> dict:
     if mode not in ('quick', 'full'):
         raise ValueError('mode must be quick or full')
     source = Path(project['source'])
-    relative = Path('maps') / '__mcp_builds' / job_id / source.name
+    # A short flat name supports subsequent explicit runtime staging without
+    # renaming VPK resource paths. Addon build output is not necessarily mounted
+    # in the live engine's GAME search path; this alone does not prove loadability.
+    relative = Path('maps') / ('mcp_' + job_id[:24] + '.vmap')
     snapshot = within(Path(project['source_root']) / relative, Path(project['source_root']))
     artifact = within((Path(project['install_root']) / relative).with_suffix('.vpk'), Path(project['install_root']))
     flags = ['-fshallow', '-world', '-phys', '-vis'] if mode == 'quick' else ['-f']
@@ -133,6 +136,7 @@ def _plan(project: dict, mode: str, job_id: str) -> dict:
         if (game / relative).is_file()}
     return {'job_id': job_id, 'mode': mode, 'project': project, 'source': str(source),
             'source_sha256': sha256(source), 'snapshot': str(snapshot), 'artifact': str(artifact),
+            'snapshot_layout': 'runtime_flat_v1',
             'map_name': relative.with_suffix('').as_posix().removeprefix('maps/'),
             'command': [project['compiler'], '-nop4', '-i', str(snapshot), *flags],
             'compiler_sha256': sha256(Path(project['compiler'])),

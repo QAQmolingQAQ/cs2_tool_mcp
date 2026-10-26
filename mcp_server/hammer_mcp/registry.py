@@ -1,3 +1,8 @@
+from .build_dependencies import cs2_build_dependencies
+from .runtime_load import cs2_runtime_load_start, cs2_runtime_load_status
+from .runtime_diagnostics import cs2_runtime_diagnostics
+from .runtime_stage import cs2_runtime_stage_build
+from .vconsole import cs2_console_probe
 from .map_compare import cs2_map_snapshot_compare
 from .edit_preview import cs2_edit_preview
 from .edit_preflight import cs2_edit_preflight
@@ -125,6 +130,12 @@ from .particles import (
     cs2_particle_set_definition,
 )
 TOOL_FUNCTIONS = (
+    cs2_build_dependencies,
+    cs2_runtime_load_start,
+    cs2_runtime_load_status,
+    cs2_runtime_diagnostics,
+    cs2_runtime_stage_build,
+    cs2_console_probe,
     cs2_map_snapshot_compare,
     cs2_edit_preview,
     cs2_edit_preflight,

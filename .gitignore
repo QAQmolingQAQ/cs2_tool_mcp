@@ -20,6 +20,7 @@ ida_db/
 # ---- Python ----
 __pycache__/
 *.pyc
+node_modules/
 
 # ---- 运行时产物（计划任务用） ----
 input.txt

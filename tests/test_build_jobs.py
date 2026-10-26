@@ -89,6 +89,29 @@ class BuildJobTests(unittest.TestCase):
         self.assertEqual(fresh['status'], 'succeeded')
         self.assertEqual(fresh['source_sha256'], result['source_sha256'])
 
+    def test_flat_runtime_name_and_snapshot_collision_preserves_existing_file(self):
+        original=build_jobs._plan
+        snapshots=[]
+        def collision(*args):
+            plan=original(*args)
+            self.assertRegex(plan['map_name'],r'^mcp_[0-9a-f]{24}$')
+            snapshot=Path(plan['snapshot'])
+            self.assertEqual(snapshot.parent,self.source.parent)
+            self.assertNotEqual(snapshot,self.source)
+            snapshot.write_bytes(b'owned by another operation')
+            snapshots.append(snapshot)
+            return plan
+        with patch.object(build_jobs,'_plan',side_effect=collision):
+            result=build_jobs.cs2_build_start(config=str(self.config),confirm=True,
+                                             expected_source_hash=build_jobs.sha256(self.source))
+        self.assertTrue(result['ok'],result)
+        self.jobs.append(result['job_id'])
+        terminal=self.wait(result['job_id'])
+        self.assertEqual(terminal['status'],'failed')
+        self.assertIn('FileExistsError',terminal['error'])
+        self.assertEqual(snapshots[0].read_bytes(),b'owned by another operation')
+        self.assertEqual(self.source.read_text(),'test source')
+
     def test_zero_exit_missing_artifact_and_full_missing_light_fail(self):
         result = self.wait(self.start(output=False))
         self.assertEqual(result['status'], 'failed')

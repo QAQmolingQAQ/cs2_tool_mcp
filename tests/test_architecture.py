@@ -22,7 +22,7 @@ class ArchitectureTests(unittest.TestCase):
         expected = json.loads((ROOT / "tests/fixtures/tool_contract.json").read_text(encoding="utf-8"))
         actual = [t.model_dump(mode="json", exclude_none=True) for t in asyncio.run(create_server().list_tools())]
         new_names = ('cs2_mesh_create_prism', 'cs2_mesh_create_primitive', 'cs2_editor_sessions', 'cs2_editor_document', 'cs2_modeldoc_action', 'cs2_modeldoc_open', 'cs2_particle_editor_action', 'cs2_map_check', 'cs2_asset_tree', 'cs2_asset_compile', 'cs2_particle_functions', 'cs2_particle_function_info', 'cs2_particle_editor_tree', 'cs2_particle_editor_value', 'cs2_particle_editor_root_value', 'cs2_particle_editor_compare', 'cs2_particle_editor_open')
-        new_names += ('cs2_build_artifact_check', 'cs2_project_info', 'cs2_edit_preflight', 'cs2_edit_preview', 'cs2_map_snapshot_compare')
+        new_names += ('cs2_build_artifact_check', 'cs2_project_info', 'cs2_edit_preflight', 'cs2_edit_preview', 'cs2_map_snapshot_compare', 'cs2_console_probe', 'cs2_runtime_stage_build', 'cs2_runtime_diagnostics', 'cs2_runtime_load_start', 'cs2_runtime_load_status', 'cs2_build_dependencies')
         new_names += ('cs2_build_start', 'cs2_build_status', 'cs2_build_cancel')
         new_names += ('cs2_session_selfcheck', 'cs2_hammer_layout_observe')
         new_names += ('cs2_map_io_check', 'cs2_qt_widgets', 'cs2_qt_open_editor', 'cs2_qt_menu_actions')
