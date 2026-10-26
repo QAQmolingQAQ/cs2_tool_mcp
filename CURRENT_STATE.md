@@ -156,3 +156,5 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 隔离编辑实测：本轮PID8408/桥接SHA c719b44fce384116eff603cdf80ec789fa2b35fcf2f06af2db3792168c464ef7。固定实验Qt菜单动作完成SelectAll/Delete/Undo/Redo/Save，世代1→24→47→70→93，保存同步70/70及93/93。磁盘21实体→0→21；按nodeID属性/I/O一致，但顺序反转及部分内部DMX GUID重建，完整回滚未证明；实体自身GUID本次稳定。原图SHA不变，副本新SHA bb3ded8d5bc9994b170bcaded0d7bd70964cee7dded5eb81d26259c7a1b647ed。109测试和原生测试通过。详见EDIT_CYCLE_VERIFICATION.md；当前仍保留隔离文档，未推送。
 
 新增Hammer cs2_map_snapshot_compare，严格保留类型/children顺序/变换/网格，实际MCP核验25节点无缺失新增，唯一节点差异world.children；metadata仍不同，完整回滚false。114测试通过，93工具。同一编辑后隔离工程MCP快速构建任务759ba3afef6846bab69efa5590c1679d成功，VPK11项/VIS有效/无光照；source未变。详见EDIT_CYCLE_VERIFICATION.md，仍缺完整光照和实机加载；未推送。
+
+2026-10-26 用户重新授权更新GitHub：阶段功能提交1af037abb2e0b48d93e2d0397010e334b642821f已普通push并ls-remote核对一致，包含此前2个本地提交。114测试、原生派发/bootstrap/发布替换测试、八组stdio通过；83文件敏感扫描无命中，私人配置/二进制/第三方资产未上传。上传回执另作提交，详见GITHUB_UPLOAD_CHECK.md；完整目标仍继续，后续不将本次授权视为无限自动推送授权。
