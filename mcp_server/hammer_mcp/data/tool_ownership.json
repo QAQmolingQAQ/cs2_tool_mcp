@@ -13,6 +13,7 @@
       "cs2_map_snapshot_compare",
       "cs2_edit_preview",
       "cs2_edit_plan_recheck",
+      "cs2_hammer_entity_identities",
       "cs2_qt_hammer_outliner",
       "cs2_qt_hammer_select",
       "cs2_hammer_property_fields",

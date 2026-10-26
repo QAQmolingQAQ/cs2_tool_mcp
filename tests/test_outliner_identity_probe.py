@@ -1,15 +1,21 @@
-import importlib.util
 from pathlib import Path
 import struct
 import unittest
 from unittest.mock import patch
 
-spec=importlib.util.spec_from_file_location('identity_probe',Path(__file__).resolve().parents[1]/
-                                           'scripts/hammer_outliner_identity_probe.py')
-probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'mcp_server'))
+from hammer_mcp import outliner_identity as probe
 
 
 class OutlinerIdentityProbeTests(unittest.TestCase):
+    def test_public_reader_preserves_failure_without_write_authority(self):
+        for error in (ValueError('document changed'),KeyError('view'),struct.error('short vector')):
+            with patch.object(probe,'read_identities',side_effect=error):
+                result=probe.cs2_hammer_entity_identities('private-config','test')
+                self.assertFalse(result['ok']);self.assertFalse(result['safe_to_write'])
+                self.assertFalse(result['coverage_complete'])
+
     def test_vector_bounds_and_valid_offset(self):
         for count,offset in ((-1,24),(4097,24),(1,0),(1,1025)):
             header=struct.pack('<iiiIq',1,count,0,0,offset)

@@ -26,3 +26,11 @@ scripts/hammer_outliner_identity_probe.py --config <private project.json> --repo
 私人证据均在C:\CS2_Temp：outliner_identity_probe.json、outliner_identity_model.json、outliner_proxy_static.json、outliner_source_model_probe.json、outliner_standard_item_static.json、outliner_source_item_mapping_failure.json、outliner_source_item_roles.json、outliner_entity_identity_probe.json、outliner_guid_verified.json、outliner_guid_saved_comparison.json。不要提交原始内存/第三方二进制。
 
 下一步将这条身份链收进受限只读MCP，覆盖选择前后实体GUID/文档归属，验证排序/筛选/同名实体；再接真实内存属性读回和批量执行，不用保存文件代替未保存值读取。
+
+## 2026-10-27：收进只读Hammer MCP
+
+读取核心已移入mcp_server/hammer_mcp/outliner_identity.py，新增cs2_hammer_entity_identities(config, profile)，归属hammer.dll。旧探针脚本仅调用同一实现并保存报告，不维持第二套偏移。新增多Outliner行列表/当前选择key一致检查，返回entity_count、selected_entity_guid；未覆盖当前选择时返回null，不猜测。所有指针与角色均沿已验证链路读取，仍受哈希、RTTI、向量和前后变化检查限制。104唯一工具/Hammer59。
+
+真实新stdio MCP依次读取身份→选择另一个同名info_player_start→独立身份读回→恢复原选择→再次读回：GUID657b42df-8155-4005-9f33-8ff4072e6c70切换到a42aea88-5254-4f16-85ea-6f628b483ce6，恢复后回到657b…；21实体均可读取，两个显示名称完全相同，文件证据前后一致。私人完整报告C:\CS2_Temp\outliner_identity_mcp_selection.json。
+
+169测试（168通过/1符号链接权限跳过），错误上下文/结构读取返回失败且从不提升safe_to_write。实机只做选择切换并恢复，未编辑/保存地图。当前仍不覆盖隐藏/嵌套实体，不提供属性写入；排序/筛选变化尚未实测，后续应在实际变更条件下验证映射，而不是假定本次同名验证已覆盖。

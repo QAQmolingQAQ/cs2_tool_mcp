@@ -870,3 +870,5 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-27：新增cs2_edit_plan_recheck（Hammer归属，103唯一/Hammer58），预览报告哈希绑定、前后文件身份复核、fresh preflight对比和逐项stale标记；始终不执行且safe_to_write=false。真实新stdio生成/复查计划成功，错误哈希拒绝；165测试（164通过/1权限跳过）。记录EDIT_PREFLIGHT.md，私人证据edit_plan_recheck_stdio.json。下一步实体GUID与内存属性/选择的可靠关联，再接批量执行/回读/Undo，不把计划匹配当写入许可。保持本地。
 
 2026-10-27：只读追踪Outliner代理→QStandardItemModel源item→role256 CMapEntity→+8 GUID，当前21实体GUID与保存快照集合完全一致；行[0,3]对应此前属性验证GUID。新增可复现scripts/hammer_outliner_identity_probe.py，依赖哈希/RTTI/向量边界/读取前后复核，仍非原子且不写地图；公开工具103不变。168测试（167通过/1权限跳过），证据和下一步见HAMMER_OUTLINER_IDENTITY.md。下一步接只读MCP及排序/筛选/同名验证，再接内存属性与批量修改。保持本地。
+
+2026-10-27：cs2_hammer_entity_identities已接只读Hammer MCP（104唯一/Hammer59），核心移入包、脚本复用。实际MCP两同名info_player_start选择切换读回不同GUID，再恢复原GUID，21实体读取且文件证据不变；多视图列表/选择一致校验。169测试（168通过/1权限跳过）。详情HAMMER_OUTLINER_IDENTITY.md、私人outliner_identity_mcp_selection.json。下一步排序/筛选及内存属性验证，仍无批量写入许可。保持本地。
