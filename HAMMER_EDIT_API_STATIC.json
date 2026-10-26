@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "dll_sha256": "5901a11ceb483a2a8af05ec576eb5485b96adcb3779875ca3939fe67b28b0de1",
+  "verification": "offline_static_only",
+  "writes_approved": false,
+  "offsets_changed": false,
+  "candidates": [
+    {
+      "name": "entity_set_keyvalue",
+      "configured_rva": "0x83e450",
+      "candidate_rva": "0x83e450",
+      "finding": "static_body_match",
+      "pseudocode_sha256": "f520f06a972e22137f4627d6c1e19bde4f9289db121f44374900cbc413aa2f74",
+      "live_verified": false
+    },
+    {
+      "name": "entity_set_node_attr",
+      "configured_rva": "0x86b8d0",
+      "candidate_rva": "0x86b8d0",
+      "finding": "static_candidate_abi_unverified",
+      "pseudocode_sha256": "76a864e63b8ba552f302c49299c690e050e3d2c990814aa562c94b941667f195",
+      "live_verified": false
+    },
+    {
+      "name": "history_record_node",
+      "configured_rva": "0x86dd30",
+      "candidate_rva": "0x86dd30",
+      "finding": "static_body_match",
+      "pseudocode_sha256": "b5117bc8bfbc57153426d4157306dfb1d056a10c02a7a21742968bfa642bde93",
+      "live_verified": false
+    },
+    {
+      "name": "history_push_step",
+      "configured_rva": "0x152ad20",
+      "candidate_rva": "0x152b0e0",
+      "finding": "configured_address_is_interior_of_other_function",
+      "pseudocode_sha256": "4b1af29e9ec3c503b5af313e089b68ae1091292b14cf5466775fe2d5ee5ae228",
+      "live_verified": false
+    },
+    {
+      "name": "history_notify",
+      "configured_rva": "0x152b190",
+      "candidate_rva": "0x152b550",
+      "finding": "configured_address_is_interior_of_push_step",
+      "pseudocode_sha256": "2c23c0f41c0de6d9f112ba53fb75a38a8b0bff6765ee04233d652b1258195a5b",
+      "live_verified": false
+    },
+    {
+      "name": "node_get_parent",
+      "configured_rva": "0x865220",
+      "candidate_rva": "0x865220",
+      "finding": "leaf_reads_element_plus_0x198",
+      "pseudocode_sha256": "738380a775b189ed15c0567f84536c91efe4e8f088822fcceb332fa48d869fd2",
+      "live_verified": false
+    }
+  ]
+}
