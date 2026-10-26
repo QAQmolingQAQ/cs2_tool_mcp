@@ -59,3 +59,5 @@ configure 只能对未打开的数据库执行。
 2026-10-26：Hammer新增cs2_qt_hammer_select，101唯一工具/Hammer56。只选择工程范围内已观察的Qt行，默认预览、需独立查询验证，不修改实体属性。
 
 2026-10-26：Hammer文档工具cs2_hammer_property_fields依赖共享propertyeditor.dll属性行布局；102唯一/Hammer57。没有新增通用propertyeditor服务，读取边界及DLL指纹见PROPERTYEDITOR_BINDINGS.md。
+
+2026-10-27最新：103个唯一工具，Hammer58、bridge45；新增cs2_edit_plan_recheck归属Hammer。历史表格为各阶段快照；计划复查为只读，不开放原生属性写入。

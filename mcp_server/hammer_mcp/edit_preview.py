@@ -1,6 +1,7 @@
 """Saved-source batch plans with explicit compare-and-set expectations."""
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -8,7 +9,7 @@ from uuid import uuid4
 
 from .build_jobs import atomic_json
 from .edit_preflight import cs2_edit_preflight, file_evidence
-from .project import load_project, sha256
+from .project import load_project, sha256, within
 from .source_parsing import map_entities
 
 
@@ -112,7 +113,54 @@ def cs2_edit_preview(operations_json: str, expected_source_hash: str,
                   'results': rows, 'preflight_before': first['id'], 'preflight_after': second['id'],
                   'conflicts': second['conflicts'], 'blockers': second['blockers'],
                   'converter': converter_identity, 'report_path': str(folder/'report.json')}
+        report['plan_sha256'] = _plan_hash(report)
         atomic_json(folder/'report.json', report)
         return report
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
         return {'ok': False, 'safe_to_write': False, 'executed_count': 0, 'error': str(exc)}
+
+
+def _plan_hash(report: dict) -> str:
+    value={key:item for key,item in report.items() if key not in ('plan_sha256','report_path')}
+    return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True,
+                                     separators=(',',':')).encode()).hexdigest()
+
+
+def cs2_edit_plan_recheck(plan_id: str, expected_plan_hash: str,
+                          config: str = '', profile: str = '') -> dict:
+    """Recheck a saved preview against fresh disk/process/document evidence; never edit.
+
+    Requires the exact plan SHA returned by preview. Reports each operation as
+    unchanged or stale. A matched plan is not permission to write or rollback.
+    """
+    try:
+        if not re.fullmatch('[0-9a-f]{32}',plan_id):raise ValueError('invalid plan id')
+        if not re.fullmatch('[0-9a-f]{64}',expected_plan_hash):raise ValueError('invalid plan hash')
+        project=load_project(config,profile)
+        root=Path(project['state_root'])
+        folder=within(root/'edit_plans'/plan_id,root)
+        path=within(folder/'report.json',root)
+        identity=file_evidence(path)
+        if identity['identity'][2]>2*1024*1024:raise ValueError('plan exceeds size bound')
+        report=json.loads(path.read_text(encoding='utf-8'))
+        if (report.get('version')!=1 or report.get('id')!=plan_id or
+                report.get('plan_sha256')!=expected_plan_hash or _plan_hash(report)!=expected_plan_hash):
+            raise ValueError('plan identity/hash mismatch; preview again')
+        rows=report['results']
+        if not isinstance(rows,list) or not 1<=len(rows)<=256:raise ValueError('invalid plan rows')
+        fresh=cs2_edit_preflight(config,profile,report['preflight_after'],report['source_sha256'])
+        if not fresh.get('ok'):raise ValueError('plan recheck preflight failed: '+fresh.get('error','unknown'))
+        if file_evidence(path)!=identity:raise ValueError('plan changed during recheck')
+        conflicts=fresh['conflicts']
+        matched=report['plan_valid'] and not conflicts
+        result={'version':1,'id':uuid4().hex,'plan_id':plan_id,'plan_sha256':expected_plan_hash,
+                'ok':True,'plan_current':bool(matched),'safe_to_write':False,'executed_count':0,
+                'source_basis':'saved_disk_plan_with_live_context_recheck',
+                'conflicts':conflicts,'blockers':fresh['blockers'],'preflight_id':fresh['id'],
+                'results':[{**row,'recheck_status':'unchanged' if matched else 'stale_or_invalid',
+                            'executed':False} for row in rows]}
+        output=within(root/'edit_plan_rechecks',root);output.mkdir(parents=True,exist_ok=True)
+        atomic_json(output/(result['id']+'.json'),result)
+        return result
+    except (OSError,ValueError,KeyError,TypeError) as exc:
+        return {'ok':False,'plan_current':False,'safe_to_write':False,'executed_count':0,'error':str(exc)}

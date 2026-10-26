@@ -1,12 +1,46 @@
 from pathlib import Path
 import sys
 import unittest
+import json,tempfile
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'mcp_server'))
 from hammer_mcp.edit_preview import plan_properties, cs2_edit_preview
+from hammer_mcp import edit_preview as ep
 
 
 class PreviewTests(unittest.TestCase):
+    def test_durable_plan_recheck_reports_context_changes_without_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);identifier='a'*32
+            folder=root/'edit_plans'/identifier;folder.mkdir(parents=True)
+            plan={'version':1,'id':identifier,'results':[{'index':0,'status':'planned','executed':False}],
+                  'plan_valid':True,'source_sha256':'b'*64,'preflight_after':'c'*32}
+            plan['plan_sha256']=ep._plan_hash(plan)
+            path=folder/'report.json';path.write_text(json.dumps(plan))
+            with patch.object(ep,'load_project',return_value={'state_root':str(root)}),patch.object(
+                    ep,'cs2_edit_preflight',return_value={'ok':True,'conflicts':[],
+                        'blockers':['dirty_semantics_unverified'],'id':'d'*32}) as preflight:
+                result=ep.cs2_edit_plan_recheck(identifier,plan['plan_sha256'])
+                self.assertTrue(result['plan_current']);self.assertFalse(result['safe_to_write'])
+                self.assertEqual(result['results'][0]['recheck_status'],'unchanged')
+                preflight.assert_called_with('','','c'*32,'b'*64)
+                preflight.return_value['conflicts']=['layout_changed','source_changed']
+                stale=ep.cs2_edit_plan_recheck(identifier,plan['plan_sha256'])
+                self.assertFalse(stale['plan_current']);self.assertEqual(stale['executed_count'],0)
+                self.assertEqual(stale['results'][0]['recheck_status'],'stale_or_invalid')
+                self.assertEqual(len(list((root/'edit_plan_rechecks').glob('*.json'))),2)
+                plan['results'][0]['status']='no_change';path.write_text(json.dumps(plan))
+                preflight.reset_mock()
+                self.assertFalse(ep.cs2_edit_plan_recheck(identifier,plan['plan_sha256'])['ok'])
+                preflight.assert_not_called()
+
+    def test_plan_recheck_bounds_before_disk_access(self):
+        with patch.object(ep,'load_project') as project:
+            for identifier,digest in (('../bad','a'*64),('a'*32,'bad')):
+                self.assertFalse(ep.cs2_edit_plan_recheck(identifier,digest)['ok'])
+            project.assert_not_called()
+
     def test_plan_conflict_noop_and_invalid_are_per_operation(self):
         entities=[{'id':'one','properties':{'targetname':'a','speed':'10'}}]
         ops=[{'entity_id':'one','property':'TargetName','expected':'a','value':'b'},

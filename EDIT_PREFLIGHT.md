@@ -58,3 +58,13 @@ _doc_of_element取消找不到归属时选择首个文档的回退：父链查�
 该旧接口的MCP isError仍为false，调用方须读取ERROR正文；不将传输成功视为编辑成功。
 首次探针曾因缺少ERROR前缀而断言失败，已把不可用/未验证entity_properties的返回统一为明确ERROR并重测通过。
 本次没有完成当前版本原生写入、Undo/Redo或通用批量回滚验证；下一步仍需隔离文档实测。
+
+## 2026-10-27：持久计划复查
+
+新增Hammer归属只读cs2_edit_plan_recheck(plan_id, expected_plan_hash, config, profile)。cs2_edit_preview额外返回plan_sha256，对除可移动报告路径外的完整报告做规范JSON SHA-256。复查仅接受UUID、精确外部期望哈希、报告schema/id/内容哈希一致；报告上限2MiB、1至256操作，状态目录路径受限，读取前后报告身份一致。旧计划没有哈希时须重新预览。
+
+通过预览结束时的preflight_after重新比较工程配置、源码身份/SHA、进程/模块与文档布局证据。返回plan_current、冲突域、阻塞原因及各项recheck_status；只有计划本身有效且证据无变化才标unchanged，否则stale_or_invalid。结果另存edit_plan_rechecks/<UUID>.json，原计划不覆盖。无原生修改、无保存、无执行器；executed_count=0、safe_to_write=false始终保持。plan_current只表示已保存计划及上下文证据仍匹配，不表示未保存属性已逐项读取、全局dirty已确证或可安全写入。
+
+165项测试：164通过/1符号链接权限跳过；新增测试覆盖无变化、layout/source冲突、错误哈希/内容篡改和非法ID。实际新stdio Hammer MCP生成计划6fe67924d7b04435bd5cdc4ba62fcd59，GUID657b42df-8155-4005-9f33-8ff4072e6c70的targetname空值到mcp_probe_plan_recheck仅planned；复查383997a9e9c0411794e5e3934bb9c98f返回plan_current=true且三个写入阻塞仍在，错误期望哈希拒绝。完整私人报告C:\CS2_Temp\edit_plan_recheck_stdio.json。103唯一工具/Hammer58；其余DLL归属不变。本轮没有编辑地图或切换运行地图。
+
+下一步仍是把真实内存属性值、实体GUID与选择模型对应起来，然后接执行/逐项回读/Undo验证；本工具不代替通用批量执行与回滚。

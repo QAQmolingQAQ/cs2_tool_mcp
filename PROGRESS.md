@@ -866,3 +866,5 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-27 最新接续：已查明status不报告出生组，固定groups查询读到目标ACTIVE主地图。加载任务28319a143ebc4b1b90746c2620ce52c1（构建16a7b0c6556a49b4931c61d599b12799/源6614/产物5e3e）经新stdio只读status确认loaded/runtime_map_verified=true，未重发map。明确支持确认“未识别本地地图”token，不等同空闲；冲突/断连/锁内变化仍拒绝。下一步通用批量属性身份/逐项结果与回滚、运行父子关系/声音、完整光照与发布检查；全目标未完成。详见RUNTIME_VALIDATION.md、EDIT_CYCLE_VERIFICATION.md。保持本地。
 
 本轮验证：163项Python测试，162通过/1符号链接权限跳过；真实MCP加载任务独立status已验证。
+
+2026-10-27：新增cs2_edit_plan_recheck（Hammer归属，103唯一/Hammer58），预览报告哈希绑定、前后文件身份复核、fresh preflight对比和逐项stale标记；始终不执行且safe_to_write=false。真实新stdio生成/复查计划成功，错误哈希拒绝；165测试（164通过/1权限跳过）。记录EDIT_PREFLIGHT.md，私人证据edit_plan_recheck_stdio.json。下一步实体GUID与内存属性/选择的可靠关联，再接批量执行/回读/Undo，不把计划匹配当写入许可。保持本地。
