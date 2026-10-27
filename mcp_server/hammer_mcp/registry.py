@@ -4,7 +4,7 @@ from .runtime_diagnostics import cs2_runtime_diagnostics
 from .runtime_stage import cs2_runtime_stage_build
 from .vconsole import cs2_console_probe
 from .map_compare import cs2_map_snapshot_compare
-from .edit_preview import cs2_edit_preview, cs2_edit_plan_recheck
+from .edit_preview import cs2_edit_preview, cs2_edit_plan_recheck, cs2_edit_live_preview
 from .outliner_identity import cs2_hammer_entity_identities
 from .property_fields import cs2_hammer_property_fields
 from .edit_preflight import cs2_edit_preflight
@@ -141,6 +141,7 @@ TOOL_FUNCTIONS = (
     cs2_map_snapshot_compare,
     cs2_edit_preview,
     cs2_edit_plan_recheck,
+    cs2_edit_live_preview,
     cs2_hammer_entity_identities,
     cs2_hammer_property_fields,
     cs2_edit_preflight,

@@ -27,3 +27,5 @@ read_committed_properties(config, profile, entity_guid)沿当次验证的Outline
 ## 下一步
 
 将该读取接入预览的实时expected值核对和执行后读回；把操作绑定GUID/文档/当前版本/唯一选择，再实现逐项结果和发生错误时的验证后Undo。原生历史压步ABI/完整兼容profile仍未验收，不能据本次Qt往返打开任意native写入。用户审查的玩家activator/caller验收、CS2Fixes、依赖冻结、声音/JS类型与测量工具继续见ASSET_BUILD_VALIDATION.md，不缩减完整目标。
+
+2026-10-27后续：读取层已抽出read_committed_batch，实时预览/复查接入实际MCP并验证未保存变化使旧计划过期。具体操作/证据见EDIT_PREFLIGHT.md最新段；最终Undo后dirty候选11/saved5，磁盘6614未变。

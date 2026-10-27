@@ -59,7 +59,13 @@ class PreviewTests(unittest.TestCase):
         for ops in ([],{},[{}]*257):
             with self.assertRaises(ValueError):plan_properties([],ops)
         with self.assertRaisesRegex(ValueError,'ambiguous'):
-            plan_properties([{'id':'x'},{'id':'x'}],[{}])
+            plan_properties([{'id':'x','properties':{}},{'id':'x','properties':{}}],[{}])
         self.assertFalse(cs2_edit_preview('[]','0'*64)['ok'])
         self.assertFalse(cs2_edit_preview('[{}]','bad')['ok'])
         self.assertEqual(plan_properties([],[{'entity_id':'x','property':'p','expected':None,'value':'x'}])[0]['status'],'invalid')
+
+    def test_native_property_case_matches_without_ambiguous_keys(self):
+        operation={'entity_id':'x','property':'startdisabled','expected':'0','value':'1'}
+        self.assertEqual(plan_properties([{'id':'x','properties':{'StartDisabled':'0'}}],[operation])[0]['status'],'planned')
+        with self.assertRaisesRegex(ValueError,'ambiguous property key'):
+            plan_properties([{'id':'x','properties':{'StartDisabled':'0','startdisabled':'1'}}],[operation])

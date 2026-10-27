@@ -21,15 +21,7 @@ def attributes(reader,element):
     return found
 
 
-def read_committed_properties(config,profile,entity_guid):
-    identifier=str(UUID(entity_guid))
-    before=read_identities(config,profile)
-    matches=[item for item in before['identities'] if item.get('entity_guid')==identifier]
-    if len(matches)!=1:raise ValueError('entity GUID not uniquely covered by current Outliner')
-    entity=int(matches[0]['entity_address'],16)
-    pipe=get_session().pipe
-    modules=before['before']['runtime']['live']['modules']
-    reader=Reader(pipe,modules)
+def _read_values(reader,modules,entity,identifier):
     if reader.type_of(entity)!=('hammer.dll','.?AVCMapEntity@@',0x175ad00):
         raise ValueError('entity RTTI mismatch')
     if str(UUID(bytes_le=reader.read(entity+8,16)))!=identifier:raise ValueError('entity GUID changed')
@@ -55,9 +47,32 @@ def read_committed_properties(config,profile,entity_guid):
         if field['type']!=5:raise ValueError('non-string class property unsupported')
         pointer=reader.ptr(field['value_pointer'])
         values[name]=reader.text(pointer,16384) if pointer else ''
+    return values
+
+
+def read_committed_batch(config,profile,entity_guids):
+    if not isinstance(entity_guids,list) or not 1<=len(entity_guids)<=256:
+        raise ValueError('between 1 and 256 entity GUIDs required')
+    identifiers=[str(UUID(value)) for value in entity_guids]
+    if len(set(identifiers))!=len(identifiers):raise ValueError('duplicate requested GUID')
+    before=read_identities(config,profile)
+    modules=before['before']['runtime']['live']['modules']
+    reader=Reader(get_session().pipe,modules)
+    values={}
+    for identifier in identifiers:
+        matches=[item for item in before['identities'] if item.get('entity_guid')==identifier]
+        if len(matches)!=1:raise ValueError('entity GUID not uniquely covered by current Outliner')
+        values[identifier]=_read_values(reader,modules,int(matches[0]['entity_address'],16),identifier)
     for (address,size),raw in reader.watched.items():
-        # Call the underlying reader without changing the watched collection.
         if super(Reader,reader).read(address,size)!=raw:raise ValueError('committed property memory changed')
     if read_identities(config,profile)!=before:raise ValueError('document/entity context changed')
-    return {'entity_guid':identifier,'properties':values,'source_basis':'live_class_property_storage',
-            'safe_to_write':False,'atomic_snapshot':False,'unsaved_change_validation_complete':False}
+    return {'entities':[{'id':identifier,'properties':values[identifier]} for identifier in identifiers],
+            'source_basis':'live_class_property_storage','safe_to_write':False,'atomic_snapshot':False}
+
+
+def read_committed_properties(config,profile,entity_guid):
+    result=read_committed_batch(config,profile,[entity_guid])
+    entity=result['entities'][0]
+    return {'entity_guid':entity['id'],'properties':entity['properties'],
+            'source_basis':result['source_basis'],'safe_to_write':False,'atomic_snapshot':False,
+            'unsaved_change_validation_complete':False}

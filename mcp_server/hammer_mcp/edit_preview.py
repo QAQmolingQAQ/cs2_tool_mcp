@@ -11,6 +11,7 @@ from .build_jobs import atomic_json
 from .edit_preflight import cs2_edit_preflight, file_evidence
 from .project import load_project, sha256, within
 from .source_parsing import map_entities
+from .committed_properties import read_committed_batch
 
 
 def plan_properties(entities: list[dict], operations: list) -> list[dict]:
@@ -20,7 +21,9 @@ def plan_properties(entities: list[dict], operations: list) -> list[dict]:
     for entity in entities:
         if entity['id'] in by_id:
             raise ValueError('ambiguous entity id')
-        by_id[entity['id']] = entity
+        properties={key.casefold():value for key,value in entity['properties'].items()}
+        if len(properties)!=len(entity['properties']):raise ValueError('ambiguous property key case')
+        by_id[entity['id']] = {**entity,'properties':properties}
     results, touched = [], set()
     for index, operation in enumerate(operations):
         row = {'index': index, 'status': 'invalid', 'executed': False}
@@ -126,6 +129,55 @@ def _plan_hash(report: dict) -> str:
                                      separators=(',',':')).encode()).hexdigest()
 
 
+def cs2_edit_live_preview(operations_json: str, expected_source_hash: str,
+                         config: str = '', profile: str = '') -> dict:
+    """Preview existing string keyvalues against live document storage, without saving.
+
+    Uses canonical entity GUIDs and pinned layouts. Disk SHA is a separate conflict
+    guard; expected values come from committed memory, not a UI text buffer.
+    Never executes edits or grants write authority, including on dirty documents.
+    """
+    try:
+        if len(operations_json)>1024*1024:raise ValueError('operations JSON exceeds 1 MiB')
+        operations=json.loads(operations_json)
+        plan_properties([],operations)
+        from uuid import UUID
+        identifiers=[]
+        for operation in operations:
+            if (not isinstance(operation,dict) or set(operation)!={'entity_id','property','expected','value'} or
+                    not all(isinstance(v,str) for v in operation.values())):
+                raise ValueError('live preview requires complete string operation fields')
+            identifier=operation['entity_id']
+            if str(UUID(identifier))!=identifier:raise ValueError('canonical entity GUID required')
+            if identifier not in identifiers:identifiers.append(identifier)
+        project=load_project(config,profile)
+        first=cs2_edit_preflight(config,profile,expected_source_hash=expected_source_hash)
+        if not first.get('ok') or first['conflicts']:raise ValueError('live preview preflight conflict or failure')
+        if (first['evidence']['config']['sha256']!=project['config_sha256'] or
+                Path(first['evidence']['source']['path'])!=Path(project['source']) or
+                first['evidence']['profile']!=project['profile']):
+            raise ValueError('project scope changed before live preview')
+        if not re.fullmatch('[0-9a-f]{64}',expected_source_hash):raise ValueError('source SHA-256 required')
+        live=read_committed_batch(config,profile,identifiers)
+        rows=plan_properties(live['entities'],operations)
+        second=cs2_edit_preflight(config,profile,first['id'],expected_source_hash)
+        if not second.get('ok'):raise ValueError('post-live-preview observation failed')
+        folder=within(Path(project['state_root'])/'edit_plans'/uuid4().hex,Path(project['state_root']))
+        folder.mkdir(parents=True,exist_ok=False)
+        report={'version':1,'id':folder.name,'ok':True,'safe_to_write':False,'executed_count':0,
+                'source_basis':'live_class_property_storage','source_sha256':expected_source_hash,
+                'operations':operations,'live_entities':live['entities'],'results':rows,
+                'plan_valid':all(row['status'] in ('planned','no_change') for row in rows) and not second['conflicts'],
+                'preflight_before':first['id'],'preflight_after':second['id'],
+                'conflicts':second['conflicts'],'blockers':second['blockers'],'atomic_snapshot':False,
+                'report_path':str(folder/'report.json')}
+        report['plan_sha256']=_plan_hash(report)
+        atomic_json(folder/'report.json',report)
+        return report
+    except (OSError,ValueError,KeyError,TypeError) as exc:
+        return {'ok':False,'safe_to_write':False,'executed_count':0,'error':str(exc)}
+
+
 def cs2_edit_plan_recheck(plan_id: str, expected_plan_hash: str,
                           config: str = '', profile: str = '') -> dict:
     """Recheck a saved preview against fresh disk/process/document evidence; never edit.
@@ -151,11 +203,20 @@ def cs2_edit_plan_recheck(plan_id: str, expected_plan_hash: str,
         fresh=cs2_edit_preflight(config,profile,report['preflight_after'],report['source_sha256'])
         if not fresh.get('ok'):raise ValueError('plan recheck preflight failed: '+fresh.get('error','unknown'))
         if file_evidence(path)!=identity:raise ValueError('plan changed during recheck')
-        conflicts=fresh['conflicts']
+        conflicts=list(fresh['conflicts'])
+        live_plan=report.get('source_basis')=='live_class_property_storage'
+        if live_plan:
+            live=read_committed_batch(config,profile,[entity['id'] for entity in report['live_entities']])
+            if live['entities']!=report['live_entities']:conflicts.append('live_properties_changed')
+            final=cs2_edit_preflight(config,profile,fresh['id'],report['source_sha256'])
+            if not final.get('ok'):raise ValueError('post-live-recheck observation failed')
+            conflicts=list(dict.fromkeys(conflicts+final['conflicts']))
+            fresh=final
         matched=report['plan_valid'] and not conflicts
+        if file_evidence(path)!=identity:raise ValueError('plan changed during live recheck')
         result={'version':1,'id':uuid4().hex,'plan_id':plan_id,'plan_sha256':expected_plan_hash,
                 'ok':True,'plan_current':bool(matched),'safe_to_write':False,'executed_count':0,
-                'source_basis':'saved_disk_plan_with_live_context_recheck',
+                'source_basis':'live_class_property_storage' if live_plan else 'saved_disk_plan_with_live_context_recheck',
                 'conflicts':conflicts,'blockers':fresh['blockers'],'preflight_id':fresh['id'],
                 'results':[{**row,'recheck_status':'unchanged' if matched else 'stale_or_invalid',
                             'executed':False} for row in rows]}

@@ -63,3 +63,5 @@ configure 只能对未打开的数据库执行。
 2026-10-27最新：103个唯一工具，Hammer58、bridge45；新增cs2_edit_plan_recheck归属Hammer。历史表格为各阶段快照；计划复查为只读，不开放原生属性写入。
 
 2026-10-27最新：104唯一工具，Hammer59、bridge45；cs2_hammer_entity_identities归属Hammer，读取依赖QtGui/QtCore等模块，不复制功能服务器。
+
+2026-10-27最新：105唯一工具、Hammer60、bridge45；cs2_edit_live_preview归属Hammer，真实内存值只读预览，未开放批量写入。

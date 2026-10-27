@@ -32,6 +32,7 @@ class ArchitectureTests(unittest.TestCase):
         new_names += ('cs2_hammer_property_fields',)
         new_names += ('cs2_edit_plan_recheck',)
         new_names += ('cs2_hammer_entity_identities',)
+        new_names += ('cs2_edit_live_preview',)
         added = [tool for tool in actual if tool['name'] in new_names]
         self.assertEqual(len(added), len(new_names))
         retained=[tool for tool in actual if tool['name'] not in new_names]
