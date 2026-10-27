@@ -230,3 +230,5 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 2026-10-27最新：运行诊断加入逐查询独立标记的插件版本/固定cvar观测，plugin_versions不再固定占位；现机meta/css无响应明确unknown，未声明插件不存在。实际MCP目标地图仍验证通过、snd_musicvolume1.0、sv_cheatstrue，CS2Fixes版本/3变量未观察到；191测试（190通过/1权限跳过）。官方CS2Fixes字段参考/范围/私人证据见PLUGIN_RUNTIME_DIAGNOSTICS.md。仍缺实际插件正例与玩家activator/caller验收，未改地图/cvar，工具105。保持本地。
 
 2026-10-27最新：构建新增addon源码树前/后清单（文件身份+SHA，精确排除当前任务快照）与dependencies_changed终态；正向真实MCP任务701b2c34b8bd447b946d603e46add6b3覆盖183文件约121MB通过。真实RC负例041c14093ee043e6b69158dd8b57ae02编译/产物均通过，但运行期间专用JS变化令任务失败且stage拒绝；测试文件已清理，无改图/切图。194测试（193通过/1权限跳过），详情BUILD_SOURCE_GUARD.md及dependency_guard_*本地证据。这是addon范围变化检测，非不可变完整依赖副本，snapshot/release仍false；后续补完整冻结与外部/动态依赖。保持本地。
+
+2026-10-27最新：私有addon源码副本复制/只读位/前后hash校验及隔离编译探针通过，第二次2d82be05251c4473a781c97b43015726从副本读map，map/VPK和最小材质编译有效、副本无变化；默认worker未切换。S2V20 -bRED2退出0但报Unknown KVType26，依赖来源解析判失败，不作全冻结证据。196测试（195通过/1权限跳过）。详情BUILD_PRIVATE_SOURCE_COPY.md，证据source_copy_probes目录；私有资产副本只留本机。下一步可靠输入依赖读取+持久worker接副本，外部/动态依赖仍未冻结。保持本地。
