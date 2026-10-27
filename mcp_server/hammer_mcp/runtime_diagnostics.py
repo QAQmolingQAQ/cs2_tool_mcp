@@ -13,6 +13,7 @@ from .session import get_session
 from .versioning import inspect_live
 from .vconsole import Reader, encode_command, print_text
 from .windows_tcp import server_pid
+from .plugin_diagnostics import QUERIES,summarize_queries
 
 
 def _diagnostic_lines(reader, marker):
@@ -86,14 +87,25 @@ def cs2_runtime_diagnostics(config: str = '', profile: str = '', job_id: str = '
             first=reader.frame()
             if first['type']!='AINF' or first['version']!=212:raise ValueError('unsupported VConsole handshake')
             report.update(server_pid=pid,server_created=created,protocol='vconsole2',dispatch_started=True)
-            stream.sendall(encode_command('echo '+marker+'; status; groups; getpos; sv_cheats; meta version; css_plugins list; echo '+marker+'_END',212))
+            stream.sendall(encode_command('echo '+marker+'; status; groups; getpos; sv_cheats; echo '+marker+'_END',212))
             report['command_sent']=True
             lines=_diagnostic_lines(reader,marker)
+            responses={}
+            for index,command in enumerate(QUERIES):
+                query_marker=marker+'_Q'+str(index)
+                stream.sendall(encode_command('echo '+query_marker+'; '+command+'; echo '+query_marker+'_END',212))
+                responses[command]=_diagnostic_lines(reader,query_marker)
         if (process_identity(pid)!=created or sha256(Path(project['source']))!=source_hash
                 or sha256(Path(project['config_path']))!=project['config_sha256']):
             raise ValueError('process/source/config changed during observation')
         if artifact is not None and sha256(artifact)!=expected_hash:raise ValueError('artifact changed during observation')
         summary=summarize(lines)
+        plugin_summary=summarize_queries(responses)
+        summary['plugin_commands_unavailable']=sorted(set(summary['plugin_commands_unavailable'])|{
+            command.split()[0] for command,item in plugin_summary['plugin_query_observations'].items()
+            if item['status']=='command_unavailable' and command in ('meta version','meta list','css_plugins list')})
+        summary['final_cvars'].update(plugin_summary.pop('queried_cvars'))
+        summary.update(plugin_summary)
         report.update(ok=True,diagnostic_batch_completed=True,**summary,observation_scope='shared_console_stream_not_atomic',
                       diagnostic_output_sanitized=True,job_id=job_id or None,expected_map=expected_map,
                       artifact_sha256=expected_hash,verification_scope='loaded map name and retained disk artifact hash; not memory-image or quality certification')

@@ -1,0 +1,26 @@
+# 插件版本与cvar只读诊断（2026-10-27）
+
+## 本轮改动
+
+原plugin_versions总是空字典，且将meta/css命令混在同一批文本内，无法区分无输出和有输出但未解析。现在runtime_diagnostics以同一进程绑定的VConsole2连接，给每个固定查询独立起止echo标记：meta version、meta list、css_plugins list、cs2f_commands_enable、cs2f_admin_commands_enable、cs2f_weapons_enable、snd_musicvolume。5秒/16MiB整体预算、每查询帧/行预算、源/配置/进程前后校验继续保持；仍无设置cvar/加载卸载插件。
+
+plugin_diagnostics仅将明确Metamod版本行及meta list中明确CS2Fixes活动行的受限版本token解析为观测版本。重复不同版本拒绝填值，失败行不接受；query结果分别是version_observed、value_observed、command_unavailable、no_response_observed、response_unparsed或冲突状态。css_plugins暂不做版本语义解析。返回来源命令及console_response_not_module_binary_identity范围，不把文本当二进制版本认证。
+
+固定CS2Fixes布尔变量名来自官方commands.cpp；GetVersion返回PLUGIN_FULL_VERSION见官方cs2fixes.h。源码参考：
+- https://github.com/Source2ZE/CS2Fixes/blob/main/src/commands.cpp
+- https://github.com/Source2ZE/CS2Fixes/blob/main/src/cs2fixes.h
+这些上游main参考不是当前安装版本证据，未复制插件实现。Metamod版本/列表解析正例目前为受限格式单测，当前实机没有正输出，不声称所有版本格式已验收。
+
+final_cvars保留既有sv_cheats并增加上述固定变量；数值须有精确键名/有界token且有限，不同值冲突返回null。字段虽保留历史名字，新增cvar_scope明确console_command_context_not_per_player_effective_gain：不是带activator/caller的玩家最终音频增益证明，不计算未经验证的音乐双乘。
+
+## 实机与测试证据
+
+当前PID7132模块枚举中未观察到名称匹配CS2Fixes/Metamod/CounterStrikeSharp的模块；独立命令发现meta version/list及css_plugins无文本响应，find cs2fix/mfix无结果。仍不能仅凭缺输出证明插件未安装/未加载，plugin_presence_verified=false。
+
+实际新stdio MCP cs2_runtime_diagnostics对构建16a7b0c6556a49b4931c61d599b12799确认目标地图/runtime_map_verified=true，snd_musicvolume=1.0、sv_cheats=true；3个CS2Fixes变量null，版本为空但每个相关query明确no_response_observed。私人报告C:\CS2_Temp\plugin_diagnostics_stdio_verified.json；发现过程plugin_command_discovery_private.json、plugin_module_inventory_private.json仅本地，不提交进程完整模块/个人路径。
+
+191测试（190通过/1符号链接权限跳过），覆盖命令来源隔离、有效版本/失败行、版本冲突、空响应/明确不可用区分、布尔和非有限/冲突值；未写地图或修改cvar。此轮沿用现有工具，工具数105不变。
+
+## 未完成
+
+需要在实际加载CS2Fixes的测试进程验证其版本及更多地图相关cvar，不能为了验收擅自安装/热加载插件。玩家activator/caller→RunScriptInput→结果仍未实现，插件正例、父子/局部坐标和声音生命周期未完成；全目标不收窄。现阶段只读诊断提供真实观测及明确未知，不伪造版本或玩家有效音量。

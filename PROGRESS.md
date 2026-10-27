@@ -886,3 +886,5 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-27最新：受控partial batch77c90295fbf042c9b2723fc6be596607验证第0项已修改/第1项未开始；新进程恢复932b99ccaf6742faa688a59d94cf9e46仅Undo已完成项对应2步，目标属性/原undo列表恢复，重复恢复拒绝。独立读回Outliner当前行未恢复，已单独显式恢复且undo列表仍相同；恢复结果现分开报告selection_restored，不泛称全状态恢复。隔离6614/原图f489未变、无Save、dirty25/saved5。184测试（183通过/1权限跳过）。详情HAMMER_PARTIAL_RECOVERY.md；未知派发/错误崩溃恢复仍拒绝，下一步只读重连分类。保持本地。
 
 2026-10-27最新：新增批次只读观察batch_observation.py及hammer_batch_status_probe.py，区分日志终态/生产者PID+创建时间/当前值，新增批次将记录producer。旧partial批次实测日志一项完成但当前值已匹配before、非after，producer旧记录缺失明确not_recorded，不推断死亡；重放/恢复授权恒false。188测试（187通过/1权限跳过），scope失配不读内存，源日志前后身份核对；无修改地图。详情HAMMER_BATCH_STATUS.md，私人batch_readonly_status_verified.json。下一步受限执行入口状态/断线验证，未知派发仍不自动恢复；工具105。保持本地。
+
+2026-10-27最新：运行诊断加入逐查询独立标记的插件版本/固定cvar观测，plugin_versions不再固定占位；现机meta/css无响应明确unknown，未声明插件不存在。实际MCP目标地图仍验证通过、snd_musicvolume1.0、sv_cheatstrue，CS2Fixes版本/3变量未观察到；191测试（190通过/1权限跳过）。官方CS2Fixes字段参考/范围/私人证据见PLUGIN_RUNTIME_DIAGNOSTICS.md。仍缺实际插件正例与玩家activator/caller验收，未改地图/cvar，工具105。保持本地。
