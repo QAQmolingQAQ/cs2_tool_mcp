@@ -29,3 +29,5 @@ scripts/probe_frozen_addon_compile.py只用于non-release test工程，创建UUI
 C:\CS2_Temp\mcp_build_jobs\source_copy_probes/<两个UUID>/record.json、original_manifest.json、copied_manifest.json、after_compile_manifest.json、compiler.log；第二次material_probe/record.json、compiler.log、red2_dump.txt保留失败与编译信息。私有addon复制了本地第三方测试资产，仅留本机，不提交/上传；两个约121MB的私有目录保留便于复核，不在当前test工作目录内。
 
 下一步补可靠RED2/输入依赖来源读取，并将已验证的私有addon副本方案接持久worker及取消/输入身份/产物安装范围；默认流程仍使用原addon加前后变化guard，不能宣传为已启用不可变构建。完整外部依赖、动态脚本/声音、完整光照/运行验证继续保持未完成。
+
+后续2026-10-27：原生resourceinfo已正确输出同一RED2并逐项验证普通输入CRC/SearchPath，见BUILD_NATIVE_INPUT_PROVENANCE.md。旧CLI失败仍保留；官方20.1未因TLS问题成功下载，当前使用原生替代而非伪报更新。

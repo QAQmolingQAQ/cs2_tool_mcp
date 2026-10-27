@@ -35,8 +35,9 @@ def _tokens(source: str) -> list[str]:
 
 
 class _Parser:
-    def __init__(self, tokens: list[str]):
+    def __init__(self, tokens: list[str], reject_duplicates: bool = False):
         self.tokens, self.pos = tokens, 0
+        self.reject_duplicates = reject_duplicates
 
     def _take(self) -> str:
         if self.pos >= len(self.tokens):
@@ -59,6 +60,7 @@ class _Parser:
                     raise ValueError(f"expected '=' after {key!r}")
                 if key.startswith('"'):
                     key = _unquote(key)
+                if self.reject_duplicates and key in result:raise ValueError('duplicate KV3 key: '+key)
                 result[key] = self._value(depth + 1)
                 if self.pos < len(self.tokens) and self.tokens[self.pos] == ",":
                     self.pos += 1
