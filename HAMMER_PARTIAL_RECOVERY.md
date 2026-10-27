@@ -1,0 +1,23 @@
+# 部分执行后的受限恢复（2026-10-27）
+
+## 支持范围
+
+completed_prefix只接受verified或controlled_test_stop这两种明确终态：连续verified_modified前缀后只能是not_started后缀，index连续，至少一项已验证。未知派发、选择结果未知、执行中、错误停机及非前缀结果一律拒绝恢复。没有把“控制性停止”冒充进程崩溃或任意错误恢复。
+
+batch_undo_plan只为这段已完成前缀构造历史/属性逆序计划，未执行项不进入Undo清单；恢复脚本从最后一项已完成操作取得上下文，不能误读not_started行的缺失历史。历史/版本/文档/源哈希和完整目标属性核对仍保持。
+
+## 实机证据
+
+两项实时计划受限执行--stop-after 1，批次77c90295fbf042c9b2723fc6be596607明确返回：index0 verified_modified，index1 not_started，executed_count1，未知派发0。随后在新Python进程读取持久记录并恢复，任务932b99ccaf6742faa688a59d94cf9e46执行属性+选择两步，目标属性恢复，未运行第二项。重复恢复同批次返回非零prior rollback exists，未再次派发。
+
+独立复查发现：目标属性和原undo列表已恢复，但Outliner current index仍指向测试实体；不能把地图选择历史与Outliner当前行混为一项。之后使用已有唯一GUID/行key校验的Qt选择动作显式恢复当前行，独立读回成功，且完整undo列表仍与最初一致。两阶段结果分别保留，不把这次UI清理倒填成Undo自身恢复了界面。恢复脚本现单独返回selected_entity_guid/selection_restored；若未恢复，status明确为target_properties_restored_selection_not_restored，不宣称全部状态恢复。
+
+源SHA6614e9746a6dc654ae57e3c6a0c74b46c15f72c12acfed992af87ccb35c900d6和原图SHAf489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e均未变，无Save。当前dirty候选25/saved5；redo栈并未证明回到原值，全地图/元数据回滚仍false。
+
+184测试（183通过/1符号链接权限跳过），覆盖受控前缀、不一致终态/非前缀/未知派发拒绝，实际逆序计划只含已完成项。最后独立结果字段整理仅研究脚本元数据，随后py_compile/diff检查；未重复修改游戏内容。
+
+私人证据：C:\CS2_Temp\partial_batch_recovery_cycle.json、partial_batch_final_verification.json、partial_batch_selection_cleanup.json，以及batch_probe_runs/77c902…和batch_probe_rollbacks/932b99…。原恢复记录追加independent_selection_audit，保留原动作和外部复查差异。
+
+## 下一步与限制
+
+仍未覆盖断线/超时后“派发未知”的自动判定、真实错误/崩溃恢复、任意属性、历史合并/裁剪或全地图事务；必须继续拒绝自动重放。当前写入只限隔离UUID测试脚本，公开工具105、native兼容profile仍空。下一步将停止后记录的只读状态检查与未知结果分类整合，基于新增只读证据决定能否恢复；不能通过猜测Undo或新建基线覆盖未知结果。玩家上下文、插件/cvar、声音和依赖/光照验收保持完整目标。

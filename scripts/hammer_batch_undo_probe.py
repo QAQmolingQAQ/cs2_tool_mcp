@@ -6,8 +6,9 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'mcp_server'))
 from hammer_mcp.build_jobs import atomic_json
 from hammer_mcp.committed_properties import read_committed_batch
 from hammer_mcp.edit_preflight import file_evidence
-from hammer_mcp.history_snapshot import batch_undo_plan,read_history
+from hammer_mcp.history_snapshot import batch_undo_plan,read_history,completed_prefix
 from hammer_mcp.operation_lock import operation_lock
+from hammer_mcp.outliner_identity import read_identities
 from hammer_mcp.project import load_project,within
 from hammer_mcp.session import get_session
 from hammer_batch_targetname_probe import validate
@@ -29,7 +30,7 @@ def execute(config,batch_id,batch_hash):
         folder=root/'batch_probe_rollbacks';folder.mkdir(parents=True,exist_ok=True)
         active=folder/('active_'+batch_id+'.json')
         if active.exists():raise ValueError('prior rollback exists; inspect without replay')
-        expected_context=batch['results'][-1]['history_after_write']['context']
+        expected_context=completed_prefix(batch)[-1]['history_after_write']['context']
         record={'id':uuid4().hex,'batch_id':batch_id,'batch_sha256':batch_hash,
                 'status':'preparing','actions':[],'target_properties_restored':False,'full_map_rollback_verified':False}
         output=folder/(record['id']+'.json');atomic_json(output,record);atomic_json(active,{'id':record['id']})
@@ -55,12 +56,16 @@ def execute(config,batch_id,batch_hash):
                 if any(after['context'].get(key)!=value for key,value in current['context'].items() if key!='layout'):
                     raise ValueError('source/process/config changed during Undo')
                 step['status']='verified';expected_context=after['context'];atomic_json(output,record)
-            record.update(status='target_properties_restored',target_properties_restored=True)
+            selected=read_identities(config)['selected_entity_guid']
+            record.update(status='target_properties_restored',target_properties_restored=True,
+                          selected_entity_guid=selected,selection_restored=selected==batch['selection_before'])
+            if not record['selection_restored']:record['status']='target_properties_restored_selection_not_restored'
         except Exception as error:record.update(status='stopped_error_do_not_replay',error=str(error))
         atomic_json(output,record)
         return {'id':record['id'],'record_path':str(output),'status':record['status'],
                 'verified_actions':sum(x['status']=='verified' for x in record['actions']),
-                'target_properties_restored':record['target_properties_restored'],'error':record.get('error')}
+                'target_properties_restored':record['target_properties_restored'],
+                'selection_restored':record.get('selection_restored',False),'error':record.get('error')}
 
 
 if __name__=='__main__':

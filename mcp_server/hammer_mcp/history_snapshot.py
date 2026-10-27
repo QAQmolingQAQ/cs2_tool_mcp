@@ -15,12 +15,28 @@ def appended_step(before,after,name):
     return after[-1]
 
 
+def completed_prefix(batch):
+    """Only explicit terminal stops with a known modified prefix are recoverable."""
+    rows=batch.get('results',[])
+    if batch.get('status') not in ('verified','controlled_test_stop') or not rows:
+        raise ValueError('verified batch or controlled terminal stop required')
+    prefix=[];stopped=False
+    for index,row in enumerate(rows):
+        if row.get('index')!=index:raise ValueError('batch result indexes are not contiguous')
+        if row['status']=='not_started':stopped=True
+        elif row['status']=='verified_modified' and not stopped:prefix.append(row)
+        else:raise ValueError('unknown, unsupported, or non-prefix batch outcome')
+    if not prefix or (batch['status']=='verified' and stopped) or (batch['status']=='controlled_test_stop' and not stopped):
+        raise ValueError('inconsistent terminal batch status')
+    return prefix
+
+
 def batch_undo_plan(batch):
     """Derive exact stack/property transitions, including recorded selection steps."""
-    if batch.get('status')!='verified' or not batch.get('results'):raise ValueError('verified batch required')
+    completed=completed_prefix(batch)
     actions=[];expected=copy.deepcopy(batch['after'])
     previous=None
-    for row in batch['results']:
+    for row in completed:
         if row['status']!='verified_modified':raise ValueError('only modified test rows supported')
         start=row['history_before_selection']['undo']
         selected=row['history_after_selection']['undo']
@@ -31,7 +47,7 @@ def batch_undo_plan(batch):
         if selected!=start:appended_step(start,selected,'Modify Selection')
         appended_step(writing,finished,'Change: Name')
         previous=finished
-    for row in reversed(batch['results']):
+    for row in reversed(completed):
         before_properties=copy.deepcopy(expected)
         index=row['index']
         expected['entities'][index]=copy.deepcopy(batch['before']['entities'][index])

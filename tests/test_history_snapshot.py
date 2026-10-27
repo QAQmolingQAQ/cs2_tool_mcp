@@ -2,10 +2,20 @@ from pathlib import Path
 import struct,sys,unittest
 from unittest.mock import Mock
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'mcp_server'))
-from hammer_mcp.history_snapshot import stack,batch_undo_plan
+from hammer_mcp.history_snapshot import stack,batch_undo_plan,completed_prefix
 
 
 class HistorySnapshotTests(unittest.TestCase):
+    def test_controlled_partial_prefix_excludes_untouched_items(self):
+        rows=[{'index':0,'status':'verified_modified'},{'index':1,'status':'not_started'}]
+        self.assertEqual(completed_prefix({'status':'controlled_test_stop','results':rows}),rows[:1])
+        for status in ('preparing','stopped_error_do_not_replay','unknown'):
+            with self.assertRaises(ValueError):completed_prefix({'status':status,'results':rows})
+        for tail in ('selection_dispatching','property_dispatching_unknown_do_not_replay','verified_modified'):
+            with self.assertRaises(ValueError):completed_prefix({'status':'controlled_test_stop',
+                'results':[rows[0],{'index':1,'status':tail}]})
+        with self.assertRaises(ValueError):completed_prefix({'status':'verified','results':rows})
+
     def test_batch_plan_includes_exact_recorded_selection_steps(self):
         steps=[{'name':name,'id_candidate':index} for index,name in enumerate(
             ('Modify Selection','Change: Name','Modify Selection','Change: Name'))]
@@ -25,6 +35,12 @@ class HistorySnapshotTests(unittest.TestCase):
         self.assertEqual(actions[-1]['after_properties'],before)
         rows[1]['history_before_selection']={'undo':[]}
         with self.assertRaisesRegex(ValueError,'intervening'):batch_undo_plan(batch)
+        rows[1]['status']='not_started';batch['status']='controlled_test_stop'
+        batch['after']={'entities':[after['entities'][0],before['entities'][1]]}
+        partial=batch_undo_plan(batch)
+        self.assertEqual([x['kind'] for x in partial],['property','selection'])
+        self.assertTrue(all(x['index']==0 for x in partial))
+        self.assertEqual(partial[-1]['after_properties'],before)
 
     def reader(self,count):
         r=Mock();r.type_of.return_value=('hammer.dll','.?AVCMapDocHistory@@',0x1765e00)

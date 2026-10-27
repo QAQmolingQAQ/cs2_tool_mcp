@@ -222,3 +222,5 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 2026-10-27最新：受限targetname批量测试脚本完成两个GUID逐项提交/真实读回及持久派发日志（批次6deacb18e1fa4d0aa0523c177bb3d94b），但逆序Undo第二步未恢复第一目标，已停止盲退；清理由一次已验证Undo+第一目标CAS反向提交完成，两个目标全部属性恢复、源6614不变，未Save。当前dirty15/saved5。Undo批量回滚未通过，不开放生产写入。180测试（179通过/1权限跳过），详情HAMMER_BATCH_PROBE.md及batch_targetname_*本地报告。下一步定位属性/选择历史步骤边界，再接失败恢复；公开工具仍105。保持本地。
 
 2026-10-27最新：history_snapshot只读确认Modify Selection夹在Change: Name之间，批量日志已记录选择/提交前后完整步骤。初次撤销因测试期间implementation哈希变化在0派发前拒绝并CAS清理；源码稳定新批a0a50e3367dc4692ad34a402153576dc经a67fac52ecd145fbb7fdd5d4aa98fb34四次精确匹配Undo（2属性+2选择）通过，独立复查目标属性/选择/原undo栈恢复。隔离6614/原图f489均未变，未Save；dirty23/saved5，redo与全地图未回滚认证。183测试（182通过/1权限跳过）。详情HAMMER_HISTORY_BOUNDARIES.md；下一步部分执行停止/失败恢复，仍非生产通用写入，工具105/兼容profile空。保持本地。
+
+2026-10-27最新：受控partial batch77c90295fbf042c9b2723fc6be596607验证第0项已修改/第1项未开始；新进程恢复932b99ccaf6742faa688a59d94cf9e46仅Undo已完成项对应2步，目标属性/原undo列表恢复，重复恢复拒绝。独立读回Outliner当前行未恢复，已单独显式恢复且undo列表仍相同；恢复结果现分开报告selection_restored，不泛称全状态恢复。隔离6614/原图f489未变、无Save、dirty25/saved5。184测试（183通过/1权限跳过）。详情HAMMER_PARTIAL_RECOVERY.md；未知派发/错误崩溃恢复仍拒绝，下一步只读重连分类。保持本地。
