@@ -31,3 +31,5 @@ ok只表示检查过程完成；是否匹配看declared_inputs_match。coverage_
 ## 下一步
 
 将普通输入CRC/SearchPath核对接入持久worker的私有源码副本流程，继续验证地图VPK内世界资源和关联材质的输入；补特殊依赖/VPK内容身份，再决定默认流程切换。当前reader为研究/复用层，未接资产编译成功门禁或宣布默认不可变构建完成。
+
+2026-10-27后续：普通输入来源/CRC检查现已接入单资源cs2_asset_compile成功门禁，材质/模型/粒子各一实机样例通过；特殊依赖未全覆盖、整图默认worker未切换。详见ASSET_BUILD_VALIDATION.md最新段。

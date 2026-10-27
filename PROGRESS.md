@@ -894,3 +894,5 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-27最新：私有addon源码副本复制/只读位/前后hash校验及隔离编译探针通过，第二次2d82be05251c4473a781c97b43015726从副本读map，map/VPK和最小材质编译有效、副本无变化；默认worker未切换。S2V20 -bRED2退出0但报Unknown KVType26，依赖来源解析判失败，不作全冻结证据。196测试（195通过/1权限跳过）。详情BUILD_PRIVATE_SOURCE_COPY.md，证据source_copy_probes目录；私有资产副本只留本机。下一步可靠输入依赖读取+持久worker接副本，外部/动态依赖仍未冻结。保持本地。
 
 2026-10-27最新：旧S2V/VRF不支持KV26问题已通过游戏自带resourceinfo -bRED2替代读取解决；官方20.1确已支持26/27但本机TLS下载失败，未安装/替换工具。新增input_dependencies检查器，原生元数据+SearchPath+实际CRC验证私有材质9输入（6现存匹配、3可选缺失），10特殊依赖仍未全验证。200测试（199通过/1权限跳过），详情BUILD_NATIVE_INPUT_PROVENANCE.md；私人input_dependency_checks/53e14c…报告。默认worker/资产门禁尚未接，下一步接私有副本与特殊/VPK来源验证，不能声称全冻结。无改图/工具105。保持本地。
+
+2026-10-27最新：cs2_asset_compile已强制普通RED2输入路径/存在性/CRC匹配，检查结束复核主源/快照/编译器/产物；退出0且有效资源仍可因依赖不匹配失败。实际MCP材质367eabb…/模型099f4c…/粒子eec3ca…分别9/2/1普通输入通过，特殊依赖覆盖仍false。201测试（200通过/1权限跳过），详情ASSET_BUILD_VALIDATION.md及asset_dependency_gate_stdio.json。同步任务/新资源类型/特殊依赖及整图副本worker仍未完成，无替换原产物/无改图，工具105。保持本地。

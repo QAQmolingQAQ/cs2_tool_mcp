@@ -25,3 +25,18 @@ cs2_asset_compile默认预览；确认后使用同目录mcp_asset_<UUID>.<ext>�
 7. 继续区分参数契约/描述格式、保持当前状态文档及时更新。
 
 本轮未提交的committed_properties.py、hammer_committed_properties_probe.py、test_committed_properties.py是上一轮被打断的只读研究成果，原样保留，尚未公开MCP或声称完成未保存属性验证。
+
+## 2026-10-27：普通RED2输入成为单资源成功条件
+
+cs2_asset_compile在唯一产物结构校验后调用游戏原生RED2来源检查，普通/Additional输入的搜索路径、存在性和CRC必须匹配；不匹配、resourceinfo不可用或文本无法完整解析均不返回成功。结果保留input_dependency_validation（普通输入是否匹配、数量、特殊依赖计数、覆盖标志及独立报告路径）。依赖检查结束后再次核对主源、源快照、编译器及产物身份，避免检查过程中的替换被忽略。
+
+201项测试（200通过/1符号链接权限跳过）。新增退出0+有效DATA但普通依赖检查失败仍status=failed且原产物不变；原旧文件/空文件/畸形资源拒绝测试继续通过。
+
+实际新stdio MCP分别验证：
+- 材质367eabb2aee84e3781b5ad205e0ff1f2：9普通输入匹配，10特殊依赖未全覆盖。
+- 模型099f4c8845234027bbc0238186bb06ee：2普通输入匹配，1特殊依赖未全覆盖。
+- 粒子eec3ca0b1c874af68e48f7d8566d68ec：1普通输入匹配，2特殊依赖未全覆盖。
+
+私人总报告C:\CS2_Temp\asset_dependency_gate_stdio.json；各自cs2_asset_jobs/<UUID>/record.json与input_dependency_checks报告保存校验细节。三项均唯一源快照/产物名，不替换原编译资产、未在编辑器打开或预览、不上传模型等第三方资源。
+
+普通输入匹配仍不等于完整特殊/shader/VPK/动态引用闭合或视觉效果正确；dependency_snapshot_complete/coverage_complete/release_ready保持false。单资源仍同步，尚未接持久start/status/cancel worker；整图worker默认仍用源码树guard，私有副本尚未变默认。声音、纹理、音频、JS的真实编译规则亦未补齐，后续按原审查清单继续。

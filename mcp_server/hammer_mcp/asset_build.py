@@ -12,6 +12,7 @@ from .build_jobs import atomic_json, now
 from .build_process import CompilerProcess
 from .edit_preflight import file_evidence
 from .build_artifact import VpkEntry, resource_blocks
+from .input_dependencies import inspect_inputs
 
 
 _BUILDABLE = {".vmdl", ".vmat", ".vpcf"}
@@ -65,6 +66,7 @@ def cs2_asset_compile(path: str, confirm: bool = False) -> dict:
     Preview by default. A UUID sibling source preserves relative references and
     produces a unique compiled path without replacing the original artifact.
     Records input/compiler hashes, process identity, log and resource block bounds.
+    Native RED2-declared ordinary inputs must match their current source CRCs.
     Synchronous, not a detached build job; dependency snapshot is not yet complete.
     """
     record=None;folder=None
@@ -109,6 +111,16 @@ def cs2_asset_compile(path: str, confirm: bool = False) -> dict:
         blocks=resource_blocks(entry,nonempty=True)
         if 'DATA' not in blocks:raise ValueError('nonempty DATA resource block required')
         if file_evidence(compiled)!=output_before:raise ValueError('output changed during validation')
+        dependency_check=inspect_inputs(compiled,compiler.parents[3],folder)
+        record['input_dependency_validation']={key:dependency_check[key] for key in (
+            'declared_inputs_match','special_input_count','special_dependency_count','coverage_complete','evidence_path')}
+        record['input_dependency_validation']['input_count']=len(dependency_check['inputs'])
+        atomic_json(folder/'record.json',record)
+        if not dependency_check['declared_inputs_match']:
+            raise ValueError('RED2 input CRC/existence/search-path check failed')
+        if (file_evidence(compiled)!=output_before or file_evidence(source)!=source_before or
+                file_evidence(compiler)!=compiler_before or file_evidence(snapshot)['sha256']!=source_before['sha256']):
+            raise ValueError('asset inputs/output changed during dependency validation')
         record.update(ok=True,status='succeeded',output_exists=True,output_evidence=output_before,
                       resource_blocks=blocks,finished_at=now())
         atomic_json(folder/'record.json',record)

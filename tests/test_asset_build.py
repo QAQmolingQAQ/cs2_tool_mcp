@@ -26,13 +26,31 @@ class AssetBuildTests(unittest.TestCase):
                 record['process_tree_exited']=True
                 return 0
             with patch('hammer_mcp.asset_build.tempfile.gettempdir',return_value=temporary),patch(
-                    'hammer_mcp.asset_build._compile',side_effect=compile) as run:
+                    'hammer_mcp.asset_build._compile',side_effect=compile) as run,patch(
+                    'hammer_mcp.asset_build.inspect_inputs',return_value={'declared_inputs_match':True,
+                        'special_input_count':0,'special_dependency_count':0,'coverage_complete':False,
+                        'evidence_path':'fixture','inputs':[]}):
                 self.assertTrue(cs2_asset_compile(str(source))['preview']);run.assert_not_called()
                 result=cs2_asset_compile(str(source),True)
                 self.assertTrue(result['ok']);self.assertNotEqual(result['output'],str(original))
                 self.assertEqual(original.read_bytes(),b'old original')
                 self.assertEqual(result['resource_blocks'],['DATA'])
                 self.assertTrue(Path(result['record_path']).is_file())
+
+    def test_zero_exit_valid_resource_still_fails_on_dependency_mismatch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source,original=self.fixture(Path(temporary))
+            def compile(command,compiler,folder,record):
+                Path(record['output']).write_bytes(self.resource());return 0
+            with patch('hammer_mcp.asset_build.tempfile.gettempdir',return_value=temporary),patch(
+                    'hammer_mcp.asset_build._compile',side_effect=compile),patch(
+                    'hammer_mcp.asset_build.inspect_inputs',return_value={'declared_inputs_match':False,
+                        'special_input_count':0,'special_dependency_count':0,'coverage_complete':False,
+                        'evidence_path':'fixture','inputs':[]}):
+                result=cs2_asset_compile(str(source),True)
+            self.assertFalse(result['ok']);self.assertEqual(result['exit_code'],0)
+            self.assertFalse(result['input_dependency_validation']['declared_inputs_match'])
+            self.assertEqual(original.read_bytes(),b'old original')
 
     def test_stale_original_empty_and_malformed_fresh_outputs_rejected(self):
         for payload in (None,b'',b'bad'):
