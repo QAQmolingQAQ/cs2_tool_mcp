@@ -1,0 +1,25 @@
+# Hammer 受限批量探针与回滚失败记录（2026-10-27）
+
+## 执行成果
+
+scripts/hammer_batch_targetname_probe.py读取带SHA的实时计划，只允许test addon maps/__mcp_edit_tests/<UUID>中的非release地图、1至16项不同实体的targetname，旧/新值须空或mcp_probe_前缀。复用进程间pipe操作锁、实时计划复查、GUID选择后读回、全部目标属性前后比较、源/配置/进程身份核对及既有Qt主线程固定属性探针。不调用任何未批准的Hammer RVA，不Save。
+
+持久batch_probe_runs/<UUID>.json逐项保存not_started、selection_dispatching、property_dispatching_unknown_do_not_replay、verified_modified/no_change。派发前先落盘，失败停止且保留未知结果，不自动重试/Undo；同一plan保留active指针阻止再派发。executed_count只统计已验证修改，未知派发另计。--stop-after是有界受控测试停止点，本轮未实测该中断分支，不能称失败恢复已完成。
+
+实机实时计划f6e2317245fd411194fb45e9e8f27800、批次6deacb18e1fa4d0aa0523c177bb3d94b，对GUID657b42df-8155-4005-9f33-8ff4072e6c70与a42aea88-5254-4f16-85ea-6f628b483ce6分别提交mcp_probe_batch_0/1。两项均独立读取真实props确认，executed_count=2、status=verified。没有把这等同可发布通用执行器；仍仅测试脚本，公开工具105不变。
+
+## Undo回滚未通过，已安全清理
+
+第一次Undo05a9eebd8c0749aa80762fd8088c8283后，第二目标全部7项属性恢复，第一目标仍保留修改值，符合预期。
+
+第二次Undo返回成功，但第一目标targetname仍为mcp_probe_batch_0；目标属性没有恢复。验证器停止，没有继续猜测Undo次数。该次Undo具体对应选择历史还是其他历史步骤尚未定位，不能凭现象断言。由此可确定“每次提交固定一次Undo”不能作为批量回滚方案。
+
+随后明确选择并验证第一目标GUID，使用expected=mcp_probe_batch_0到空值的既有受限属性提交清理。最终两个目标的全部属性与批次before完全一致，源SHA6614e9746a6dc654ae57e3c6a0c74b46c15f72c12acfed992af87ccb35c900d6不变，未Save。当前dirty候选15/saved5，不代表全地图clean；Undo回滚验证为false，清理是一次已验证Undo加一次CAS反向提交，不称完整地图回滚。
+
+私人报告C:\CS2_Temp\batch_targetname_test_plan.json、batch_targetname_test_start.json、batch_targetname_undo_verification.json、batch_targetname_inverse_cleanup.json、batch_targetname_final_context.json；原批次journal追加rollback_audit明确失败和清理类型。
+
+180测试（179通过/1符号链接权限跳过）；新增验证受限范围、属性/前缀、重复实体、错误/过大计划拒绝。真实提交与读回通过，但中断/崩溃/Undo历史界限未全部验收。
+
+## 下一步
+
+优先定位Undo历史中属性步骤与选择步骤的边界，必须在撤销前识别预期步骤并在撤销后核对全目标读回，不能按次数盲退。再实现受限失败恢复与日志重连；通用属性、批量事务、原生写入profile、全地图回滚仍未完成。当前脚本存在读回和UI派发之间的非原子窗口，操作锁不能阻止人工编辑，不作为生产写入接口。
