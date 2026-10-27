@@ -89,3 +89,5 @@ PowerShell测试tests/test_bridge_publish.ps1实测文件锁保留旧字节、�
 45ecfd58a37382f8c35bfec836945abe0a5eaf68e4c7108218f147b77e240a74。
 当前CS2未重启且未注入新模块；实际MCP自检仍连接、initialized=false、writes_enabled=false，
 原生写入发送前拒绝验证通过。报告C:\CS2_Temp\mcp_after_atomic_deploy.json。
+
+2026-10-27：新增addon源码树编译前后变化检测，真实RC变更负例拒绝成功及暂存；见BUILD_SOURCE_GUARD.md。未完成不可变依赖镜像/完整外部依赖冻结，不能仅凭guard无变化称全依赖闭合。

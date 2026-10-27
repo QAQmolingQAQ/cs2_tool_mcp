@@ -17,6 +17,7 @@ from hammer_mcp.build_artifact import verify_map_artifact
 from hammer_mcp.build_jobs import atomic_json, now, read_json
 from hammer_mcp.build_process import CompilerProcess, process_identity
 from hammer_mcp.project import sha256
+from hammer_mcp.source_manifest import source_manifest,manifest_changes
 
 
 def run(folder: Path):
@@ -49,6 +50,17 @@ def run(folder: Path):
         if sha256(Path(request['project']['compiler'])) != request['compiler_sha256']:
             raise ValueError('compiler changed after request')
         game = Path(request['project']['game_root'])
+        dependency_guard=request.get('dependency_guard')
+        if dependency_guard is not None:
+            before_compile=source_manifest(request['project']['source_root'],[request['snapshot']])
+            changes=manifest_changes(dependency_guard,before_compile)
+            atomic_json(folder/'dependency_before_compile.json',before_compile)
+            if any(changes.values()):
+                update('dependencies_changed',status='dependencies_changed',dependency_changes=changes,
+                       dependency_guard_checked=True,dependency_guard_unchanged=False,
+                       dependency_guard_scope=dependency_guard['scope'],finished_at=now(),
+                       dependency_snapshot_complete=False,release_ready=False)
+                return
         if any(sha256(game / relative) != digest for relative, digest in request['installation_hashes'].items()):
             raise ValueError('game installation changed after request')
         snapshot = Path(request['snapshot'])
@@ -113,6 +125,13 @@ def run(folder: Path):
                             all((game / relative).is_file() and sha256(game / relative) == digest
                                 for relative, digest in request['installation_hashes'].items()))
         status = 'failed' if code != 0 or not validation['ok'] else 'succeeded'
+        if dependency_guard is not None:
+            after_compile=source_manifest(request['project']['source_root'],[request['snapshot']])
+            atomic_json(folder/'dependency_after_compile.json',after_compile)
+            changes=manifest_changes(dependency_guard,after_compile)
+            if any(changes.values()):status='dependencies_changed'
+            update(dependency_guard_checked=True,dependency_guard_scope=dependency_guard['scope'],
+                   dependency_changes=changes,dependency_guard_unchanged=not any(changes.values()))
         if not inputs_unchanged:
             status = 'inputs_changed'
         if not source_unchanged:

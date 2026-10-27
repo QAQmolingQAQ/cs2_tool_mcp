@@ -1,0 +1,25 @@
+# 构建源码树变化检测（2026-10-27）
+
+## 实现范围
+
+build_start在确认任务/同源操作锁内记录配置addon source_root全部普通文件的相对路径、大小、文件身份与SHA。只排除本任务独占VMAP快照的精确路径，不按文件名前缀/扩展名批量跳过。worker在编译前和产物检查后重新收集并比较，持久保存dependency_before_compile.json和dependency_after_compile.json。
+
+新增dependencies_changed终态；记录added/removed/changed列表，退出0及有效VPK也不能覆盖此失败。编译前已变则不启动编译器。保留编译器/安装版本/主VMAP哈希等既有条件；源码树保护不替代它们。
+
+source_manifest.py每次最多20000个条目/1GiB哈希，分块读取，单文件hash前后身份必须相同；符号链接/junction/逃逸路径/特殊文件拒绝，不静默遗漏。捕获整个addon是保守范围，不是已经解析的精确依赖：不相关文件变化也可能拒绝。其他任务生成新源码快照也会被视为变化；当前没有豁免其他任务产物，宁可明确拒绝而不猜测无关。
+
+这只是变化检测，不是完整不可变依赖副本。基础游戏/其他addon/外部DMX等依赖不在覆盖范围；输入发生变化后又恢复元数据的ABA、跨文件原子一致性和运行时动态引用未证明。dependency_snapshot_complete与release_ready仍false，不提升发布认证。后续必须做依赖清单与私有目录镜像，不能把本guard改名成完整冻结。
+
+## 验证证据
+
+194测试（193通过/1符号链接权限跳过）；新增清单增删改/精确快照排除/根目录错误，以及真实独立worker进程中编译期间JS变化即使编译退出0仍dependencies_changed。
+
+实际新stdio MCP正向快速构建701b2c34b8bd447b946d603e46add6b3覆盖183文件/120740886字节，编译退出0、VPK检查通过、guard前后相同并成功。源仍6614已保存快照，不读取未保存文档内容。报告C:\CS2_Temp\dependency_guard_build_start.json和dependency_guard_build_status.json。
+
+真实resourcecompiler负例041c14093ee043e6b69158dd8b57ae02：在已验证编译器PID/创建时间确实存活时修改独占dependency_guard_<UUID>.js测试文件；退出0、VPK验证通过，但changed列表准确包含该文件，status=dependencies_changed；runtime_stage_build拒绝successful build required。该JS是未引用的保守清单测试文件，不宣称已验证VMAP实际执行它。测试结束后仅删除这个自己创建的文件；原图和隔离VMAP未修改，无Save或切图。证据dependency_guard_negative_runtime.json、任务request/state与前后清单均在私人状态目录。
+
+公开工具仍105，现有构建start/status/cancel契约不变。本轮不推送。
+
+## 接续
+
+下一步继续不可变依赖副本/真实引用覆盖，补JS/材质/粒子/声音输入的构建追踪；依赖RERL、动态脚本/声音字符串和地图UI资源完整闭合仍未完成。完整光照仍受本机GPU条件限制，其他运行上下文与批量目标继续保持。

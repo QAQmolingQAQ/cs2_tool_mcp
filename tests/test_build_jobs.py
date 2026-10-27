@@ -75,6 +75,23 @@ class BuildJobTests(unittest.TestCase):
         self.jobs.append(result['job_id'])
         return result['job_id']
 
+    def test_script_changed_while_compiler_runs_rejects_mixed_source_build(self):
+        script=self.source.parent/'logic.js';script.write_text('before')
+        job=self.start(sleep=2)
+        deadline=time.monotonic()+8
+        while time.monotonic()<deadline:
+            state=build_jobs.cs2_build_status(job,str(self.config),0)
+            if state.get('compiler_pid'):break
+            if state.get('status') in build_jobs.TERMINAL:self.fail(state)
+            time.sleep(0.05)
+        self.assertTrue(state.get('compiler_pid'),state)
+        script.write_text('changed while compiler was running')
+        result=self.wait(job)
+        self.assertEqual(result['compiler_exit_code'],0)
+        self.assertEqual(result['status'],'dependencies_changed',result)
+        self.assertIn('maps/logic.js',result['dependency_changes']['changed'])
+        self.assertFalse(result['dependency_guard_unchanged'])
+
     def test_durable_success_in_new_python_process(self):
         job = self.start()
         result = self.wait(job)

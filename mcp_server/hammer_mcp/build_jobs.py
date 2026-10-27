@@ -13,8 +13,9 @@ import uuid
 from .build_process import process_identity, spawn_worker
 from .operation_lock import operation_lock
 from .project import DEFAULT_CONFIG, load_project, sha256, within
+from .source_manifest import source_manifest
 
-TERMINAL = frozenset(('succeeded', 'failed', 'cancelled', 'interrupted', 'source_changed', 'inputs_changed'))
+TERMINAL = frozenset(('succeeded', 'failed', 'cancelled', 'interrupted', 'source_changed', 'inputs_changed','dependencies_changed'))
 
 
 def now() -> str:
@@ -171,6 +172,7 @@ def cs2_build_start(mode: str = 'quick', config: str = '', profile: str = '',
                     return {'ok': False, 'error': 'source already has an active build', 'job_id': old['job_id'], 'status': old['status']}
             folder = root / plan['job_id']
             folder.mkdir()
+            plan['dependency_guard']=source_manifest(project['source_root'],[plan['snapshot']])
             atomic_json(folder / 'request.json', plan)
             atomic_json(folder / 'state.json', {'job_id': plan['job_id'], 'source': plan['source'],
                 'source_sha256': plan['source_sha256'], 'mode': mode, 'status': 'queued', 'stage': 'queued',
