@@ -1,9 +1,10 @@
 """UUID test-map batch experiment. No general writer, automatic Undo, or Save."""
-import argparse,json,re,sys
+import argparse,json,re,sys,os
 from pathlib import Path
 from uuid import uuid4
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'mcp_server'))
 from hammer_mcp.build_jobs import atomic_json
+from hammer_mcp.build_process import process_identity
 from hammer_mcp.committed_properties import read_committed_batch
 from hammer_mcp.edit_preflight import collect
 from hammer_mcp.edit_preview import cs2_edit_plan_recheck,_plan_hash
@@ -53,6 +54,7 @@ def execute(config,plan_id,plan_hash,stop_after=None):
         identity=read_identities(config)
         expected_context=collect(project)
         record={'id':uuid4().hex,'plan_id':plan_id,'plan_sha256':plan_hash,'before':expected,
+                'producer':{'pid':os.getpid(),'created':process_identity(os.getpid())},
                 'selection_before':identity['selected_entity_guid'],'status':'preparing',
                 'scope':'UUID targetname probe only','automatic_rollback':False,'executed_count':0,
                 'results':[{'index':i,'entity_guid':op['entity_id'],'status':'not_started'} for i,op in enumerate(operations)]}
