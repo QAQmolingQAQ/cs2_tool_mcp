@@ -52,6 +52,9 @@ def load_project(config: str = '', profile: str = '') -> dict:
     if state_root.is_relative_to(source_root) or state_root.is_relative_to(install_root):
         raise ValueError('state_root must be outside game addon directories')
     runtime = None
+    private_copy=selected.get('private_source_copy',False)
+    if not isinstance(private_copy,bool) or private_copy and bool(selected.get('release',False)):
+        raise ValueError('private_source_copy must be bool and currently requires a non-release profile')
     if selected.get('runtime') is not None:
         settings = selected['runtime']
         staging = within(game_root / settings['staging_root'], game_root / 'game')
@@ -65,7 +68,8 @@ def load_project(config: str = '', profile: str = '') -> dict:
     return {'config_path': str(path), 'config_sha256': config_hash, 'profile': name,
             'game_root': str(game_root), 'addon': addon, 'source_root': str(source_root),
             'install_root': str(install_root), 'source': str(source), 'compiler': str(compiler),
-            'state_root': str(state_root), 'release': bool(selected.get('release', False)), 'runtime': runtime}
+            'state_root': str(state_root), 'release': bool(selected.get('release', False)), 'runtime': runtime,
+            'private_source_copy':private_copy}
 
 
 def cs2_project_info(config: str = '', profile: str = '') -> dict:

@@ -91,3 +91,5 @@ PowerShell测试tests/test_bridge_publish.ps1实测文件锁保留旧字节、�
 原生写入发送前拒绝验证通过。报告C:\CS2_Temp\mcp_after_atomic_deploy.json。
 
 2026-10-27：新增addon源码树编译前后变化检测，真实RC变更负例拒绝成功及暂存；见BUILD_SOURCE_GUARD.md。未完成不可变依赖镜像/完整外部依赖冻结，不能仅凭guard无变化称全依赖闭合。
+
+2026-10-27：私有源码副本已作为non-release显式private_source_copy配置接持久worker，实际复制取消/发布及加载身份验证通过，详见BUILD_PRIVATE_WORKER.md。默认false、依赖完整冻结与全验收仍未完成。

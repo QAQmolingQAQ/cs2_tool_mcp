@@ -1,0 +1,33 @@
+# 持久worker私有源码副本模式（2026-10-27）
+
+## 工程配置与执行
+
+测试profile新增private_source_copy布尔选项，默认false；目前仅non-release允许true，公开模板明确false。不修改私人全局MCP配置。启用时_plan生成UUID mcp_build_<24hex>的独立content/game addon根；任务对外artifact仍为原测试addon中的任务专属平面VPK，原地图/原命名产物不被替换。
+
+worker阶段包括copy_sources：按确认时源清单复制全部addon输入，逐文件/1MiB块检查取消，复制后身份与SHA复核；从副本中的源VMAP生成平面输入，资源编译器输出到私有game addon。编译后检查原源码树guard及整个副本前后无变化，私有VPK结构/CRC/VIS符合模式，才经publish_new独占非覆盖发布到任务路径，并再次检查发布VPK。源清单、私有前后清单、进程身份、日志、阶段和两份产物校验均持久保存。失败/取消保留部分目录作证据，不递归清理资产。
+
+普通构建仍为原addon guard路径，release仍拒绝此实验选项。没有宣称base game、shader/special或动态引用全部冻结；dependency_snapshot_complete/release_ready仍false。地图worker尚未逐个RED2资源做普通输入门禁（单资源已做），后续继续接入。
+
+## 实机持久构建、取消和加载
+
+真实新stdio MCP任务3cf6af8ef7ca4c068115ff0a8c29d614在客户端退出后继续完成：snapshot→copy_sources→compile world/phys/vis→validate→publish→succeeded。源清单覆盖188文件/120945095字节；原树及私有副本无变化。私有与发布VPK SHA均为0728607d350e9bf1b8b660b621bb07cf4b9b231437c74c5a6940308d714d677d，资源检查通过。
+
+另一个实际MCP任务b3f65df62fed44c4b41854381ab47b98在copy_sources阶段观察后接受取消，最终cancelled，无compiler_pid、无发布产物。测试确认复制阶段无需等待编译器才能取消。
+
+加载任务ff2579a1b5a04e29afb1a176b5e44e44只发一次绝对路径map，请求确认后独立新stdio status确认loaded/runtime_map_verified=true，唯一地图mcp_3cf6af8ef7ca4c068115ff0a、本地loopback客户端已连接、绑定PID7132/创建时间134375068170658822。该结果只认证地图身份和保留磁盘产物，不是画质、运行脚本或全依赖验收。
+
+最终Hammer仍打开原隔离UUID文档，内存dirty25/saved5；未Save。源6614e9746a6dc654ae57e3c6a0c74b46c15f72c12acfed992af87ccb35c900d6及原图f489c4112a3380b898b1267929c32c5a7241af64ef9b06c6ada013381ab80b9e不变。
+
+## 同轮修复：控制台初始回放预算
+
+最初加载预览因诊断没有完整标记而拒绝，未发map。PID/创建时间一致的只读探测发现前10000帧内有9997个PRNT；更长但仍受相同5秒/16MiB约束的echo探测在第11987帧（约2MiB）收到精确标记。这表明旧帧数上限过早拒绝该会话的初始打印回放，不是已证明进程死亡。
+
+VConsole echo、诊断及加载ack统一帧数预算100000；保留原始字节、单帧、deadline、起止标记及PID绑定，无重同步/文本协议回退。增加超过10000个初始帧但只收标记之间结果的测试。预览重新通过后才首次发map，没有重启游戏或重放未知加载。
+
+205测试（204通过/1符号链接权限跳过），新增私有复制发布、配置类型/正式版拒绝、复制取消、初始回放预算测试。已有持久任务/取消/源变化/产物错误等继续通过。
+
+## 证据与下一步
+
+私人报告均在C:\CS2_Temp：private_worker_build_start/status.json、private_worker_cancel_verification.json、private_worker_runtime_preview/start/status.json、private_worker_runtime_diagnostics.json、private_worker_console_flow/backlog_probe.json、private_worker_editor_final.json；完整request/state/log与私有前后清单在mcp_build_jobs/<任务UUID>。本轮复制含本地第三方测试资源，只留本机，不上传。
+
+下一步地图VPK内资源RED2来源与CRC门禁、外部/special/VPK身份、更多构建模式和玩家上下文实际结果验证。完整光照仍未过GPU限制，不将快速模式的这一闭环缩减为全目标完成；公开工具仍105，原生写入profile仍空。

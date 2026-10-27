@@ -17,7 +17,8 @@ from hammer_mcp.build_artifact import verify_map_artifact
 from hammer_mcp.build_jobs import atomic_json, now, read_json
 from hammer_mcp.build_process import CompilerProcess, process_identity
 from hammer_mcp.project import sha256
-from hammer_mcp.source_manifest import source_manifest,manifest_changes
+from hammer_mcp.source_manifest import source_manifest,manifest_changes,copy_source_manifest,SourceCopyCancelled
+from hammer_mcp.runtime_stage import publish_new
 
 
 def run(folder: Path):
@@ -64,14 +65,25 @@ def run(folder: Path):
         if any(sha256(game / relative) != digest for relative, digest in request['installation_hashes'].items()):
             raise ValueError('game installation changed after request')
         snapshot = Path(request['snapshot'])
+        input_source=source;copied_manifest=None
+        if request.get('private_source_copy'):
+            if dependency_guard is None:raise ValueError('private source copy requires recorded manifest')
+            update('copy_sources',private_source_copy=True,private_source_root=request['private_source_root'],
+                   private_install_root=request['private_install_root'],compiled_artifact=request['compiled_artifact'])
+            copied_manifest=copy_source_manifest(dependency_guard,request['private_source_root'],cancelled)
+            atomic_json(folder/'private_source_manifest.json',copied_manifest)
+            private_install=Path(request['private_install_root']);private_install.mkdir(exist_ok=False)
+            (private_install/'addoninfo.txt').write_text('<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n{}\n',encoding='utf-8')
+            input_source=Path(request['private_source_root'])/source.relative_to(Path(request['project']['source_root']))
         snapshot.parent.mkdir(parents=True, exist_ok=request.get('snapshot_layout')=='runtime_flat_v1')
         # Exclusive creation also protects a colliding flat name from overwrite.
-        with source.open('rb') as input_stream, snapshot.open('xb') as output_stream:
+        with input_source.open('rb') as input_stream, snapshot.open('xb') as output_stream:
             shutil.copyfileobj(input_stream, output_stream, 1024*1024)
         if sha256(snapshot) != request['source_sha256'] or sha256(source) != request['source_sha256']:
             raise ValueError('source changed while copying snapshot')
-        artifact = Path(request['artifact'])
-        if artifact.exists():
+        artifact = Path(request.get('compiled_artifact',request['artifact']))
+        final_artifact=Path(request['artifact'])
+        if artifact.exists() or final_artifact.exists():
             raise ValueError('isolated output already exists; refusing stale artifact')
         temporary = folder / 'temp'
         temporary.mkdir()
@@ -136,10 +148,24 @@ def run(folder: Path):
             status = 'inputs_changed'
         if not source_unchanged:
             status = 'source_changed'
+        if copied_manifest is not None:
+            copied_after=source_manifest(request['private_source_root'],[snapshot])
+            atomic_json(folder/'private_source_after_compile.json',copied_after)
+            copied_changes=manifest_changes(copied_manifest,copied_after)
+            update(private_copy_changes=copied_changes,private_copy_unchanged=not any(copied_changes.values()))
+            if any(copied_changes.values()):status='dependencies_changed'
+            if status=='succeeded' and not cancelled():
+                update('publish',private_artifact_validation=validation)
+                final_artifact.parent.mkdir(parents=True,exist_ok=True)
+                publish_new(artifact,final_artifact,validation['sha256'])
+                validation=verify_map_artifact(str(final_artifact),request['map_name'],request['mode'],cancelled=cancelled)
+                if not validation.get('ok'):status='failed'
         if cancelled():
             status = 'cancelled'
         update(status, status=status, validation=validation, finished_at=now(), inputs_unchanged=inputs_unchanged,
                release_ready=False, dependency_snapshot_complete=False)
+    except SourceCopyCancelled:
+        update('cancelled',status='cancelled',finished_at=now(),process_tree_exited=True,release_ready=False)
     except BaseException as exc:
         # Close the job first: no failure result may leave a compiler subtree alive.
         if process is not None:

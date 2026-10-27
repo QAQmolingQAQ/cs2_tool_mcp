@@ -40,13 +40,18 @@ def manifest_changes(before,after):
             'changed':sorted(name for name in old.keys()&new.keys() if old[name]!=new[name])}
 
 
-def copy_source_manifest(manifest,destination):
+class SourceCopyCancelled(ValueError):
+    pass
+
+
+def copy_source_manifest(manifest,destination,cancelled=None):
     """Copy an exact recorded tree into a new private directory, retaining failure evidence."""
     source=Path(manifest['root']).resolve(strict=True)
     destination=Path(destination).resolve()
     if destination.is_relative_to(source):raise ValueError('private copy must be outside source tree')
     destination.mkdir(exist_ok=False)
     for name,expected in manifest['files'].items():
+        if cancelled is not None and cancelled():raise SourceCopyCancelled('source copy cancelled')
         relative=Path(name)
         if relative.is_absolute() or relative.drive or '..' in relative.parts:
             raise ValueError('snapshot relative path invalid')
@@ -58,7 +63,9 @@ def copy_source_manifest(manifest,destination):
         if identity(before)!=expected['identity']:raise ValueError('source changed before snapshot copy')
         target.parent.mkdir(parents=True,exist_ok=True)
         with original.open('rb') as reader,target.open('xb') as writer:
-            while chunk:=reader.read(1024*1024):writer.write(chunk)
+            while chunk:=reader.read(1024*1024):
+                if cancelled is not None and cancelled():raise SourceCopyCancelled('source copy cancelled')
+                writer.write(chunk)
         if identity(original.stat())!=identity(before) or sha256(target)!=expected['sha256']:
             raise ValueError('source changed during snapshot copy')
         target.chmod(stat.S_IREAD)

@@ -48,3 +48,5 @@ runtime_load_49bbcf0f73014a9dac5bd2657f2c324d.json和runtime_addon_map_load.json
 120项Python测试通过，包括长包分片、错误边界/时限、错误握手/进程不发送命令、
 TCP身份歧义拒绝以及平面快照碰撞不覆盖。唯一工具94个，bridge40。
 本轮仅保存本地改动，GitHub仍为上轮已核对的e3f55f0；后续不自动推送。
+
+2026-10-27：真实会话初始PRNT回放在第11987帧后才echo；统一观察帧数上限100000，保持原5秒/16MiB/单帧限制与精确标记。证据及加载衔接见BUILD_PRIVATE_WORKER.md。

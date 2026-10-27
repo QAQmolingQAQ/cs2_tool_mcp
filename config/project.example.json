@@ -5,6 +5,7 @@
   "profiles": {
     "test": {
       "addon": "test", "map": "maps/example.vmap", "release": false,
+      "private_source_copy": false,
       "runtime": {"staging_root": "game/csgo/maps", "console_port": 29000}
     },
     "release": {"addon": "my_release_addon", "map": "maps/example.vmap", "release": true}

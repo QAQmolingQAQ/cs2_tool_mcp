@@ -11,6 +11,7 @@ from uuid import uuid4
 
 HEADER = struct.Struct('>4sHIH')
 MAX_FRAME = 4*1024*1024
+MAX_OBSERVATION_FRAMES = 100000  # initial console replay can exceed 10k; byte/deadline limits still apply
 
 
 def encode_command(command: str, version: int) -> bytes:
@@ -84,7 +85,7 @@ def probe(port: int = 29000, timeout: float = 5, expected_pid: int | None = None
             stream.sendall(encode_command('echo '+marker,first['version']))
             report['command_sent']=True
             counts={first['type']:1};largest=first['length']
-            for _ in range(10000):
+            for _ in range(MAX_OBSERVATION_FRAMES):
                 frame=reader.frame()
                 counts[frame['type']]=counts.get(frame['type'],0)+1
                 largest=max(largest,frame['length'])

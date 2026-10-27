@@ -1,10 +1,18 @@
 from pathlib import Path
 import sys,tempfile,unittest,stat
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'mcp_server'))
-from hammer_mcp.source_manifest import source_manifest,manifest_changes,copy_source_manifest
+from hammer_mcp.source_manifest import source_manifest,manifest_changes,copy_source_manifest,SourceCopyCancelled
 
 
 class SourceManifestTests(unittest.TestCase):
+    def test_copy_can_cancel_before_any_file_is_written(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);source=root/'source';source.mkdir();(source/'logic.js').write_text('original')
+            with self.assertRaises(SourceCopyCancelled):
+                copy_source_manifest(source_manifest(source),root/'private',lambda:True)
+            self.assertEqual(list((root/'private').iterdir()),[])
+            self.assertEqual((source/'logic.js').read_text(),'original')
+
     def test_private_copy_preserves_content_when_original_changes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);source=root/'source';source.mkdir()

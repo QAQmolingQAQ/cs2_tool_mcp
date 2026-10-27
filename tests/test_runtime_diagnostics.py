@@ -30,10 +30,15 @@ class RuntimeDiagnosticsTests(unittest.TestCase):
 
     def test_diagnostic_frame_and_line_budgets(self):
         reader=Mock()
-        with patch('hammer_mcp.runtime_diagnostics.print_text',return_value=None):
+        with patch('hammer_mcp.runtime_diagnostics.print_text',return_value=None),patch('hammer_mcp.runtime_diagnostics.MAX_OBSERVATION_FRAMES',10):
             with self.assertRaisesRegex(ValueError,'completion marker'):_diagnostic_lines(reader,'probe')
         with patch('hammer_mcp.runtime_diagnostics.print_text',side_effect=['probe']+['line']*4001):
             with self.assertRaisesRegex(ValueError,'line budget'):_diagnostic_lines(reader,'probe')
+
+    def test_large_initial_replay_is_excluded_before_marker(self):
+        reader=Mock()
+        with patch('hammer_mcp.runtime_diagnostics.print_text',side_effect=[None]*10001+['probe','actual','probe_END']):
+            self.assertEqual(_diagnostic_lines(reader,'probe'),['actual'])
 
     def test_fixed_summary_keeps_map_coordinates_cvar_without_private_status_fields(self):
         lines=['Client:  Connected [loopback:1] [last packet 0.001 sec ago]\n',

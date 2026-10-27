@@ -11,7 +11,7 @@ from .build_process import process_identity
 from .project import load_project, sha256, within
 from .session import get_session
 from .versioning import inspect_live
-from .vconsole import Reader, encode_command, print_text
+from .vconsole import Reader, encode_command, print_text,MAX_OBSERVATION_FRAMES
 from .windows_tcp import server_pid
 from .plugin_diagnostics import QUERIES,summarize_queries
 
@@ -19,7 +19,7 @@ from .plugin_diagnostics import QUERIES,summarize_queries
 def _diagnostic_lines(reader, marker):
     """Return only the bounded interval; a timeout is never completion evidence."""
     lines=[];started=False;end=marker+'_END'
-    for _ in range(10000):
+    for _ in range(MAX_OBSERVATION_FRAMES):
         text=print_text(reader.frame())
         if text is None:continue
         if text.strip()==marker:started=True;continue

@@ -61,7 +61,8 @@ class BuildJobTests(unittest.TestCase):
                               prefix + '/world_visibility.vvis_c': resource(b'VXVS')})
             script = f"import time,pathlib,shutil;print(\"... Building 'world'\",flush=True);time.sleep({sleep});"
             if output:
-                script += f"p=pathlib.Path({plan['artifact']!r});p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile({str(fixture)!r},p);"
+                destination=plan.get('compiled_artifact',plan['artifact'])
+                script += f"p=pathlib.Path({destination!r});p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile({str(fixture)!r},p);"
             script += f'raise SystemExit({code})'
             plan['command'] = [sys.executable, '-c', script]
             return plan
@@ -74,6 +75,27 @@ class BuildJobTests(unittest.TestCase):
         self.assertTrue(result['ok'], result)
         self.jobs.append(result['job_id'])
         return result['job_id']
+
+    def test_private_addon_copy_compiles_then_publishes_verified_artifact(self):
+        data=json.loads(self.config.read_text());data['profiles']['test']['private_source_copy']=True
+        self.config.write_text(json.dumps(data))
+        job=self.start();result=self.wait(job)
+        self.assertEqual(result['status'],'succeeded',result)
+        self.assertTrue(result['private_copy_unchanged'])
+        self.assertTrue(Path(result['artifact']).is_file())
+        self.assertTrue(Path(result['compiled_artifact']).is_file())
+        self.assertNotEqual(result['artifact'],result['compiled_artifact'])
+        stages=[event['stage'] for event in result['events']]
+        self.assertIn('copy_sources',stages);self.assertIn('publish',stages)
+        self.assertEqual(self.source.read_text(),'test source')
+
+    def test_private_copy_setting_requires_bool_nonrelease(self):
+        data=json.loads(self.config.read_text())
+        for private,release in (('true',False),(True,True)):
+            data['profiles']['test'].update(private_source_copy=private,release=release)
+            self.config.write_text(json.dumps(data))
+            result=build_jobs.cs2_build_start(config=str(self.config))
+            self.assertFalse(result['ok']);self.assertIn('private_source_copy',result['error'])
 
     def test_script_changed_while_compiler_runs_rejects_mixed_source_build(self):
         script=self.source.parent/'logic.js';script.write_text('before')

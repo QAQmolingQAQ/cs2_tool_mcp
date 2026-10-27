@@ -12,7 +12,7 @@ from .operation_lock import operation_lock
 from .project import load_project, sha256, within
 from .runtime_diagnostics import cs2_runtime_diagnostics
 from .runtime_stage import cs2_runtime_stage_build
-from .vconsole import Reader, encode_command, print_text
+from .vconsole import Reader, encode_command, print_text,MAX_OBSERVATION_FRAMES
 from .windows_tcp import server_pid
 
 
@@ -50,7 +50,7 @@ def _send(record, path, project):
         stream.sendall(encode_command(command,212))
         record['command_sent']=True
         atomic_json(path,record)
-        for _ in range(10000):
+        for _ in range(MAX_OBSERVATION_FRAMES):
             text=print_text(reader.frame())
             if text is not None and text.strip()==record['ack_marker']:
                 record.update(batch_acknowledged=True,status='requested',updated_at=now())

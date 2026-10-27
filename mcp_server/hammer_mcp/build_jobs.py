@@ -129,6 +129,16 @@ def _plan(project: dict, mode: str, job_id: str) -> dict:
     relative = Path('maps') / ('mcp_' + job_id[:24] + '.vmap')
     snapshot = within(Path(project['source_root']) / relative, Path(project['source_root']))
     artifact = within((Path(project['install_root']) / relative).with_suffix('.vpk'), Path(project['install_root']))
+    private_copy=project.get('private_source_copy',False)
+    private_roots={}
+    if private_copy:
+        name='mcp_build_'+job_id[:24]
+        game=Path(project['game_root'])
+        private_source=within(game/'content/csgo_addons'/name,game/'content/csgo_addons')
+        private_install=within(game/'game/csgo_addons'/name,game/'game/csgo_addons')
+        snapshot=private_source/relative
+        private_roots={'private_source_root':str(private_source),'private_install_root':str(private_install),
+                       'compiled_artifact':str((private_install/relative).with_suffix('.vpk'))}
     flags = ['-fshallow', '-world', '-phys', '-vis'] if mode == 'quick' else ['-f']
     game = Path(project['game_root'])
     installation = {relative: sha256(game / relative) for relative in (
@@ -137,7 +147,7 @@ def _plan(project: dict, mode: str, job_id: str) -> dict:
         if (game / relative).is_file()}
     return {'job_id': job_id, 'mode': mode, 'project': project, 'source': str(source),
             'source_sha256': sha256(source), 'snapshot': str(snapshot), 'artifact': str(artifact),
-            'snapshot_layout': 'runtime_flat_v1',
+            'snapshot_layout': 'runtime_flat_v1','private_source_copy':private_copy,**private_roots,
             'map_name': relative.with_suffix('').as_posix().removeprefix('maps/'),
             'command': [project['compiler'], '-nop4', '-i', str(snapshot), *flags],
             'compiler_sha256': sha256(Path(project['compiler'])),
