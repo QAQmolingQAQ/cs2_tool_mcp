@@ -6,7 +6,7 @@
 
 ## 最新阶段上传（2026-10-26）
 
-运行加载start/status、VConsole2、固定运行诊断、显式暂存和RERL静态依赖检查已完成阶段验证：99个唯一工具、132项Python测试通过。本轮按用户要求上传这些已验证成果；脚本AST分析仍为本地未跟踪草稿，尚未接入MCP，不随本次上传。细节见RUNTIME_VALIDATION.md、BUILD_DEPENDENCIES.md与GITHUB_UPLOAD_CHECK.md。下方历史基线按各阶段时间理解，最新Git以远端读回为准。
+运行加载start/status、VConsole2、固定运行诊断、显式暂存和RERL静态依赖检查已完成阶段验证：99个唯一工具、132项Python测试通过。本轮按用户要求上传这些已验证成果；该上传阶段未包含脚本AST；此后本地已接入map_io_check→check_scripts，已完成静态测试与实机负例。细节见RUNTIME_VALIDATION.md、BUILD_DEPENDENCIES.md与GITHUB_UPLOAD_CHECK.md。下方历史基线按各阶段时间理解，最新Git以远端读回为准。
 
 ## 当前持续目标：构建与产物验证
 
@@ -212,3 +212,5 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 2026-10-27：只读追踪Outliner代理→QStandardItemModel源item→role256 CMapEntity→+8 GUID，当前21实体GUID与保存快照集合完全一致；行[0,3]对应此前属性验证GUID。新增可复现scripts/hammer_outliner_identity_probe.py，依赖哈希/RTTI/向量边界/读取前后复核，仍非原子且不写地图；公开工具103不变。168测试（167通过/1权限跳过），证据和下一步见HAMMER_OUTLINER_IDENTITY.md。下一步接只读MCP及排序/筛选/同名验证，再接内存属性与批量修改。保持本地。
 
 2026-10-27：cs2_hammer_entity_identities已接只读Hammer MCP（104唯一/Hammer59），核心移入包、脚本复用。实际MCP两同名info_player_start选择切换读回不同GUID，再恢复原GUID，21实体读取且文件证据不变；多视图列表/选择一致校验。169测试（168通过/1权限跳过）。详情HAMMER_OUTLINER_IDENTITY.md、私人outliner_identity_mcp_selection.json。下一步排序/筛选及内存属性验证，仍无批量写入许可。保持本地。
+
+2026-10-27 用户审查接续：先修单资源产物可靠性，UUID同目录源快照/独立产物名、输入/编译器SHA和文件身份、持久日志记录、Job进程身份/后代、非空DATA和资源块边界校验；真实MCP材质任务138f625bb0434125be0dea770153d5f5通过。174测试（173通过/1权限跳过）。契约描述cleandoc与参数结构分别比较；历史AST状态文字已纠正。同步接口仍未接持久worker，声音/JS类型、玩家上下文、CS2Fixes、依赖冻结及声音测量仍待完成；详见ASSET_BUILD_VALIDATION.md的完整审查清单。上一轮committed_properties三份未跟踪研究文件保留，未保存属性差分未验收。保持本地。

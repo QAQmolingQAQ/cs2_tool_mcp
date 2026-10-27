@@ -1,4 +1,5 @@
 import ast
+import inspect
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -33,7 +34,11 @@ class ArchitectureTests(unittest.TestCase):
         new_names += ('cs2_hammer_entity_identities',)
         added = [tool for tool in actual if tool['name'] in new_names]
         self.assertEqual(len(added), len(new_names))
-        self.assertEqual([tool for tool in actual if tool['name'] not in new_names], expected)
+        retained=[tool for tool in actual if tool['name'] not in new_names]
+        self.assertEqual([{k:v for k,v in tool.items() if k!='description'} for tool in retained],
+                         [{k:v for k,v in tool.items() if k!='description'} for tool in expected])
+        self.assertEqual([inspect.cleandoc(tool.get('description','')) for tool in retained],
+                         [inspect.cleandoc(tool.get('description','')) for tool in expected])
 
     def test_sessions_and_all_caches_are_isolated_and_reset(self):
         first, second = BridgeSession(), BridgeSession()
