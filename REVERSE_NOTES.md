@@ -4624,3 +4624,5 @@ modeldoc 的 20 个工具类目标（`Tool_Selection` / `Tool_Picker` / `ModelDo
 
 
 2026-10-27：只读追踪Outliner代理→QStandardItemModel源item→role256 CMapEntity→+8 GUID，当前21实体GUID与保存快照集合完全一致；行[0,3]对应此前属性验证GUID。新增可复现scripts/hammer_outliner_identity_probe.py，依赖哈希/RTTI/向量边界/读取前后复核，仍非原子且不写地图；公开工具103不变。168测试（167通过/1权限跳过），证据和下一步见HAMMER_OUTLINER_IDENTITY.md。下一步接只读MCP及排序/筛选/同名验证，再接内存属性与批量修改。保持本地。
+
+2026-10-27最新：按GUID真实class props读取在未保存targetname修改→Undo→Redo→最终Undo实机通过，全部7项目标属性恢复、源6614哈希全程不变；没有Save。当前dirty候选9/saved5，不能当全地图clean/rollback。新增研究核心committed_properties.py/脚本/测试并准备本地保存；175测试（174通过/1权限跳过）。CDataModel现RVA24BAE00/vtable16C45D8经RTTI和唯一命中验证，旧24BBE00失败，保持offsets和兼容profile不变。完整证据/操作ID/下一步HAMMER_COMMITTED_PROPERTIES.md，私人committed_property_cycle.json。下一步把实时expected/回读接批量，不开放任意native写入。工具仍104。保持本地。

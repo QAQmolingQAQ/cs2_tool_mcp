@@ -874,3 +874,5 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-27：cs2_hammer_entity_identities已接只读Hammer MCP（104唯一/Hammer59），核心移入包、脚本复用。实际MCP两同名info_player_start选择切换读回不同GUID，再恢复原GUID，21实体读取且文件证据不变；多视图列表/选择一致校验。169测试（168通过/1权限跳过）。详情HAMMER_OUTLINER_IDENTITY.md、私人outliner_identity_mcp_selection.json。下一步排序/筛选及内存属性验证，仍无批量写入许可。保持本地。
 
 2026-10-27 用户审查接续：先修单资源产物可靠性，UUID同目录源快照/独立产物名、输入/编译器SHA和文件身份、持久日志记录、Job进程身份/后代、非空DATA和资源块边界校验；真实MCP材质任务138f625bb0434125be0dea770153d5f5通过。174测试（173通过/1权限跳过）。契约描述cleandoc与参数结构分别比较；历史AST状态文字已纠正。同步接口仍未接持久worker，声音/JS类型、玩家上下文、CS2Fixes、依赖冻结及声音测量仍待完成；详见ASSET_BUILD_VALIDATION.md的完整审查清单。上一轮committed_properties三份未跟踪研究文件保留，未保存属性差分未验收。保持本地。
+
+2026-10-27最新：按GUID真实class props读取在未保存targetname修改→Undo→Redo→最终Undo实机通过，全部7项目标属性恢复、源6614哈希全程不变；没有Save。当前dirty候选9/saved5，不能当全地图clean/rollback。新增研究核心committed_properties.py/脚本/测试并准备本地保存；175测试（174通过/1权限跳过）。CDataModel现RVA24BAE00/vtable16C45D8经RTTI和唯一命中验证，旧24BBE00失败，保持offsets和兼容profile不变。完整证据/操作ID/下一步HAMMER_COMMITTED_PROPERTIES.md，私人committed_property_cycle.json。下一步把实时expected/回读接批量，不开放任意native写入。工具仍104。保持本地。

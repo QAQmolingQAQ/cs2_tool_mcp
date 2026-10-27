@@ -1,0 +1,29 @@
+# Hammer 真实属性存储读回（2026-10-27）
+
+## 当前成果
+
+read_committed_properties(config, profile, entity_guid)沿当次验证的Outliner GUID链取得CMapEntity地址，再核对实体RTTI及+8完整GUID。实体+0x48的CDmAttribute链逐项核对owner回指、循环/数量/名称重复与字符串边界，entity_properties必须是type1句柄。
+
+当前Hammer的旧CDataModel RVA0x24BBE00实机RTTI失败；基于当前DLL静态RTTI定位CDataModel vtable0x16C45D8，并以运行vtable字节唯一命中全局RVA0x24BAE00。只在当前Hammer哈希/相关Qt布局验证后使用，不更改offsets.py或native_compatibility。数据模型+0x80存活数、+0x88容量、+0x90数组，每项16字节、+8元素指针；完整句柄必须等于props+0x28，拒绝只凭低22位接受槽位复用。属性容器RTTI CEditGameClassProps、vtable0x17602B8；其字符串属性值按type5读取存储char指针。前后重读所有内存证据及完整实体/文档上下文，观察非原子，不声称排除ABA变化。
+
+入口scripts/hammer_committed_properties_probe.py，核心mcp_server/hammer_mcp/committed_properties.py；当前仍是研究读取函数，没有新增公开工具或通用属性写入。
+
+## 实机未保存→Undo→Redo往返
+
+唯一测试文档：test/maps/__mcp_edit_tests/bc1d170dd26541cf80f946e324a3beca/untitled_2.vmap；GUID657b42df-8155-4005-9f33-8ff4072e6c70。PID7132/创建时间仍须下轮重核。
+
+1. 初始真实属性targetname为空，classname info_player_start；共7项class属性。
+2. 已验证固定Qt targetname探针提交mcp_probe_storage_read_20261027，新读取函数从真实props存储返回相同值，不依赖输入框文字或磁盘。
+3. 原生Qt Undo后新读取返回空值、全部7项属性与初始一致。
+4. Redo后新读取返回测试名、全部7项属性与修改后一致。
+5. 最终再次Undo，新读取返回空值、全部7项与初始一致。
+
+全程未Save，源文件SHA始终6614e9746a6dc654ae57e3c6a0c74b46c15f72c12acfed992af87ccb35c900d6。当前内存dirty世代候选9/保存5；撤销恢复了目标属性内容，未证明全地图元数据回滚，不将dirty状态当clean。下一轮不得保存或重新编译来替代内存验证；现有构建16a7b…仍绑定6614磁盘快照。
+
+私人证据C:\CS2_Temp\committed_property_cycle.json包含每阶段完整7项读回、磁盘哈希和操作stdout；属性探针journal 4e4947c2e2074ce8993add80ffc2f6ab，Undo 85c317442ae54ada9dde016402e8daf1，Redo32ecec4d2e184268b1bfde8658cdf006，最终Undo54514fdbca2047dbb4779299f453e7b5。其他静态/只读探针current_datamodel_static.json、entity_property_chain_probe.json、entity_committed_properties_probe.json、committed_properties_verified.json均仅本地。
+
+175测试（174通过/1符号链接权限跳过），包含属性owner、循环/重复/空键及复用句柄世代不匹配拒绝。当前读回结果仍保留unsaved_change_validation_complete=false，因为仅一个属性/一个隔离文档往返，不声称所有属性和文档覆盖完成；本记录明确给出已通过的targetname范围。
+
+## 下一步
+
+将该读取接入预览的实时expected值核对和执行后读回；把操作绑定GUID/文档/当前版本/唯一选择，再实现逐项结果和发生错误时的验证后Undo。原生历史压步ABI/完整兼容profile仍未验收，不能据本次Qt往返打开任意native写入。用户审查的玩家activator/caller验收、CS2Fixes、依赖冻结、声音/JS类型与测量工具继续见ASSET_BUILD_VALIDATION.md，不缩减完整目标。
