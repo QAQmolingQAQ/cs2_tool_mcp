@@ -4628,3 +4628,5 @@ modeldoc 的 20 个工具类目标（`Tool_Selection` / `Tool_Picker` / `ModelDo
 2026-10-27最新：按GUID真实class props读取在未保存targetname修改→Undo→Redo→最终Undo实机通过，全部7项目标属性恢复、源6614哈希全程不变；没有Save。当前dirty候选9/saved5，不能当全地图clean/rollback。新增研究核心committed_properties.py/脚本/测试并准备本地保存；175测试（174通过/1权限跳过）。CDataModel现RVA24BAE00/vtable16C45D8经RTTI和唯一命中验证，旧24BBE00失败，保持offsets和兼容profile不变。完整证据/操作ID/下一步HAMMER_COMMITTED_PROPERTIES.md，私人committed_property_cycle.json。下一步把实时expected/回读接批量，不开放任意native写入。工具仍104。保持本地。
 
 2026-10-27最新：受限targetname批量测试脚本完成两个GUID逐项提交/真实读回及持久派发日志（批次6deacb18e1fa4d0aa0523c177bb3d94b），但逆序Undo第二步未恢复第一目标，已停止盲退；清理由一次已验证Undo+第一目标CAS反向提交完成，两个目标全部属性恢复、源6614不变，未Save。当前dirty15/saved5。Undo批量回滚未通过，不开放生产写入。180测试（179通过/1权限跳过），详情HAMMER_BATCH_PROBE.md及batch_targetname_*本地报告。下一步定位属性/选择历史步骤边界，再接失败恢复；公开工具仍105。保持本地。
+
+2026-10-27最新：history_snapshot只读确认Modify Selection夹在Change: Name之间，批量日志已记录选择/提交前后完整步骤。初次撤销因测试期间implementation哈希变化在0派发前拒绝并CAS清理；源码稳定新批a0a50e3367dc4692ad34a402153576dc经a67fac52ecd145fbb7fdd5d4aa98fb34四次精确匹配Undo（2属性+2选择）通过，独立复查目标属性/选择/原undo栈恢复。隔离6614/原图f489均未变，未Save；dirty23/saved5，redo与全地图未回滚认证。183测试（182通过/1权限跳过）。详情HAMMER_HISTORY_BOUNDARIES.md；下一步部分执行停止/失败恢复，仍非生产通用写入，工具105/兼容profile空。保持本地。

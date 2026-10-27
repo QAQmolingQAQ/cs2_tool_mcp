@@ -11,6 +11,7 @@ from hammer_mcp.operation_lock import operation_lock
 from hammer_mcp.outliner_identity import read_identities
 from hammer_mcp.project import load_project,within
 from hammer_mcp.session import get_session
+from hammer_mcp.history_snapshot import read_history
 
 
 def validate(project,plan):
@@ -68,6 +69,7 @@ def execute(config,plan_id,plan_hash,stop_after=None):
                 if read_committed_batch(config,'',identifiers)!=expected:raise ValueError('unexpected batch property change')
                 context=collect(project)
                 if context!=expected_context:raise ValueError('batch document/source/process context changed')
+                row['history_before_selection']=read_history(config)
                 identity=read_identities(config)
                 target=next(item for item in identity['identities'] if item.get('entity_guid')==operation['entity_id'])
                 row['status']='selection_dispatching';atomic_json(output,record)
@@ -77,6 +79,7 @@ def execute(config,plan_id,plan_hash,stop_after=None):
                 selected=read_identities(config)
                 if selected['selected_entity_guid']!=operation['entity_id']:raise ValueError('selected GUID readback mismatch')
                 if collect(project)!=context:raise ValueError('context changed while selecting')
+                row['history_after_selection']=read_history(config)
                 params={'expected_root':Path(project['source']).as_posix().lower(),
                         'selected_row_key':selected['selected_row_key'],'expected_before':operation['expected'],
                         'value':operation['value'],'confirm':False}
@@ -86,6 +89,8 @@ def execute(config,plan_id,plan_hash,stop_after=None):
                 if read_committed_batch(config,'',identifiers)!=expected or collect(project)!=context:
                     raise ValueError('property/context changed before dispatch')
                 row['status']='property_dispatching_unknown_do_not_replay';atomic_json(output,record)
+                row['history_before_write']=read_history(config)
+                atomic_json(output,record)
                 row['response']=pipe.call('qt_hammer_targetname_probe',{**params,'confirm':True})
                 observed=read_committed_batch(config,'',identifiers)
                 wanted=json.loads(json.dumps(expected))
@@ -95,6 +100,7 @@ def execute(config,plan_id,plan_hash,stop_after=None):
                 if any(after_context.get(key)!=value for key,value in context.items() if key!='layout'):
                     raise ValueError('source/config/process changed during property commit')
                 row.update(status='verified_no_change' if operation['value']==operation['expected'] else 'verified_modified',readback=observed)
+                row['history_after_write']=read_history(config)
                 record['executed_count']+=int(row['status']=='verified_modified')
                 expected=observed;expected_context=after_context;atomic_json(output,record)
             else:record['status']='verified'
@@ -114,4 +120,6 @@ if __name__=='__main__':
     parser.add_argument('--stop-after',type=int);parser.add_argument('--confirm',action='store_true')
     args=parser.parse_args()
     if not args.confirm:raise SystemExit('explicit --confirm required; use live preview first')
-    print(json.dumps(execute(args.config,args.plan,args.plan_hash,args.stop_after)))
+    result=execute(args.config,args.plan,args.plan_hash,args.stop_after)
+    print(json.dumps(result))
+    sys.exit(0 if result['status'] in ('verified','controlled_test_stop') else 1)
