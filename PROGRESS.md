@@ -898,3 +898,6 @@ ServerThread在入口修复后仍直接Initialize，现已移除，桥接v0.2.1�
 2026-10-27最新：cs2_asset_compile已强制普通RED2输入路径/存在性/CRC匹配，检查结束复核主源/快照/编译器/产物；退出0且有效资源仍可因依赖不匹配失败。实际MCP材质367eabb…/模型099f4c…/粒子eec3ca…分别9/2/1普通输入通过，特殊依赖覆盖仍false。201测试（200通过/1权限跳过），详情ASSET_BUILD_VALIDATION.md及asset_dependency_gate_stdio.json。同步任务/新资源类型/特殊依赖及整图副本worker仍未完成，无替换原产物/无改图，工具105。保持本地。
 
 2026-10-27最新：non-release显式private_source_copy=true已接持久worker，私有复制→编译→私有VPK验证→独占发布→再验证。真实任务3cf6af8ef7ca4c068115ff0a8c29d614在客户端退出后成功，发布/私有SHA0728607…相同；copy_sources取消任务b3f65…未启编译/未发产物。加载ff2579a1…新stdio独立确认mcp_3cf6… loaded/loopback。初始打印回放11987帧超旧10000阈值，统一帧数100000但保留5秒/16MiB；无重启/未知加载重放。205测试（204通过/1权限跳过），详情BUILD_PRIVATE_WORKER.md。原图f489/源6614不变，Hammer dirty25/saved5，无Save。默认仍guard模式，完整外部/特殊/地图RED2门禁未完成，下一步接入；工具105。保持本地。
+# 2026-10-30 地图 RED2 调查
+
+真实私有构建 VPK 的 11 个资源均有 RED2；9 项普通输入匹配，两个 `.vrman_c` 记录的 `.vrman` 输入在事后检查时缺失。空输入列表和未验证的 15 项特殊依赖不能证明闭合。暂不接入会误报或静默忽略缺失的门禁，下一步追踪隔离构建期间中间文件的生命周期。证据与范围见 BUILD_MAP_RED2_INVESTIGATION.md。

@@ -238,3 +238,5 @@ Qt窗口线程选择已修正：当前实机只读发现Qt5152QWindow类；源�
 2026-10-27最新：cs2_asset_compile已强制普通RED2输入路径/存在性/CRC匹配，检查结束复核主源/快照/编译器/产物；退出0且有效资源仍可因依赖不匹配失败。实际MCP材质367eabb…/模型099f4c…/粒子eec3ca…分别9/2/1普通输入通过，特殊依赖覆盖仍false。201测试（200通过/1权限跳过），详情ASSET_BUILD_VALIDATION.md及asset_dependency_gate_stdio.json。同步任务/新资源类型/特殊依赖及整图副本worker仍未完成，无替换原产物/无改图，工具105。保持本地。
 
 2026-10-27最新：non-release显式private_source_copy=true已接持久worker，私有复制→编译→私有VPK验证→独占发布→再验证。真实任务3cf6af8ef7ca4c068115ff0a8c29d614在客户端退出后成功，发布/私有SHA0728607…相同；copy_sources取消任务b3f65…未启编译/未发产物。加载ff2579a1…新stdio独立确认mcp_3cf6… loaded/loopback。初始打印回放11987帧超旧10000阈值，统一帧数100000但保留5秒/16MiB；无重启/未知加载重放。205测试（204通过/1权限跳过），详情BUILD_PRIVATE_WORKER.md。原图f489/源6614不变，Hammer dirty25/saved5，无Save。默认仍guard模式，完整外部/特殊/地图RED2门禁未完成，下一步接入；工具105。保持本地。
+
+2026-10-30：对上述实际VPK全部11资源提取副本并以原生resourceinfo检查RED2；9项普通输入匹配（其中8项无普通输入声明），2个.vrman_c声明的.vrman输入已缺失，不能确认其生命周期或跳过。特殊依赖合计15项尚未验证，地图RED2门禁未接入；下一步在隔离编译期间追踪生成文件。详见BUILD_MAP_RED2_INVESTIGATION.md；本次未改地图或切图。
